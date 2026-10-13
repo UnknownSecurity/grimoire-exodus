@@ -1,0 +1,59 @@
+name: Tagged Windows Build
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build release package
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore and build
+        shell: pwsh
+        run: .\exodus.ps1 build -Configuration Release
+
+      - name: Package release files
+        id: package
+        shell: pwsh
+        run: |
+          $artifact = "Grimoire-Exodus-${{ github.ref_name }}.zip"
+          Compress-Archive -Path "app\bin\Release\*" -DestinationPath $artifact -Force
+          "artifact=$artifact" >> $env:GITHUB_OUTPUT
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Grimoire-Exodus-${{ github.ref_name }}
+          path: ${{ steps.package.outputs.artifact }}
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $artifact = "${{ steps.package.outputs.artifact }}"
+          gh release view $tag --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $artifact --clobber --repo "${{ github.repository }}"
+          }
+          else {
+            gh release create $tag $artifact `
+              --repo "${{ github.repository }}" `
+              --title "Grimoire Exodus $tag" `
+              --generate-notes `
+              --verify-tag
+          }

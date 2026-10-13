@@ -1,0 +1,16 @@
+{
+  "name": "grimoire-exodus-devtools",
+  "version": "1.0.0",
+  "description": "Git commit linting and hooks for Grimoire Exodus (C# project)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "commitlint --edit",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "husky": "^9.1.7"
+  }
+}

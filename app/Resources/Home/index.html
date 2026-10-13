@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grimoire Home</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+    body {
+      color: #eeeaf4;
+      background: #0b0a0f;
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 13px;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+
+    /*
+      WinForms WebBrowser ignores modern scrollbar-color rules. The real
+      scrollable viewport extends behind the clipped right edge, keeping the
+      native scrollbar off-screen while retaining wheel and keyboard scrolling.
+    */
+    .scroll-viewport {
+      position: fixed;
+      top: 0;
+      right: -18px;
+      bottom: 0;
+      left: 0;
+      padding-right: 18px;
+      overflow-x: hidden;
+      overflow-y: scroll;
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .scroll-viewport::-webkit-scrollbar { width: 0; height: 0; }
+    .scroll-thumb {
+      position: fixed;
+      z-index: 100;
+      top: 6px;
+      right: 4px;
+      width: 3px;
+      min-height: 28px;
+      border-radius: 999px;
+      pointer-events: none;
+      background: #a878f2;
+      opacity: 0;
+      transition: opacity .18s ease;
+    }
+    .scroll-thumb.visible { opacity: .58; }
+
+    .shell {
+      width: 100%;
+      min-height: 100%;
+      padding: 18px;
+      background:
+        radial-gradient(circle at 82% 0, rgba(110, 65, 174, .18), transparent 34%),
+        radial-gradient(circle at 5% 92%, rgba(68, 35, 108, .12), transparent 38%),
+        #0b0a0f;
+    }
+    .page { width: 100%; max-width: 1120px; margin: 0 auto; }
+    .hero {
+      position: relative;
+      min-height: 168px;
+      padding: 24px;
+      overflow: hidden;
+      border: 1px solid #3a2e49;
+      border-radius: 17px;
+      background: #17121f;
+      box-shadow: 0 18px 44px rgba(0, 0, 0, .32);
+    }
+    .hero:before {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background: url("images/ashfall-dragons.png") center 44% / cover no-repeat;
+      opacity: .16;
+    }
+    .hero:after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background: linear-gradient(90deg, rgba(15, 11, 20, .97) 0%, rgba(19, 13, 27, .88) 51%, rgba(17, 11, 24, .66) 100%);
+    }
+    .brand-row, .client-mode {
+      position: relative;
+      z-index: 2;
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-align: center;
+      align-items: center;
+      min-height: 118px;
+    }
+    .brand-mark {
+      width: 94px;
+      height: 94px;
+      margin-right: 20px;
+      object-fit: contain;
+      filter: drop-shadow(0 12px 18px rgba(104, 48, 187, .28));
+    }
+    .hero-copy {
+      min-width: 0;
+      -ms-flex: 1;
+      flex: 1;
+    }
+    .eyebrow {
+      margin-bottom: 6px;
+      color: #ae82ef;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.7px;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: 31px; line-height: 1.08; }
+    .hero-copy p {
+      max-width: 590px;
+      margin: 9px 0 0;
+      color: #aaa3b2;
+      line-height: 1.55;
+    }
+    .hero-actions { margin-left: 22px; text-align: right; }
+    .button {
+      display: inline-block;
+      min-width: 138px;
+      padding: 10px 15px;
+      border: 1px solid #744cbd;
+      border-radius: 10px;
+      color: #fff;
+      background: linear-gradient(180deg, #8254d1, #6237ab);
+      font-weight: 700;
+      text-align: center;
+      box-shadow: 0 8px 22px rgba(87, 48, 155, .28);
+    }
+    .button:hover { background: #8053cb; }
+    .button.secondary {
+      border-color: #3d354b;
+      color: #d7cde8;
+      background: #211b2c;
+      box-shadow: none;
+    }
+    .button.small { min-width: 0; padding: 8px 12px; }
+    .notice {
+      position: relative;
+      z-index: 2;
+      display: none;
+      margin: 14px 0 0;
+      padding: 10px 13px;
+      border: 1px solid #4a385f;
+      border-radius: 10px;
+      color: #d9c8f6;
+      background: #171121;
+    }
+    .notice.show { display: block; }
+    .notice.error { border-color: #774046; color: #ffb7bd; background: #241216; }
+
+    .client-mode { display: none; width: 100%; }
+    .hero.client-running .brand-row { display: none; }
+    .hero.client-running .client-mode { display: -ms-flexbox; display: flex; }
+    .client-intro { min-width: 240px; padding-right: 24px; -ms-flex: 1; flex: 1; }
+    .client-intro p { margin: 8px 0 0; color: #98919f; line-height: 1.5; }
+    .client-selector {
+      width: 49%;
+      padding: 14px;
+      border: 1px solid #3d3545;
+      border-radius: 13px;
+      background: rgba(12, 10, 16, .82);
+      opacity: .72;
+      cursor: not-allowed;
+    }
+    .selector-head {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-align: center;
+      align-items: center;
+      -ms-flex-pack: justify;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .selector-head strong { font-size: 13px; }
+    .coming-soon {
+      padding: 4px 8px;
+      border: 1px solid #584369;
+      border-radius: 999px;
+      color: #b08fc5;
+      background: #211728;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .7px;
+      text-transform: uppercase;
+    }
+    .selector-options { display: -ms-flexbox; display: flex; margin: 0 -4px; }
+    .selector-option {
+      width: 25%;
+      min-height: 52px;
+      margin: 0 4px;
+      padding: 8px 5px;
+      border: 1px solid #34303a;
+      border-radius: 8px;
+      color: #74707a;
+      background: #121016;
+      font-size: 10px;
+      text-align: center;
+    }
+    .selector-option.active { border-color: #644890; color: #bda9d9; background: #1a1422; }
+    .selector-option span { display: block; margin-top: 4px; color: #5f5967; font-size: 9px; }
+
+    .columns {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-align: stretch;
+      align-items: stretch;
+      margin: 18px -8px 0;
+    }
+    .column { padding: 0 8px; }
+    .column.accounts { width: 41%; }
+    .column.roadmap { width: 59%; }
+    .panel {
+      height: 100%;
+      padding: 18px;
+      border: 1px solid #292532;
+      border-radius: 15px;
+      background: rgba(18, 16, 25, .95);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .22);
+    }
+    .panel-head {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-align: center;
+      align-items: center;
+      -ms-flex-pack: justify;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .panel-title { margin: 0; font-size: 17px; }
+    .panel-subtitle { margin: 4px 0 0; color: #8e899a; font-size: 12px; }
+    .icon-title { display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; }
+    .icon-box {
+      width: 34px;
+      height: 34px;
+      margin-right: 10px;
+      padding: 8px;
+      border: 1px solid #4c3970;
+      border-radius: 9px;
+      color: #bd98ff;
+      background: #1c1528;
+    }
+    .icon-box svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .account-list { margin-top: 4px; }
+    .account-card {
+      position: relative;
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-align: center;
+      align-items: center;
+      width: 100%;
+      margin-bottom: 8px;
+      padding: 11px 42px 11px 11px;
+      border: 1px solid #30293b;
+      border-radius: 11px;
+      color: #f5f1ff;
+      background: #17141e;
+      text-align: left;
+    }
+    .account-card:hover { border-color: #7654aa; background: #1d1728; }
+    .avatar {
+      width: 34px;
+      height: 34px;
+      margin-right: 10px;
+      border-radius: 9px;
+      color: #f2eaff;
+      background: #6f45b7;
+      font-weight: 800;
+      line-height: 34px;
+      text-align: center;
+    }
+    .account-text { min-width: 0; -ms-flex: 1; flex: 1; }
+    .account-name, .account-user { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .account-name { font-weight: 700; }
+    .account-user { margin-top: 2px; color: #918b9e; font-size: 12px; }
+    .remove-account {
+      position: absolute;
+      top: 12px;
+      right: 9px;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 7px;
+      color: #8f8999;
+      background: transparent;
+      font-size: 17px;
+      line-height: 25px;
+    }
+    .remove-account:hover { color: #ffb2bd; background: #321a20; }
+    .empty {
+      padding: 19px 14px;
+      border: 1px dashed #393140;
+      border-radius: 11px;
+      color: #8d8798;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .locker-note { margin: 10px 0 0; color: #777180; font-size: 11px; line-height: 1.45; }
+    .account-form { display: none; margin-top: 12px; padding-top: 14px; border-top: 1px solid #2c2634; }
+    .account-form.open { display: block; }
+    .field { margin-bottom: 9px; }
+    .field label { display: block; margin-bottom: 5px; color: #aaa4b5; font-size: 11px; font-weight: 700; }
+    .field input {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid #393143;
+      border-radius: 8px;
+      outline: none;
+      color: #fff;
+      background: #0e0c13;
+    }
+    .field input:focus { border-color: #7650bd; box-shadow: 0 0 0 2px rgba(118, 80, 189, .18); }
+    .form-actions { text-align: right; }
+    .roadmap-list { margin: 0; padding: 0; list-style: none; }
+    .roadmap-item {
+      position: relative;
+      min-height: 42px;
+      padding: 9px 84px 9px 36px;
+      border-bottom: 1px solid #29242f;
+      color: #d4cfda;
+      line-height: 1.45;
+    }
+    .roadmap-item:last-child { border-bottom: 0; }
+    .roadmap-dot {
+      position: absolute;
+      top: 11px;
+      left: 5px;
+      width: 20px;
+      height: 20px;
+      border: 1px solid #4b4157;
+      border-radius: 50%;
+      color: #777080;
+      font-size: 12px;
+      line-height: 18px;
+      text-align: center;
+    }
+    .roadmap-item.done .roadmap-dot { border-color: #397b60; color: #78d6ac; background: #14251f; }
+    .status-tag {
+      position: absolute;
+      top: 11px;
+      right: 4px;
+      padding: 4px 7px;
+      border: 1px solid #393141;
+      border-radius: 999px;
+      color: #847e8e;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .roadmap-item.done .status-tag { border-color: #315e4c; color: #71c6a1; }
+
+    .army {
+      display: none;
+      margin-top: 18px;
+      padding: 20px;
+      border: 1px solid #302a38;
+      border-radius: 15px;
+      background: #121017;
+      opacity: .82;
+    }
+    .army.visible { display: block; }
+    .army-head {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-align: center;
+      align-items: center;
+      -ms-flex-pack: justify;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .army-copy { margin: 5px 0 0; color: #8f8998; font-size: 12px; }
+    .client-grid { display: -ms-flexbox; display: flex; margin: 14px -5px 0; }
+    .client-slot {
+      position: relative;
+      width: 25%;
+      height: 78px;
+      margin: 0 5px;
+      overflow: hidden;
+      border: 1px solid #34303a;
+      border-radius: 9px;
+      background: #0d0c10;
+    }
+    .client-slot:before {
+      content: "";
+      display: block;
+      height: 14px;
+      border-bottom: 1px solid #2c2831;
+      background: #1a171e;
+    }
+    .client-slot span {
+      position: absolute;
+      top: 36px;
+      right: 0;
+      left: 0;
+      color: #5f5b65;
+      font-size: 10px;
+      text-align: center;
+    }
+
+    .footer {
+      margin-top: 18px;
+      padding: 18px 20px;
+      border: 1px solid #292532;
+      border-radius: 15px;
+      color: #85808d;
+      background: #100e15;
+      font-size: 11px;
+      line-height: 1.65;
+    }
+    .footer-top {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-align: center;
+      align-items: center;
+      -ms-flex-pack: justify;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #27222e;
+    }
+    .footer-brand { color: #d9cfeb; font-size: 13px; font-weight: 800; }
+    .footer-version { color: #9d78d7; }
+    .credits { display: -ms-flexbox; display: flex; margin: 12px -8px 0; }
+    .credit-column { width: 50%; padding: 0 8px; }
+    .credit-title { display: block; margin-bottom: 3px; color: #aaa3b5; font-weight: 700; }
+    .credit-link {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      color: #a987dd;
+      background: transparent;
+      text-decoration: none;
+    }
+    .credit-link:hover { color: #c7a9f6; text-decoration: underline; }
+    .footer-note { margin-top: 11px; color: #68636f; text-align: center; }
+
+    @media (max-width: 760px) {
+      .shell { padding: 14px; }
+      .brand-row, .client-mode, .columns, .credits { display: block; }
+      .hero.client-running .client-mode { display: block; }
+      .hero-actions { margin: 18px 0 0 114px; text-align: left; }
+      .client-selector { width: 100%; margin-top: 16px; }
+      .column.accounts, .column.roadmap, .credit-column { width: 100%; }
+      .column { padding: 8px; }
+      .credit-column { margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app-scroll" class="scroll-viewport">
+    <div class="shell">
+      <main class="page">
+        <section id="home-hero" class="hero">
+          <div class="brand-row">
+            <img class="brand-mark" src="../Brand/grimoire-emblem.png" alt="Grimoire Exodus emblem">
+            <div class="hero-copy">
+              <div class="eyebrow">Grimoire Home</div>
+              <h1>Welcome back.</h1>
+              <p>Your launchpad for AQW, encrypted account shortcuts, active compatibility work, and the next generation of Grimoire tools.</p>
+            </div>
+            <div class="hero-actions">
+              <button class="button" type="button" onclick="openGame()">Enter AQW</button>
+            </div>
+          </div>
+
+          <div class="client-mode" aria-disabled="true">
+            <div class="client-intro">
+              <div class="eyebrow">Army Mode Lab</div>
+              <h1>Client selector</h1>
+              <p>Your primary AQW client is running. Multi-client switching remains locked while Army Mode is under development.</p>
+            </div>
+            <div class="client-selector">
+              <div class="selector-head">
+                <strong>Available clients</strong>
+                <span class="coming-soon">Coming soon</span>
+              </div>
+              <div class="selector-options">
+                <div class="selector-option active">Client 01<span>Running</span></div>
+                <div class="selector-option">Client 02<span>Locked</span></div>
+                <div class="selector-option">Client 03<span>Locked</span></div>
+                <div class="selector-option">Client 04<span>Locked</span></div>
+              </div>
+            </div>
+          </div>
+          <div id="notice" class="notice"></div>
+        </section>
+
+        <div class="columns">
+          <section class="column accounts">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="icon-title">
+                  <span class="icon-box" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                  </span>
+                  <div>
+                    <h2 class="panel-title">Account Locker</h2>
+                    <p class="panel-subtitle">Click an account to fill the AQW login.</p>
+                  </div>
+                </div>
+                <button id="add-account-toggle" class="button secondary small" type="button" onclick="toggleAccountForm()">+ Add</button>
+              </div>
+              <div id="account-list" class="account-list"></div>
+              <p class="locker-note">Passwords are encrypted with Windows DPAPI and can only be decrypted by your current Windows account.</p>
+              <form id="account-form" class="account-form" autocomplete="off" onsubmit="saveAccount(); return false;">
+                <div class="field">
+                  <label for="account-label">Display name</label>
+                  <input id="account-label" type="text" maxlength="60" placeholder="Main, farming alt, support...">
+                </div>
+                <div class="field">
+                  <label for="account-username">AQW username</label>
+                  <input id="account-username" type="text" maxlength="100" autocomplete="off" required>
+                </div>
+                <div class="field">
+                  <label for="account-password">AQW password</label>
+                  <input id="account-password" type="password" maxlength="256" autocomplete="new-password" required>
+                </div>
+                <div class="form-actions">
+                  <button class="button secondary small" type="button" onclick="toggleAccountForm(false)">Cancel</button>
+                  <button class="button small" type="submit">Save securely</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section class="column roadmap">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="icon-title">
+                  <span class="icon-box" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"></path><path d="M8 7h8M8 11h6"></path></svg>
+                  </span>
+                  <div>
+                    <h2 class="panel-title">Development Roadmap</h2>
+                    <p class="panel-subtitle">Current work and what is coming next.</p>
+                  </div>
+                </div>
+              </div>
+              <ul class="roadmap-list">
+                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Compatibility fixes for the current AQW UI and SWF client<span class="status-tag">Done</span></li>
+                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Grimoire Home with an encrypted, one-click Account Locker<span class="status-tag">Done</span></li>
+                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Conventional commit linting with Commitlint and Husky<span class="status-tag">Done</span></li>
+                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Tag-triggered GitHub Actions release builds<span class="status-tag">Done</span></li>
+                <li class="roadmap-item"><span class="roadmap-dot">•</span>Army Mode with a split-screen multi-client layout<span class="status-tag">Planned</span></li>
+                <li class="roadmap-item"><span class="roadmap-dot">•</span>Grimoire Exodus installer for Windows<span class="status-tag">Planned</span></li>
+                <li class="roadmap-item"><span class="roadmap-dot">•</span>Bundled native Flash runtime instead of a separate Clean Flash installation<span class="status-tag">Planned</span></li>
+                <li class="roadmap-item"><span class="roadmap-dot">•</span>Automatic application updates<span class="status-tag">Planned</span></li>
+                <li class="roadmap-item"><span class="roadmap-dot">•</span>Background-process and orphan-state cleanup<span class="status-tag">Planned</span></li>
+                <li class="roadmap-item"><span class="roadmap-dot">•</span>Remote control through a companion mobile app<span class="status-tag">Planned</span></li>
+                <li class="roadmap-item"><span class="roadmap-dot">•</span>A community-maintained bot script repository<span class="status-tag">Planned</span></li>
+              </ul>
+            </div>
+          </section>
+        </div>
+
+        <section id="army-panel" class="army" aria-disabled="true">
+          <div class="army-head">
+            <div>
+              <h2 class="panel-title">Army Mode</h2>
+              <p class="army-copy">Coordinate multiple clients from one split-screen workspace.</p>
+            </div>
+            <span class="coming-soon">Coming soon</span>
+          </div>
+          <div class="client-grid">
+            <div class="client-slot"><span>Primary client</span></div>
+            <div class="client-slot"><span>Client slot 02</span></div>
+            <div class="client-slot"><span>Client slot 03</span></div>
+            <div class="client-slot"><span>Client slot 04</span></div>
+          </div>
+        </section>
+
+        <footer class="footer">
+          <div class="footer-top">
+            <span class="footer-brand">Grimoire Exodus</span>
+            <span class="footer-version">Version <span id="app-version">Development</span></span>
+          </div>
+          <div class="credits">
+            <div class="credit-column">
+              <span class="credit-title">Development and maintenance</span>
+              <button class="credit-link" type="button" onclick="openExternal('https://github.com/dsenin')">dsenin</button>
+              · Current AQW compatibility build
+              <br>
+              <span class="credit-title">Original Grimlite Rev maintainer</span>
+              <button class="credit-link" type="button" onclick="openExternal('https://github.com/GentleGanku')">GentleGanku</button>
+            </div>
+            <div class="credit-column">
+              <span class="credit-title">Original and previous contributors</span>
+              Grimlite:
+              <button class="credit-link" type="button" onclick="openExternal('https://github.com/wispie')">wisp/satan</button>
+              and
+              <button class="credit-link" type="button" onclick="openExternal('https://github.com/0zl')">cat</button>
+              · Grimoire:
+              <button class="credit-link" type="button" onclick="openExternal('https://www.mpgh.net/forum/member.php?u=4062680')">Biney</button>
+              and
+              <button class="credit-link" type="button" onclick="openExternal('https://www.mpgh.net/forum/member.php?u=2374072')">EmperorArts</button>
+              <br>
+              Related:
+              <button class="credit-link" type="button" onclick="openExternal('https://github.com/0zl/meow/graphs/contributors')">Grimlite contributors</button>,
+              <button class="credit-link" type="button" onclick="openExternal('https://github.com/rodit/RBot')">RBot</button>,
+              <button class="credit-link" type="button" onclick="openExternal('https://github.com/vtrsz/GrimliteRev')">vtrsz/GrimliteRev</button>
+            </div>
+          </div>
+          <div class="footer-note">Built on the work of the original Grimoire and Grimlite communities.</div>
+        </footer>
+      </main>
+    </div>
+  </div>
+  <div id="scroll-thumb" class="scroll-thumb" aria-hidden="true"></div>
+
+  <script>
+    var scrollTimer = null;
+
+    function parseHostResponse(raw) {
+      try { return JSON.parse(raw); }
+      catch (error) { return { success: false, message: "The Grimoire Home bridge returned an invalid response.", accounts: [] }; }
+    }
+
+    function invokeHost(method, first, second, third) {
+      if (!window.external) {
+        return { success: false, message: "The Grimoire Home bridge is unavailable.", accounts: [] };
+      }
+
+      try {
+        if (method === "GetState") return parseHostResponse(window.external.GetState());
+        if (method === "SaveAccount") return parseHostResponse(window.external.SaveAccount(first, second, third));
+        if (method === "RemoveAccount") return parseHostResponse(window.external.RemoveAccount(first));
+        if (method === "OpenAccount") return parseHostResponse(window.external.OpenAccount(first));
+        if (method === "OpenGame") return parseHostResponse(window.external.OpenGame());
+        if (method === "OpenWebsite") return parseHostResponse(window.external.OpenWebsite(first));
+      } catch (error) {
+        return { success: false, message: error.message || "Grimoire could not complete the request.", accounts: [] };
+      }
+
+      return { success: false, message: "Unknown Grimoire Home action.", accounts: [] };
+    }
+
+    function showNotice(message, isError) {
+      var notice = document.getElementById("notice");
+      if (!message) {
+        notice.className = "notice";
+        notice.innerText = "";
+        return;
+      }
+      notice.className = isError ? "notice show error" : "notice show";
+      notice.innerText = message;
+    }
+
+    function initials(label, username) {
+      var source = (label || username || "?").replace(/^\s+|\s+$/g, "");
+      var words = source.split(/\s+/);
+      return (words.length > 1 ? words[0].charAt(0) + words[1].charAt(0) : source.substr(0, 2)).toUpperCase();
+    }
+
+    function renderAccounts(accounts) {
+      var list = document.getElementById("account-list");
+      while (list.firstChild) list.removeChild(list.firstChild);
+
+      if (!accounts || !accounts.length) {
+        var empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerText = "No saved accounts yet. Add one to create a one-click login shortcut.";
+        list.appendChild(empty);
+        return;
+      }
+
+      for (var index = 0; index < accounts.length; index++) {
+        (function (account) {
+          var card = document.createElement("button");
+          card.type = "button";
+          card.className = "account-card";
+          card.title = "Open AQW with " + account.username;
+          card.onclick = function () { openAccount(account.id); };
+
+          var avatar = document.createElement("span");
+          avatar.className = "avatar";
+          avatar.innerText = initials(account.label, account.username);
+
+          var text = document.createElement("span");
+          text.className = "account-text";
+          var name = document.createElement("span");
+          name.className = "account-name";
+          name.innerText = account.label;
+          var username = document.createElement("span");
+          username.className = "account-user";
+          username.innerText = account.username;
+          text.appendChild(name);
+          text.appendChild(username);
+
+          var remove = document.createElement("span");
+          remove.className = "remove-account";
+          remove.title = "Remove account";
+          remove.innerText = "×";
+          remove.onclick = function (event) {
+            event = event || window.event;
+            if (event.stopPropagation) event.stopPropagation();
+            event.cancelBubble = true;
+            removeAccount(account.id, account.label);
+            return false;
+          };
+
+          card.appendChild(avatar);
+          card.appendChild(text);
+          card.appendChild(remove);
+          list.appendChild(card);
+        })(accounts[index]);
+      }
+    }
+
+    function setClientRunning(running) {
+      document.getElementById("home-hero").className = running ? "hero client-running" : "hero";
+      document.getElementById("army-panel").className = running ? "army visible" : "army";
+    }
+
+    function applyState(state, announce) {
+      renderAccounts(state.accounts || []);
+      setClientRunning(!!state.clientRunning);
+      document.getElementById("app-version").innerText = state.version || "Development";
+      if (announce && state.message) showNotice(state.message, !state.success);
+      updateScrollThumb(false);
+    }
+
+    function refreshState() {
+      var state = invokeHost("GetState");
+      applyState(state, !state.success);
+    }
+
+    function toggleAccountForm(forceOpen) {
+      var form = document.getElementById("account-form");
+      var open = typeof forceOpen === "boolean" ? forceOpen : form.className.indexOf("open") < 0;
+      form.className = open ? "account-form open" : "account-form";
+      if (open) document.getElementById("account-label").focus();
+      window.setTimeout(function () { updateScrollThumb(false); }, 20);
+    }
+
+    function saveAccount() {
+      var label = document.getElementById("account-label");
+      var username = document.getElementById("account-username");
+      var password = document.getElementById("account-password");
+      var state = invokeHost("SaveAccount", label.value, username.value, password.value);
+      applyState(state, true);
+      if (state.success) {
+        label.value = "";
+        username.value = "";
+        password.value = "";
+        toggleAccountForm(false);
+      }
+    }
+
+    function removeAccount(id, label) {
+      if (!window.confirm("Remove " + label + " from the account locker?")) return;
+      applyState(invokeHost("RemoveAccount", id), true);
+    }
+
+    function openAccount(id) {
+      var state = invokeHost("OpenAccount", id);
+      if (!state.success || !state.gameReady) applyState(state, true);
+    }
+
+    function openGame() {
+      var state = invokeHost("OpenGame");
+      if (!state.success || !state.gameReady) applyState(state, true);
+    }
+
+    function openExternal(address) {
+      var state = invokeHost("OpenWebsite", address);
+      if (!state.success) showNotice(state.message, true);
+    }
+
+    function updateScrollThumb(show) {
+      var viewport = document.getElementById("app-scroll");
+      var thumb = document.getElementById("scroll-thumb");
+      var maximum = viewport.scrollHeight - viewport.clientHeight;
+
+      if (maximum <= 0) {
+        thumb.className = "scroll-thumb";
+        return;
+      }
+
+      var trackHeight = viewport.clientHeight - 12;
+      var thumbHeight = Math.max(28, Math.round((viewport.clientHeight / viewport.scrollHeight) * trackHeight));
+      var thumbTop = 6 + Math.round((viewport.scrollTop / maximum) * (trackHeight - thumbHeight));
+      thumb.style.height = thumbHeight + "px";
+      thumb.style.top = thumbTop + "px";
+
+      if (show) {
+        thumb.className = "scroll-thumb visible";
+        window.clearTimeout(scrollTimer);
+        scrollTimer = window.setTimeout(function () {
+          thumb.className = "scroll-thumb";
+        }, 750);
+      }
+    }
+
+    document.getElementById("app-scroll").onscroll = function () { updateScrollThumb(true); };
+    window.onresize = function () { updateScrollThumb(false); };
+    refreshState();
+  </script>
+</body>
+</html>

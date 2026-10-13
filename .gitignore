@@ -1,0 +1,24 @@
+.vs/
+captive_temp/
+[Bb]in/
+[Oo]bj/
+packages/
+plugin-workspaces/
+*.user
+*.suo
+*.bak
+*.backup
+
+# Local runtime state and credentials
+**/account-vault.json
+**/account-vault.json.tmp
+**/accounts.local.json
+**/credentials.local.json
+*.secrets.json
+.env
+.env.*
+!.env.example
+
+# Node.js (dev tooling only - commitlint, husky)
+node_modules/
+
