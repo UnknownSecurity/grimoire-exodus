@@ -25,6 +25,21 @@ namespace Grimoire.UI
 {
     public class Root : DarkForm
     {
+        private const int DwmUseImmersiveDarkModeBefore20H1 = 19;
+        private const int DwmUseImmersiveDarkMode = 20;
+        private const int DwmCaptionColor = 35;
+        private const int DwmTextColor = 36;
+        private const int DwmColorDefault = -1;
+        private static readonly Color ToolboxBackgroundColor = Color.FromArgb(28, 32, 40);
+        private static readonly Color QuickBotHoverColor = Color.FromArgb(57, 48, 68);
+
+        [DllImport("dwmapi.dll", PreserveSig = true)]
+        private static extern int DwmSetWindowAttribute(
+            IntPtr windowHandle,
+            int attribute,
+            ref int attributeValue,
+            int attributeSize);
+
         private IContainer components;
 
         private NotifyIcon nTray;
@@ -33,6 +48,9 @@ namespace Grimoire.UI
         private bool startupComplete;
         private bool shutdownInProgress;
         private bool recoveryPromptShown;
+        private bool updateShutdownRequested;
+        private bool updateOperationRunning;
+        private string lastQuickBotPath;
 
         private WebBrowser homeBrowser;
         private GrimoireHomeBridge homeBridge;
@@ -67,6 +85,12 @@ namespace Grimoire.UI
         private Bitmap networkMetricIcon;
         private Bitmap headerVisibleIcon;
         private Bitmap headerHiddenIcon;
+        private Bitmap updateAvailableIcon;
+        private ToolStripMenuItem updateToolStripMenuItem;
+        private ToolStripDropDownButton quickBotsMenuItem;
+        private UpdateRelease availableUpdate;
+        private PreparedUpdate preparedUpdate;
+        private readonly CancellationTokenSource updateCancellation = new CancellationTokenSource();
         public RichTextBox rtbPing;
         private DarkComboBox cbCells;
         private DarkComboBox2 cbPads;
@@ -133,7 +157,38 @@ namespace Grimoire.UI
 
         public static PluginManager PreloadedPlugins { get; private set; }
 
-        public static bool LightMode { get; set; } = false;
+        private static bool lightMode;
+
+        public static bool LightMode
+        {
+            get { return lightMode; }
+            set
+            {
+                if (lightMode == value)
+                    return;
+
+                lightMode = value;
+                Root root = Instance;
+                if (root == null || root.IsDisposed || !root.IsHandleCreated)
+                    return;
+
+                try
+                {
+                    if (root.InvokeRequired)
+                    {
+                        root.BeginInvoke(new Action(root.ApplyNativeTitleBarTheme));
+                    }
+                    else
+                    {
+                        root.ApplyNativeTitleBarTheme();
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // The window may be closing while a theme change arrives.
+                }
+            }
+        }
 
         public static bool LeanMode { get; set; } = false;
 
@@ -143,6 +198,8 @@ namespace Grimoire.UI
             Instance = this;
             InitializeHome();
             ApplyBranding();
+            InitializeQuickBots();
+            InitializeUpdateButton();
             InitializeTrayBehavior();
             PreloadedPlugins = new PluginManager();
             pingMonitorToggle();
@@ -161,6 +218,60 @@ namespace Grimoire.UI
             MenuStrip1.Renderer = new PurpleMenuRenderer();
             MenuStrip1.ForeColor = accentPurple;
             ApplyMenuColor(MenuStrip1.Items, accentPurple);
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyNativeTitleBarTheme();
+        }
+
+        private void ApplyNativeTitleBarTheme()
+        {
+            if (!IsHandleCreated || Environment.OSVersion.Platform != PlatformID.Win32NT)
+                return;
+
+            try
+            {
+                int useDarkMode = LightMode ? 0 : 1;
+                int result = DwmSetWindowAttribute(
+                    Handle,
+                    DwmUseImmersiveDarkMode,
+                    ref useDarkMode,
+                    sizeof(int));
+                if (result != 0)
+                {
+                    DwmSetWindowAttribute(
+                        Handle,
+                        DwmUseImmersiveDarkModeBefore20H1,
+                        ref useDarkMode,
+                        sizeof(int));
+                }
+
+                // Windows 11 supports explicit caption and text colors. Older
+                // Windows versions safely ignore these unsupported attributes.
+                int captionColor = LightMode
+                    ? DwmColorDefault
+                    : ToNativeColor(Color.FromArgb(28, 32, 40));
+                int textColor = LightMode
+                    ? DwmColorDefault
+                    : ToNativeColor(Color.Gainsboro);
+                DwmSetWindowAttribute(Handle, DwmCaptionColor, ref captionColor, sizeof(int));
+                DwmSetWindowAttribute(Handle, DwmTextColor, ref textColor, sizeof(int));
+            }
+            catch (DllNotFoundException)
+            {
+                // Pre-DWM Windows keeps its system title-bar appearance.
+            }
+            catch (EntryPointNotFoundException)
+            {
+                // Older DWM versions do not expose this API.
+            }
+        }
+
+        private static int ToNativeColor(Color color)
+        {
+            return color.R | (color.G << 8) | (color.B << 16);
         }
 
         private static void ApplyMenuColor(ToolStripItemCollection items, Color color)
@@ -205,13 +316,239 @@ namespace Grimoire.UI
             nTray.BalloonTipClicked += (sender, args) => RestoreFromTray();
         }
 
+        private void InitializeUpdateButton()
+        {
+            updateAvailableIcon = CreateStatusIcon(StatusIcon.UpdateAvailable, Color.MediumPurple);
+            updateToolStripMenuItem = new ToolStripMenuItem
+            {
+                AccessibleDescription = "Downloads and installs a verified Grimoire Exodus update.",
+                AccessibleName = "Update available",
+                AutoToolTip = true,
+                BackColor = Color.FromArgb(28, 32, 40),
+                DisplayStyle = ToolStripItemDisplayStyle.Image,
+                Image = updateAvailableIcon,
+                ImageScaling = ToolStripItemImageScaling.None,
+                Name = "updateToolStripMenuItem",
+                Padding = new Padding(4, 0, 4, 0),
+                Size = new Size(28, 20),
+                ToolTipText = "Checking for updates...",
+                Visible = false
+            };
+            updateToolStripMenuItem.Click += updateToolStripMenuItem_Click;
+            MenuStrip1.Items.Add(updateToolStripMenuItem);
+        }
+
+        private void InitializeQuickBots()
+        {
+            quickBotsMenuItem = new ToolStripDropDownButton
+            {
+                AccessibleDescription = "Quickly loads a bundled or user-managed GBot.",
+                AccessibleName = "Quick load GBot",
+                Alignment = ToolStripItemAlignment.Right,
+                AutoSize = false,
+                AutoToolTip = true,
+                BackColor = ToolboxBackgroundColor,
+                ForeColor = Color.Gainsboro,
+                Name = "quickBotsMenuItem",
+                Padding = new Padding(8, 0, 4, 0),
+                ShowDropDownArrow = true,
+                Size = new Size(235, 23),
+                Text = "Quick load GBot...",
+                TextAlign = ContentAlignment.MiddleLeft,
+                ToolTipText = "Quick load a GBot"
+            };
+            quickBotsMenuItem.DropDown.Name = "quickBotsDropDown";
+            quickBotsMenuItem.DropDown.BackColor = ToolboxBackgroundColor;
+            quickBotsMenuItem.DropDown.ForeColor = Color.Gainsboro;
+            quickBotsMenuItem.DropDownOpening += quickBotsMenuItem_DropDownOpening;
+            MenuStrip1.Items.Add(quickBotsMenuItem);
+            RefreshQuickBots();
+        }
+
+        private void quickBotsMenuItem_DropDownOpening(object sender, EventArgs e)
+        {
+            RefreshQuickBots();
+        }
+
+        private void RefreshQuickBots()
+        {
+            try
+            {
+                quickBotsMenuItem.DropDownItems.Clear();
+                List<string> bots = new List<string>();
+                bots.AddRange(GetQuickBots(AppPaths.CommunityBotsDirectory));
+                bots.AddRange(GetQuickBots(AppPaths.ExternalBotsDirectory));
+                bots.Sort(CompareQuickBotPaths);
+
+                if (bots.Count == 0)
+                {
+                    quickBotsMenuItem.DropDownItems.Add(new QuickBotStatusMenuItem("No GBots found"));
+                }
+                else
+                {
+                    AddQuickBotItems(bots);
+                }
+
+                int botCount = bots.Count;
+                bool currentExists = IsQuickBotPath(lastQuickBotPath);
+                if (!currentExists)
+                {
+                    lastQuickBotPath = null;
+                }
+                quickBotsMenuItem.Text = currentExists
+                    ? Path.GetFileNameWithoutExtension(lastQuickBotPath)
+                    : "Quick load GBot...";
+                quickBotsMenuItem.ToolTipText = botCount == 0
+                    ? "Add .gbot files to Documents\\Grimoire\\Bot"
+                    : "Quick load one of " + botCount + " GBot" + (botCount == 1 ? string.Empty : "s");
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine("Unable to refresh quick GBots: " + exception);
+                quickBotsMenuItem.DropDownItems.Clear();
+                quickBotsMenuItem.DropDownItems.Add(new QuickBotStatusMenuItem("GBots unavailable"));
+                quickBotsMenuItem.Text = "Quick load GBot...";
+                quickBotsMenuItem.ToolTipText = "Grimoire could not read the GBot folders";
+            }
+        }
+
+        private static string[] GetQuickBots(string directory)
+        {
+            if (!Directory.Exists(directory))
+            {
+                return new string[0];
+            }
+
+            return Directory.GetFiles(directory, "*.gbot", SearchOption.AllDirectories);
+        }
+
+        private static int CompareQuickBotPaths(string left, string right)
+        {
+            int titleComparison = StringComparer.OrdinalIgnoreCase.Compare(
+                Path.GetFileName(left),
+                Path.GetFileName(right));
+            return titleComparison != 0
+                ? titleComparison
+                : StringComparer.OrdinalIgnoreCase.Compare(left, right);
+        }
+
+        private void AddQuickBotItems(IEnumerable<string> botPaths)
+        {
+            foreach (string path in botPaths)
+            {
+                ToolStripMenuItem item = new ToolStripMenuItem
+                {
+                    BackColor = ToolboxBackgroundColor,
+                    ForeColor = Color.Gainsboro,
+                    Tag = path,
+                    Text = Path.GetFileNameWithoutExtension(path),
+                    ToolTipText = path
+                };
+                item.Click += quickBotMenuItem_Click;
+                quickBotsMenuItem.DropDownItems.Add(item);
+            }
+        }
+
+        private void quickBotMenuItem_Click(object sender, EventArgs e)
+        {
+            ToolStripMenuItem menuItem = sender as ToolStripMenuItem;
+            string path = menuItem?.Tag as string;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                return;
+
+            try
+            {
+                if (BotManager.Instance.ActiveBotEngine.IsRunning)
+                {
+                    DarkMessageBox.Show(
+                        this,
+                        "Stop the running bot before loading another GBot.",
+                        "Quick load GBot",
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (BotManager.Instance.LoadBotFromFile(path, true, false))
+                {
+                    lastQuickBotPath = path;
+                    quickBotsMenuItem.Text = Path.GetFileNameWithoutExtension(path);
+                    ShowForm(BotManager.Instance);
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine("Unable to quick load GBot: " + exception);
+                DarkMessageBox.Show(
+                    this,
+                    "Grimoire could not load this GBot.\r\n\r\n" + exception.Message,
+                    "Quick load GBot",
+                    MessageBoxIcon.Error);
+            }
+        }
+
+        public void UpdateQuickBotSelection(string path)
+        {
+            if (quickBotsMenuItem == null || IsDisposed)
+                return;
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action<string>(UpdateQuickBotSelection), path);
+                return;
+            }
+
+            bool isQuickBot = IsQuickBotPath(path);
+            lastQuickBotPath = isQuickBot ? path : null;
+            quickBotsMenuItem.Text = string.IsNullOrWhiteSpace(lastQuickBotPath)
+                ? "Quick load GBot..."
+                : Path.GetFileNameWithoutExtension(lastQuickBotPath);
+        }
+
+        private static bool IsQuickBotPath(string path)
+        {
+            return (IsPathInsideDirectory(path, AppPaths.CommunityBotsDirectory)
+                    || IsPathInsideDirectory(path, AppPaths.ExternalBotsDirectory))
+                && string.Equals(Path.GetExtension(path), ".gbot", StringComparison.OrdinalIgnoreCase)
+                && File.Exists(path);
+        }
+
+        private static bool IsPathInsideDirectory(string path, string directory)
+        {
+            if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(directory))
+                return false;
+            try
+            {
+                string root = Path.GetFullPath(directory)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                string candidate = Path.GetFullPath(path);
+                return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private sealed class QuickBotStatusMenuItem : ToolStripMenuItem
+        {
+            public QuickBotStatusMenuItem(string text)
+            {
+                AutoToolTip = false;
+                BackColor = ToolboxBackgroundColor;
+                Enabled = false;
+                ForeColor = Color.FromArgb(145, 145, 160);
+                Text = text;
+            }
+        }
+
         private enum StatusIcon
         {
             Cpu,
             Uptime,
             Network,
             EyeOpen,
-            EyeClosed
+            EyeClosed,
+            UpdateAvailable
         }
 
         private static Bitmap CreateStatusIcon(StatusIcon icon, Color color)
@@ -273,6 +610,14 @@ namespace Grimoire.UI
                         }
                         break;
                     }
+
+                    case StatusIcon.UpdateAvailable:
+                        graphics.DrawEllipse(pen, 2f, 2f, 12f, 12f);
+                        graphics.DrawLine(pen, 8f, 4f, 8f, 10f);
+                        graphics.DrawLine(pen, 5.5f, 7.5f, 8f, 10f);
+                        graphics.DrawLine(pen, 10.5f, 7.5f, 8f, 10f);
+                        graphics.DrawLine(pen, 5.5f, 12f, 10.5f, 12f);
+                        break;
                 }
             }
             return bitmap;
@@ -405,15 +750,88 @@ namespace Grimoire.UI
             protected override void InitializeItem(ToolStripItem item)
             {
                 base.InitializeItem(item);
-                if (item is ToolStripMenuItem)
+                if (item is QuickBotStatusMenuItem)
+                {
+                    item.ForeColor = Color.FromArgb(145, 145, 160);
+                }
+                else if (item is ToolStripMenuItem)
+                {
+                    item.ForeColor = Color.MediumPurple;
+                }
+                else if (item.Name == "quickBotsMenuItem")
                 {
                     item.ForeColor = Color.MediumPurple;
                 }
             }
 
+            protected override void OnRenderDropDownButtonBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.Item.Name != "quickBotsMenuItem")
+                {
+                    base.OnRenderDropDownButtonBackground(e);
+                    return;
+                }
+
+                Color background = e.Item.Selected || e.Item.Pressed
+                    ? QuickBotHoverColor
+                    : ToolboxBackgroundColor;
+                using (SolidBrush brush = new SolidBrush(background))
+                {
+                    e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
+                }
+            }
+
+            protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+            {
+                if (e.ToolStrip.Name != "quickBotsDropDown")
+                {
+                    base.OnRenderToolStripBackground(e);
+                    return;
+                }
+
+                using (SolidBrush brush = new SolidBrush(ToolboxBackgroundColor))
+                {
+                    e.Graphics.FillRectangle(brush, e.AffectedBounds);
+                }
+            }
+
+            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.Item.Owner?.Name != "quickBotsDropDown")
+                {
+                    base.OnRenderMenuItemBackground(e);
+                    return;
+                }
+
+                Color background = e.Item.Selected && e.Item.Enabled
+                    ? QuickBotHoverColor
+                    : ToolboxBackgroundColor;
+                using (SolidBrush brush = new SolidBrush(background))
+                {
+                    e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
+                }
+            }
+
+            protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+            {
+                if (e.Item.Name == "quickBotsMenuItem")
+                {
+                    e.ArrowColor = Color.MediumPurple;
+                }
+                base.OnRenderArrow(e);
+            }
+
             protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
             {
-                if (e.Item is ToolStripMenuItem)
+                if (e.Item is QuickBotStatusMenuItem)
+                {
+                    e.TextColor = Color.FromArgb(145, 145, 160);
+                }
+                else if (e.Item is ToolStripMenuItem)
+                {
+                    e.TextColor = Color.MediumPurple;
+                }
+                else if (e.Item.Name == "quickBotsMenuItem")
                 {
                     e.TextColor = Color.MediumPurple;
                 }
@@ -491,11 +909,129 @@ namespace Grimoire.UI
             }
         }
 
-        private void Root_Shown(object sender, EventArgs e)
+        private async void Root_Shown(object sender, EventArgs e)
         {
             Program.CheckVersion();
             SetDRM(Root.Instance, !enableCapture);
             BeginInvoke(new Action(ShowCrashRecovery));
+            await CheckForApplicationUpdateAsync();
+        }
+
+        private async Task CheckForApplicationUpdateAsync()
+        {
+            try
+            {
+                UpdateRelease release = await UpdateService.CheckForUpdateAsync(updateCancellation.Token);
+                if (release == null || IsDisposed || Disposing)
+                    return;
+
+                availableUpdate = release;
+                updateToolStripMenuItem.ToolTipText = "Grimoire Exodus "
+                    + release.Version.ToString(3)
+                    + " is available";
+                updateToolStripMenuItem.AccessibleName = "Update to Grimoire Exodus " + release.Version.ToString(3);
+                updateToolStripMenuItem.Visible = true;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine("Update check failed: " + exception);
+            }
+        }
+
+        private async void updateToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (availableUpdate == null || updateOperationRunning)
+                return;
+
+            updateOperationRunning = true;
+            updateToolStripMenuItem.Enabled = false;
+            try
+            {
+                if (preparedUpdate == null)
+                {
+                    updateToolStripMenuItem.ToolTipText = "Downloading Grimoire Exodus "
+                        + availableUpdate.Version.ToString(3)
+                        + "...";
+                    Progress<int> progress = new Progress<int>(percent =>
+                    {
+                        updateToolStripMenuItem.ToolTipText = "Downloading Grimoire Exodus "
+                            + availableUpdate.Version.ToString(3)
+                            + " — "
+                            + percent
+                            + "%";
+                    });
+                    preparedUpdate = await UpdateService.PrepareUpdateAsync(
+                        availableUpdate,
+                        progress,
+                        updateCancellation.Token);
+                }
+
+                bool botIsRunning = false;
+                try
+                {
+                    botIsRunning = BotManager.Instance.ActiveBotEngine.IsRunning;
+                }
+                catch
+                {
+                }
+
+                string warning = "Grimoire Exodus "
+                    + availableUpdate.Version.ToString(3)
+                    + " is downloaded and verified. Apply it now?\r\n\r\n"
+                    + (botIsRunning
+                        ? "A bot is running and will be stopped. "
+                        : string.Empty)
+                    + "Grimoire will close, merge the update, and restart automatically.";
+                DialogResult result = DarkMessageBox.Show(
+                    this,
+                    warning,
+                    "Install Grimoire Exodus update",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Information,
+                    MessageBoxDefaultButton.Button2);
+                if (result != DialogResult.Yes)
+                {
+                    updateToolStripMenuItem.ToolTipText = "Update "
+                        + availableUpdate.Version.ToString(3)
+                        + " is ready — click to install";
+                    return;
+                }
+
+                Process updater = UpdateService.LaunchUpdater(preparedUpdate, Process.GetCurrentProcess().Id);
+                if (updater == null)
+                    throw new InvalidOperationException("The update helper could not be started.");
+
+                StartupDiagnostics.SetStage("Applying update " + availableUpdate.Version.ToString(3));
+                updateShutdownRequested = true;
+                Close();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine("Update failed: " + exception);
+                StartupDiagnostics.RecordException("Application update", exception, false);
+                DarkMessageBox.Show(
+                    this,
+                    "Grimoire Exodus could not prepare the update. The current installation was not changed.\r\n\r\n"
+                        + exception.Message,
+                    "Update failed",
+                    MessageBoxIcon.Error);
+                preparedUpdate = null;
+                updateToolStripMenuItem.ToolTipText = "Update failed — click to try again";
+            }
+            finally
+            {
+                updateOperationRunning = false;
+                if (!IsDisposed && !updateShutdownRequested)
+                {
+                    updateToolStripMenuItem.Enabled = true;
+                }
+            }
         }
 
         private void ShowCrashRecovery()
@@ -910,7 +1446,7 @@ namespace Grimoire.UI
 
         private void Root_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (e.CloseReason == CloseReason.UserClosing)
+            if (e.CloseReason == CloseReason.UserClosing && !updateShutdownRequested)
             {
                 bool botIsRunning = false;
                 bool gameSessionIsActive = clientRunning;
@@ -1001,6 +1537,9 @@ namespace Grimoire.UI
                 networkMetricIcon?.Dispose();
                 headerVisibleIcon?.Dispose();
                 headerHiddenIcon?.Dispose();
+                updateAvailableIcon?.Dispose();
+                updateCancellation.Cancel();
+                updateCancellation.Dispose();
             }
             if (disposing && components != null)
             {
@@ -1127,10 +1666,6 @@ namespace Grimoire.UI
             | System.Windows.Forms.AnchorStyles.Right)));
             this.panel1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(28)))), ((int)(((byte)(32)))), ((int)(((byte)(40)))));
             this.panel1.Controls.Add(this.rtbPing);
-            this.panel1.Controls.Add(this.cbCells);
-            this.panel1.Controls.Add(this.cbPads);
-            this.panel1.Controls.Add(this.btnGetCurrentCell);
-            this.panel1.Controls.Add(this.btnJump);
             this.panel1.Controls.Add(this.MenuStrip1);
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
@@ -1150,11 +1685,15 @@ namespace Grimoire.UI
             this.metricsPanel.Controls.Add(this.picNetworkMetric);
             this.metricsPanel.Controls.Add(this.lblNetworkMetric);
             this.metricsPanel.Controls.Add(this.btnToggleHeader);
+            this.metricsPanel.Controls.Add(this.cbCells);
+            this.metricsPanel.Controls.Add(this.cbPads);
+            this.metricsPanel.Controls.Add(this.btnGetCurrentCell);
+            this.metricsPanel.Controls.Add(this.btnJump);
             this.metricsPanel.Font = this.panel1.Font;
             this.metricsPanel.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
-            this.metricsPanel.Location = new System.Drawing.Point(0, 600);
+            this.metricsPanel.Location = new System.Drawing.Point(0, 596);
             this.metricsPanel.Name = "metricsPanel";
-            this.metricsPanel.Size = new System.Drawing.Size(960, 20);
+            this.metricsPanel.Size = new System.Drawing.Size(960, 24);
             this.metricsPanel.TabIndex = 41;
             this.metricsPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.MetricsPanel_Paint);
             //
@@ -1163,7 +1702,7 @@ namespace Grimoire.UI
             this.cpuMetricIcon = CreateStatusIcon(StatusIcon.Cpu, System.Drawing.Color.MediumPurple);
             this.picCpuMetric.BackColor = System.Drawing.Color.Transparent;
             this.picCpuMetric.Image = this.cpuMetricIcon;
-            this.picCpuMetric.Location = new System.Drawing.Point(8, 2);
+            this.picCpuMetric.Location = new System.Drawing.Point(44, 4);
             this.picCpuMetric.Name = "picCpuMetric";
             this.picCpuMetric.Size = new System.Drawing.Size(16, 16);
             this.picCpuMetric.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
@@ -1173,7 +1712,7 @@ namespace Grimoire.UI
             //
             this.lblCpuMetric.BackColor = System.Drawing.Color.Transparent;
             this.lblCpuMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
-            this.lblCpuMetric.Location = new System.Drawing.Point(27, 0);
+            this.lblCpuMetric.Location = new System.Drawing.Point(63, 2);
             this.lblCpuMetric.Name = "lblCpuMetric";
             this.lblCpuMetric.Size = new System.Drawing.Size(72, 20);
             this.lblCpuMetric.TabIndex = 0;
@@ -1185,7 +1724,7 @@ namespace Grimoire.UI
             this.uptimeMetricIcon = CreateStatusIcon(StatusIcon.Uptime, System.Drawing.Color.MediumPurple);
             this.picUptimeMetric.BackColor = System.Drawing.Color.Transparent;
             this.picUptimeMetric.Image = this.uptimeMetricIcon;
-            this.picUptimeMetric.Location = new System.Drawing.Point(108, 2);
+            this.picUptimeMetric.Location = new System.Drawing.Point(144, 4);
             this.picUptimeMetric.Name = "picUptimeMetric";
             this.picUptimeMetric.Size = new System.Drawing.Size(16, 16);
             this.picUptimeMetric.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
@@ -1195,7 +1734,7 @@ namespace Grimoire.UI
             //
             this.lblUptimeMetric.BackColor = System.Drawing.Color.Transparent;
             this.lblUptimeMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
-            this.lblUptimeMetric.Location = new System.Drawing.Point(127, 0);
+            this.lblUptimeMetric.Location = new System.Drawing.Point(163, 2);
             this.lblUptimeMetric.Name = "lblUptimeMetric";
             this.lblUptimeMetric.Size = new System.Drawing.Size(130, 20);
             this.lblUptimeMetric.TabIndex = 1;
@@ -1207,7 +1746,7 @@ namespace Grimoire.UI
             this.networkMetricIcon = CreateStatusIcon(StatusIcon.Network, System.Drawing.Color.MediumPurple);
             this.picNetworkMetric.BackColor = System.Drawing.Color.Transparent;
             this.picNetworkMetric.Image = this.networkMetricIcon;
-            this.picNetworkMetric.Location = new System.Drawing.Point(266, 2);
+            this.picNetworkMetric.Location = new System.Drawing.Point(302, 4);
             this.picNetworkMetric.Name = "picNetworkMetric";
             this.picNetworkMetric.Size = new System.Drawing.Size(16, 16);
             this.picNetworkMetric.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
@@ -1217,7 +1756,7 @@ namespace Grimoire.UI
             //
             this.lblNetworkMetric.BackColor = System.Drawing.Color.Transparent;
             this.lblNetworkMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
-            this.lblNetworkMetric.Location = new System.Drawing.Point(285, 0);
+            this.lblNetworkMetric.Location = new System.Drawing.Point(321, 2);
             this.lblNetworkMetric.Name = "lblNetworkMetric";
             this.lblNetworkMetric.Size = new System.Drawing.Size(275, 20);
             this.lblNetworkMetric.TabIndex = 2;
@@ -1230,13 +1769,13 @@ namespace Grimoire.UI
             this.headerHiddenIcon = CreateStatusIcon(StatusIcon.EyeClosed, System.Drawing.Color.MediumPurple);
             this.btnToggleHeader.AccessibleDescription = "Controls visibility of the upper toolbar.";
             this.btnToggleHeader.AccessibleName = "Hide upper toolbar";
-            this.btnToggleHeader.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnToggleHeader.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)));
             this.btnToggleHeader.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(36)))), ((int)(((byte)(40)))), ((int)(((byte)(50)))));
             this.btnToggleHeader.BackColorUseGeneric = false;
             this.btnToggleHeader.Checked = false;
             this.btnToggleHeader.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
             this.btnToggleHeader.Image = this.headerVisibleIcon;
-            this.btnToggleHeader.Location = new System.Drawing.Point(922, 1);
+            this.btnToggleHeader.Location = new System.Drawing.Point(4, 2);
             this.btnToggleHeader.Name = "btnToggleHeader";
             this.btnToggleHeader.Padding = new System.Windows.Forms.Padding(0);
             this.btnToggleHeader.Size = new System.Drawing.Size(30, 18);
@@ -1272,7 +1811,7 @@ namespace Grimoire.UI
             // 
             this.cbCells.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.cbCells.FormattingEnabled = true;
-            this.cbCells.Location = new System.Drawing.Point(719, 1);
+            this.cbCells.Location = new System.Drawing.Point(719, 2);
             this.cbCells.MaxDropDownItems = 50;
             this.cbCells.Name = "cbCells";
             this.cbCells.onUnique = false;
@@ -1285,7 +1824,7 @@ namespace Grimoire.UI
             this.cbPads.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.cbPads.FormattingEnabled = true;
             this.cbPads.ItemHeight = 15;
-            this.cbPads.Location = new System.Drawing.Point(802, 1);
+            this.cbPads.Location = new System.Drawing.Point(802, 2);
             this.cbPads.MaxDropDownItems = 20;
             this.cbPads.Name = "cbPads";
             this.cbPads.onUnique = false;
@@ -1303,7 +1842,7 @@ namespace Grimoire.UI
             this.btnGetCurrentCell.BackColorUseGeneric = false;
             this.btnGetCurrentCell.Checked = false;
             this.btnGetCurrentCell.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
-            this.btnGetCurrentCell.Location = new System.Drawing.Point(878, 1);
+            this.btnGetCurrentCell.Location = new System.Drawing.Point(878, 2);
             this.btnGetCurrentCell.Name = "btnGetCurrentCell";
             this.btnGetCurrentCell.Size = new System.Drawing.Size(18, 21);
             this.btnGetCurrentCell.TabIndex = 36;
@@ -1318,7 +1857,7 @@ namespace Grimoire.UI
             this.btnJump.BackColorUseGeneric = false;
             this.btnJump.Checked = false;
             this.btnJump.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
-            this.btnJump.Location = new System.Drawing.Point(895, 1);
+            this.btnJump.Location = new System.Drawing.Point(895, 2);
             this.btnJump.Name = "btnJump";
             this.btnJump.Size = new System.Drawing.Size(62, 21);
             this.btnJump.TabIndex = 28;
@@ -1803,7 +2342,7 @@ namespace Grimoire.UI
             this.GamePanel.Controls.Add(this.homeBrowser);
             this.GamePanel.Location = new System.Drawing.Point(0, 24);
             this.GamePanel.Name = "GamePanel";
-            this.GamePanel.Size = new System.Drawing.Size(960, 576);
+            this.GamePanel.Size = new System.Drawing.Size(960, 572);
             this.GamePanel.TabIndex = 40;
             // 
             // Root
@@ -1897,6 +2436,14 @@ namespace Grimoire.UI
                 startToolStripMenuItem.Enabled = true;
                 loadBotToolStripMenuItem.Enabled = true;
                 stopToolStripMenuItem.Enabled = false;
+            }
+
+            if (quickBotsMenuItem != null)
+            {
+                quickBotsMenuItem.Enabled = !IsRunning;
+                quickBotsMenuItem.ToolTipText = IsRunning
+                    ? "Stop the running bot before loading another GBot"
+                    : "Quick load a GBot";
             }
 
             UpdateBotTitle(IsRunning, BotManager.Instance.CurrentBotName);

@@ -16,6 +16,7 @@ $ErrorActionPreference = "Stop"
 $script:RootDirectory = $PSScriptRoot
 $script:SolutionPath = Join-Path $script:RootDirectory "app\Grimoire Exodus.sln"
 $script:AssemblyInfoPath = Join-Path $script:RootDirectory "app\Properties\AssemblyInfo.cs"
+$script:UpdaterAssemblyInfoPath = Join-Path $script:RootDirectory "app\Grimoire.Updater\Properties\AssemblyInfo.cs"
 $script:ProgramPath = Join-Path $script:RootDirectory "app\Grimoire\Program.cs"
 $script:FlashRuntimeUrl = "https://github.com/darktohka/clean-flash-builds/releases/download/v1.54/ChineseFlash-Patched-Win-34.0.0.376.7z"
 $script:FlashArchiveHash = "19A8D1036110AF024DC877CA96A9184835C3E944FB14CA8D509662F00BF1BD31"
@@ -249,6 +250,10 @@ function Complete-BrandedOutput([string]$BuildConfiguration, [string]$RequestedO
     if (-not (Test-Path -LiteralPath $legacyExecutable)) {
         throw "The build completed without producing $legacyExecutable."
     }
+    $updaterExecutable = Join-Path $outputDirectory "Grimoire.Updater.exe"
+    if (-not (Test-Path -LiteralPath $updaterExecutable)) {
+        throw "The build completed without producing $updaterExecutable."
+    }
 
     $pairs = @(
         @($legacyExecutable, $brandedExecutable),
@@ -354,10 +359,15 @@ function New-InstallerStage([string]$SourceDirectory, [string]$StageDirectory) {
     if (Test-Path -LiteralPath $resources) {
         Copy-Item -LiteralPath $resources -Destination $StageDirectory -Recurse
     }
+    $communityBots = Join-Path $SourceDirectory "Bot"
+    if (-not (Test-Path -LiteralPath $communityBots)) {
+        throw "Release output is missing the bundled Community Bot directory."
+    }
+    Copy-Item -LiteralPath $communityBots -Destination $StageDirectory -Recurse
     Copy-Item -LiteralPath (Join-Path $script:RootDirectory "LICENSE") -Destination $StageDirectory
     Copy-Item -LiteralPath (Join-Path $script:RootDirectory "README.md") -Destination $StageDirectory
 
-    foreach ($requiredFile in @("Grimoire Exodus.exe", "Flash.ocx", "grimoire-exodus.swf")) {
+    foreach ($requiredFile in @("Grimoire Exodus.exe", "Grimoire.Updater.exe", "Flash.ocx", "grimoire-exodus.swf")) {
         if (-not (Test-Path -LiteralPath (Join-Path $StageDirectory $requiredFile))) {
             throw "Installer staging is missing required file: $requiredFile"
         }
@@ -433,6 +443,11 @@ function Update-ExodusVersion([string]$VersionPart) {
     $assemblyInfo = [regex]::Replace($assemblyInfo, 'AssemblyVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyVersion(`"$newVersion`")")
     $assemblyInfo = [regex]::Replace($assemblyInfo, 'AssemblyFileVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyFileVersion(`"$newVersion`")")
     Set-Content -LiteralPath $script:AssemblyInfoPath -Value $assemblyInfo -Encoding UTF8
+
+    $updaterAssemblyInfo = Get-Content -LiteralPath $script:UpdaterAssemblyInfoPath -Raw
+    $updaterAssemblyInfo = [regex]::Replace($updaterAssemblyInfo, 'AssemblyVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyVersion(`"$newVersion`")")
+    $updaterAssemblyInfo = [regex]::Replace($updaterAssemblyInfo, 'AssemblyFileVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyFileVersion(`"$newVersion`")")
+    Set-Content -LiteralPath $script:UpdaterAssemblyInfoPath -Value $updaterAssemblyInfo -Encoding UTF8
 
     $program = Get-Content -LiteralPath $script:ProgramPath -Raw
     $today = Get-Date -Format "yyyy-MM-dd"

@@ -129,6 +129,8 @@
     </Reference>
     <Reference Include="System.Configuration" />
     <Reference Include="System.Data" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Memory, Version=4.0.1.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>packages\System.Memory.4.5.4\lib\net461\System.Memory.dll</HintPath>
     </Reference>
@@ -409,6 +411,7 @@
     <Compile Include="Grimoire.Utils\InputBox.cs" />
     <Compile Include="Grimoire.Utils\AppPaths.cs" />
     <Compile Include="Grimoire.Utils\StartupDiagnostics.cs" />
+    <Compile Include="Grimoire.Utils\UpdateService.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -488,6 +491,9 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Grimoire.UI\GrimoireHomeBridge.cs" />
+    <Compile Include="Grimoire.UI\NonClosableVSTabControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Grimoire.UI\Root.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -583,6 +589,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Bot\README.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Bot\**\*.gbot">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="EasyHook32.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

@@ -58,7 +58,7 @@ namespace Grimoire.UI
         private string _customGuild;
         private string _customClassName;
         public ListBox lstItems;
-        private DarkUI.Controls.VSTabControl mainTabControl;
+        private NonClosableVSTabControl mainTabControl;
         private TabPage tabCombat;
         private DarkButton btnUseSkillSet;
         private DarkButton btnAddSkillSet;
@@ -503,6 +503,7 @@ namespace Grimoire.UI
                 CurrentBotPath,
                 isRunning,
                 Root.Instance != null && !Root.Instance.Visible);
+            Root.Instance?.UpdateQuickBotSelection(CurrentBotPath);
 
             if (Root.Instance != null && ActiveBotEngine.IsRunning)
             {
@@ -1476,6 +1477,11 @@ namespace Grimoire.UI
 
         public bool LoadBotFromFile(string path, bool showErrors)
         {
+            return LoadBotFromFile(path, showErrors, true);
+        }
+
+        public bool LoadBotFromFile(string path, bool showErrors, bool rememberDirectory)
+        {
             try
             {
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
@@ -1497,7 +1503,7 @@ namespace Grimoire.UI
                 GetAllCommands<CmdLabel>(lbLabels);
 
                 string directory = Path.GetDirectoryName(Path.GetFullPath(path));
-                if (!string.IsNullOrWhiteSpace(directory))
+                if (rememberDirectory && !string.IsNullOrWhiteSpace(directory))
                 {
                     Config.Instance.SetValue("botsDirectory", directory);
                     txtSaved.Text = directory;
@@ -2204,7 +2210,7 @@ namespace Grimoire.UI
             this.lstItems = new System.Windows.Forms.ListBox();
             this.lstQuests = new System.Windows.Forms.ListBox();
             this.lstSkills = new System.Windows.Forms.ListBox();
-            this.mainTabControl = new DarkUI.Controls.VSTabControl();
+            this.mainTabControl = new Grimoire.UI.NonClosableVSTabControl();
             this.tabInfo = new System.Windows.Forms.TabPage();
             this.panel5 = new System.Windows.Forms.Panel();
             this.richTextBox2 = new System.Windows.Forms.RichTextBox();

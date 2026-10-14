@@ -40,9 +40,13 @@ Use the dedicated Exodus developer CLI from PowerShell:
 
 Builds are written to `app\bin\<Configuration>\Grimoire Exodus.exe`. The CLI verifies and copies `Flash.ocx` beside the executable; Windows activates it through the embedded registration-free COM manifest, without changing the system Flash registration. The CLI preserves the legacy internal `Grimoire` assembly identity required by existing dependencies, while leaving only the branded executable in the final output. `dev` performs a verbose Debug build and launches it directly. `plugin` creates a standalone starter workspace under `plugin-workspaces` unless `-OutputDirectory` is supplied.
 
-`installer` builds Release in an isolated staging directory and creates `dist\Grimoire-Exodus-Setup-1.1.0.msi` with WiX Toolset 3.14.1. Setup offers an optional desktop shortcut and a **Launch Grimoire Exodus** checkbox on its final page. Writable settings, hotkeys, bots, sets, plugins, and the encrypted account vault live under `%LOCALAPPDATA%\Grimoire Exodus`, so an installation under Program Files runs without administrator rights. Both WiX and the Flash archive are downloaded into the ignored `.tools` cache and verified with pinned SHA-256 hashes. Tagged GitHub releases publish both the native MSI and a portable ZIP made from the same validated payload.
+`installer` builds Release in an isolated staging directory and creates `dist\Grimoire-Exodus-Setup-1.1.0.msi` with WiX Toolset 3.14.1. Setup offers an optional desktop shortcut and a **Launch Grimoire Exodus** checkbox on its final page. Writable settings, hotkeys, sets, plugins, and the encrypted account vault live under `%LOCALAPPDATA%\Grimoire Exodus`, while user-managed GBots live under `Documents\Grimoire\Bot`, so an installation under Program Files runs without administrator rights. Both WiX and the Flash archive are downloaded into the ignored `.tools` cache and verified with pinned SHA-256 hashes. Tagged GitHub releases publish both the native MSI and a portable ZIP made from the same validated payload.
+
+The toolbar's quick-load menu combines official GBots bundled in the release `Bot` directory with user-managed GBots in `Documents\Grimoire\Bot` and sorts them by name. Existing bots from the previous `%LOCALAPPDATA%\Grimoire Exodus\Bots` or portable `Bots` locations are copied into the Documents folder on first use without overwriting files already there.
 
 Startup logs and crash reports are stored under `%LOCALAPPDATA%\Grimoire Exodus`. After an unclean exit, Grimoire can offer to reload the last bot for review, but it never starts that bot automatically. Recovery data is kept separately and does not modify the `.gbot` format, preserving compatibility with older bot files.
+
+When a newer official GitHub release is available, Grimoire shows a download icon in the toolbar with the new version in its tooltip. Selecting it downloads the appropriate portable package or installer in the background, verifies GitHub's SHA-256 digest, then asks before closing and restarting to apply the update. User bots, settings, recovery data, and the legacy `.gbot` format remain untouched.
 
 ## Embedded Flash design
 
@@ -84,7 +88,7 @@ The installer build uses [WiX Toolset 3.14.1](https://github.com/wixtoolset/wix3
 | ✅ Completed | A native Windows installer with desktop-shortcut and launch-after-setup options |
 | ✅ Completed | A bundled native Flash runtime that removes the separate Clean Flash requirement |
 | Planned | Army Mode with a split-screen multi-client layout |
-| Planned | Automatic application updates |
+| ✅ Completed | Verified in-app updates from official GitHub releases |
 | ✅ Completed | Startup diagnostics, conservative orphan-state cleanup, tray controls, and crash recovery |
 | Planned | Remote control through a companion mobile app |
 | Planned | A community-maintained bot script repository |

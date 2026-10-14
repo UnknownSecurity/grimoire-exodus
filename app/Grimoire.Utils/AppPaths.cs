@@ -23,7 +23,18 @@ namespace Grimoire.Utils
 
         public static string HotkeysFile => GetUserFile("hotkeys.json");
 
-        public static string BotsDirectory => GetUserDirectory("Bots");
+        /// <summary>
+        /// User-managed GBots. Kept under Documents so they remain easy to
+        /// find and survive application updates or reinstalls.
+        /// </summary>
+        public static string BotsDirectory => ExternalBotsDirectory;
+
+        public static string ExternalBotsDirectory => GetExternalBotsDirectory();
+
+        /// <summary>
+        /// Read-only GBots shipped with the official application package.
+        /// </summary>
+        public static string CommunityBotsDirectory => Path.Combine(ApplicationDirectory, "Bot");
 
         public static string PluginsDirectory => GetUserDirectory("Plugins");
 
@@ -34,6 +45,43 @@ namespace Grimoire.Utils
         public static string CrashReportsDirectory => GetUserDirectory("Crash Reports");
 
         public static string RecoveryDirectory => GetUserDirectory("Recovery");
+
+        public static string UpdatesDirectory => GetUserDirectory("Updates");
+
+        private static string GetExternalBotsDirectory()
+        {
+            string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (string.IsNullOrWhiteSpace(documents))
+            {
+                documents = DataDirectory;
+            }
+
+            string destination = Path.Combine(documents, "Grimoire", "Bot");
+            if (Directory.Exists(destination))
+            {
+                return destination;
+            }
+
+            Directory.CreateDirectory(destination);
+
+            // Migrate the two locations used by older installed and portable
+            // builds. Existing files in Documents always win.
+            string[] legacyDirectories =
+            {
+                Path.Combine(DataDirectory, "Bots"),
+                Path.Combine(ApplicationDirectory, "Bots")
+            };
+            foreach (string legacyDirectory in legacyDirectories)
+            {
+                if (Directory.Exists(legacyDirectory)
+                    && !PathsEqual(legacyDirectory, destination))
+                {
+                    CopyDirectory(legacyDirectory, destination);
+                }
+            }
+
+            return destination;
+        }
 
         private static string GetUserFile(string name)
         {

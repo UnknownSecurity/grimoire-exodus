@@ -66,13 +66,13 @@ jobs:
           gh release view $tag --repo "${{ github.repository }}" *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag @artifacts --clobber --repo "${{ github.repository }}"
-            gh release edit $tag --prerelease --repo "${{ github.repository }}"
+            gh release edit $tag --prerelease=false --latest --repo "${{ github.repository }}"
           }
           else {
             gh release create $tag @artifacts `
               --repo "${{ github.repository }}" `
               --title "Grimoire Exodus $tag" `
               --generate-notes `
-              --prerelease `
+              --latest `
               --verify-tag
           }
