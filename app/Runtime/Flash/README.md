@@ -13,4 +13,4 @@ Runtime source: <https://github.com/darktohka/clean-flash-builds/releases/tag/v1
 - Archive SHA-256: `19A8D1036110AF024DC877CA96A9184835C3E944FB14CA8D509662F00BF1BD31`
 - Extracted OCX SHA-256: `4E1CAA0B6805E5D4E4F737C4389B8E94E92CA49E7D7AEF17C3773A9D744DCC42`
 
-See the repository `THIRD-PARTY-NOTICES.md` before redistributing a build.
+See the repository `README.md` third-party software section before redistributing a build.

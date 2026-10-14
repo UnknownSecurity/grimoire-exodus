@@ -29,6 +29,12 @@ namespace Grimoire.Utils
 
         public static string SetsDirectory => GetUserDirectory("Sets");
 
+        public static string LogsDirectory => GetUserDirectory("Logs");
+
+        public static string CrashReportsDirectory => GetUserDirectory("Crash Reports");
+
+        public static string RecoveryDirectory => GetUserDirectory("Recovery");
+
         private static string GetUserFile(string name)
         {
             Directory.CreateDirectory(DataDirectory);

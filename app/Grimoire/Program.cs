@@ -1,5 +1,6 @@
 using DarkUI.Forms;
 using Grimoire.UI;
+using Grimoire.Utils;
 using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -17,29 +18,58 @@ namespace Grimoire
         [STAThread]
         private static void Main()
         {
-            flashVersion = FlashVersion();
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(defaultValue: false);
-            Application.ThreadException += (sender, args) => ReportUnhandledException(args.Exception);
-            TaskScheduler.UnobservedTaskException += (sender, args) =>
+            try
             {
-                ReportUnhandledException(args.Exception);
-                args.SetObserved();
-            };
-            AppDomain.CurrentDomain.UnhandledException += (sender, args) => ReportUnhandledException(args.ExceptionObject as Exception);
+                StartupDiagnostics.StartSession();
+                StartupDiagnostics.SetStage("Runtime");
+                flashVersion = FlashVersion();
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(defaultValue: false);
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                Application.ThreadException += (sender, args) => ReportUnhandledException(args.Exception, "Windows Forms", false);
+                TaskScheduler.UnobservedTaskException += (sender, args) =>
+                {
+                    ReportUnhandledException(args.Exception, "Background task", false);
+                    args.SetObserved();
+                };
+                AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+                    ReportUnhandledException(args.ExceptionObject as Exception, "Application domain", args.IsTerminating);
 
-            Application.Run(new Root());
+                StartupDiagnostics.SetStage("UI construction");
+                Application.Run(new Root());
+                StartupDiagnostics.MarkCleanShutdown();
+            }
+            catch (Exception exception)
+            {
+                ReportUnhandledException(exception, "Main", true);
+                try
+                {
+                    DarkMessageBox.Show(
+                        new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen },
+                        "Grimoire Exodus could not finish starting. A diagnostic report was saved to:\r\n\r\n"
+                            + AppPaths.CrashReportsDirectory,
+                        "Grimoire Exodus startup error",
+                        MessageBoxIcon.Error);
+                }
+                catch
+                {
+                }
+            }
         }
 
-        private static void ReportUnhandledException(Exception exception)
+        private static void ReportUnhandledException(Exception exception, string context, bool isTerminating)
         {
             if (exception == null)
                 return;
 
             Debug.WriteLine(exception);
+            StartupDiagnostics.RecordException(context, exception, isTerminating);
             try
             {
-                LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss}] Unhandled error: {exception.Message}\r\n");
+                if (!isTerminating)
+                {
+                    LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss}] Unhandled error: {exception.Message}\r\n");
+                }
             }
             catch
             {

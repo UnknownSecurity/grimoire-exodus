@@ -4,7 +4,10 @@
 
 Grimoire Exodus is a maintained AQW automation client based on Grimlite Rev. It is developed and maintained by **dsenin**.
 
-Version 1.1.0 adds a private Flash runtime and a native Windows installer. Grimoire no longer requires users to install Clean Flash separately.
+Version 1.1.0 adds a private Flash runtime, a native Windows installer, startup diagnostics, conservative orphan-state cleanup, predictable tray controls, and crash recovery. Grimoire no longer requires users to install Clean Flash separately.
+
+> [!WARNING]
+> Only download Grimoire Exodus from the [official GitHub Releases page](https://github.com/UnknownSecurity/grimoire-exodus/releases). Third-party mirrors, repacks, and unofficial installers are not maintained or verified by this project and may contain malware, credential stealers, cryptocurrency miners, or other unwanted modifications.
 
 ## Compatibility rework
 
@@ -39,13 +42,36 @@ Builds are written to `app\bin\<Configuration>\Grimoire Exodus.exe`. The CLI ver
 
 `installer` builds Release in an isolated staging directory and creates `dist\Grimoire-Exodus-Setup-1.1.0.msi` with WiX Toolset 3.14.1. Setup offers an optional desktop shortcut and a **Launch Grimoire Exodus** checkbox on its final page. Writable settings, hotkeys, bots, sets, plugins, and the encrypted account vault live under `%LOCALAPPDATA%\Grimoire Exodus`, so an installation under Program Files runs without administrator rights. Both WiX and the Flash archive are downloaded into the ignored `.tools` cache and verified with pinned SHA-256 hashes. Tagged GitHub releases publish both the native MSI and a portable ZIP made from the same validated payload.
 
+Startup logs and crash reports are stored under `%LOCALAPPDATA%\Grimoire Exodus`. After an unclean exit, Grimoire can offer to reload the last bot for review, but it never starts that bot automatically. Recovery data is kept separately and does not modify the `.gbot` format, preserving compatibility with older bot files.
+
 ## Embedded Flash design
 
 Grimoire's game bridge depends on the original ActiveX `ExternalInterface` contract and synchronous `CallFunction`/`FlashCall` behavior. It also loads the live AQW AVM2 client, which opens the SmartFox connection used by the proxy and packet hooks. A web-hosted emulator would require replacing that host ABI and its socket integration. Version 1.1.0 therefore keeps the proven native player ABI but deploys the 32-bit runtime privately: `Flash.ocx` is loaded from Grimoire's own directory through registration-free COM and is never registered system-wide.
 
-The runtime is pinned to Clean Flash build 34.0.0.376 and is third-party legacy software. Do not use it to open untrusted SWFs; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for provenance and hashes.
+The runtime is pinned to Clean Flash build 34.0.0.376 and is third-party legacy software. Do not use it to open untrusted SWFs.
 
 The evaluated alternatives, compatibility constraints, and verification strategy are documented in [docs/embedded-flash-runtime.md](docs/embedded-flash-runtime.md).
+
+## Third-party software
+
+### App-local Flash Player runtime
+
+Grimoire Exodus release packages include an app-local, patched Flash Player ActiveX runtime obtained from the [Clean Flash builds project](https://github.com/darktohka/clean-flash-builds):
+
+- Runtime release: Flash Player 34.0.0.376 (`v1.54`)
+- Patch tooling: [FlashPatch](https://github.com/darktohka/FlashPatch)
+
+Flash Player is third-party software and is not covered by Grimoire Exodus's CC0 dedication. Adobe ended general Flash Player support in 2020. The bundled runtime is included solely for compatibility with the legacy AQW client and should not be used to open untrusted SWF content.
+
+### WiX Toolset
+
+The installer build uses [WiX Toolset 3.14.1](https://github.com/wixtoolset/wix3). WiX is downloaded only as a build tool, is not installed with Grimoire Exodus, and is licensed under the Microsoft Reciprocal License (MS-RL).
+
+## Community
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+- Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+- Report vulnerabilities privately by following [SECURITY.md](SECURITY.md).
 
 ## Development roadmap
 
@@ -59,7 +85,7 @@ The evaluated alternatives, compatibility constraints, and verification strategy
 | ✅ Completed | A bundled native Flash runtime that removes the separate Clean Flash requirement |
 | Planned | Army Mode with a split-screen multi-client layout |
 | Planned | Automatic application updates |
-| Planned | Background-process and orphan-state cleanup to prevent UI glitches |
+| ✅ Completed | Startup diagnostics, conservative orphan-state cleanup, tray controls, and crash recovery |
 | Planned | Remote control through a companion mobile app |
 | Planned | A community-maintained bot script repository |
 

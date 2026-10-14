@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 $rootDirectory = Split-Path -Parent $PSScriptRoot
 $outputDirectory = Join-Path $rootDirectory "app\bin\$Configuration"
-$compiler = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) "csc.exe"
+$compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe"
 $source = Join-Path $PSScriptRoot "FlashActivationSmoke.cs"
 $manifest = Join-Path $rootDirectory "app\Grimoire.manifest"
 $smokeExecutable = Join-Path $outputDirectory "FlashActivationSmoke.exe"

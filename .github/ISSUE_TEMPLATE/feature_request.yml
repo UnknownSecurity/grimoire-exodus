@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an improvement for Grimoire Exodus
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for suggesting an improvement. Explain the user problem before proposing an implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or user need should this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add mockups, examples, or related links if useful.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and roadmap items for this request.
+          required: true
+        - label: This request does not include passwords, tokens, or private account data.
+          required: true

@@ -408,6 +408,7 @@
     </Compile>
     <Compile Include="Grimoire.Utils\InputBox.cs" />
     <Compile Include="Grimoire.Utils\AppPaths.cs" />
+    <Compile Include="Grimoire.Utils\StartupDiagnostics.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

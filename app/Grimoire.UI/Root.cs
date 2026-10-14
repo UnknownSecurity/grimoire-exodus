@@ -29,6 +29,11 @@ namespace Grimoire.UI
 
         private NotifyIcon nTray;
 
+        private ContextMenuStrip trayMenu;
+        private bool startupComplete;
+        private bool shutdownInProgress;
+        private bool recoveryPromptShown;
+
         private WebBrowser homeBrowser;
         private GrimoireHomeBridge homeBridge;
         private Uri homeUri;
@@ -49,6 +54,7 @@ namespace Grimoire.UI
         private Label lblUptimeMetric;
         private Label lblNetworkMetric;
         private DarkButton btnToggleHeader;
+        private ToolTip headerVisibilityToolTip;
         private System.Windows.Forms.Timer metricsTimer;
         private Process metricsProcess;
         private DateTime metricsStartedUtc = DateTime.UtcNow;
@@ -59,8 +65,8 @@ namespace Grimoire.UI
         private Bitmap cpuMetricIcon;
         private Bitmap uptimeMetricIcon;
         private Bitmap networkMetricIcon;
-        private Bitmap hideHeaderIcon;
-        private Bitmap showHeaderIcon;
+        private Bitmap headerVisibleIcon;
+        private Bitmap headerHiddenIcon;
         public RichTextBox rtbPing;
         private DarkComboBox cbCells;
         private DarkComboBox2 cbPads;
@@ -137,6 +143,7 @@ namespace Grimoire.UI
             Instance = this;
             InitializeHome();
             ApplyBranding();
+            InitializeTrayBehavior();
             PreloadedPlugins = new PluginManager();
             pingMonitorToggle();
             clientHeaderToggle();
@@ -170,13 +177,41 @@ namespace Grimoire.UI
             }
         }
 
+        private void InitializeTrayBehavior()
+        {
+            trayMenu = new ContextMenuStrip(components)
+            {
+                BackColor = Color.FromArgb(28, 32, 40),
+                ForeColor = Color.Gainsboro,
+                ShowImageMargin = false
+            };
+
+            ToolStripMenuItem showItem = new ToolStripMenuItem("Show Grimoire Exodus");
+            showItem.Click += (sender, args) => RestoreFromTray();
+            ToolStripMenuItem hideItem = new ToolStripMenuItem("Hide Grimoire Exodus");
+            hideItem.Click += (sender, args) => HideToTray(false);
+            ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit");
+            exitItem.Click += (sender, args) =>
+            {
+                RestoreFromTray();
+                Close();
+            };
+
+            trayMenu.Items.Add(showItem);
+            trayMenu.Items.Add(hideItem);
+            trayMenu.Items.Add(new ToolStripSeparator());
+            trayMenu.Items.Add(exitItem);
+            nTray.ContextMenuStrip = trayMenu;
+            nTray.BalloonTipClicked += (sender, args) => RestoreFromTray();
+        }
+
         private enum StatusIcon
         {
             Cpu,
             Uptime,
             Network,
-            ChevronUp,
-            ChevronDown
+            EyeOpen,
+            EyeClosed
         }
 
         private static Bitmap CreateStatusIcon(StatusIcon icon, Color color)
@@ -217,15 +252,27 @@ namespace Grimoire.UI
                         graphics.FillRectangle(brush, 14, 1, 2, 13);
                         break;
 
-                    case StatusIcon.ChevronUp:
-                        graphics.DrawLine(pen, 4, 10, 8, 6);
-                        graphics.DrawLine(pen, 8, 6, 12, 10);
-                        break;
+                    case StatusIcon.EyeOpen:
+                    case StatusIcon.EyeClosed:
+                    {
+                        bool closed = icon == StatusIcon.EyeClosed;
+                        using (System.Drawing.Drawing2D.GraphicsPath eye = new System.Drawing.Drawing2D.GraphicsPath())
+                        {
+                            eye.AddBezier(1.5f, 8f, 4f, 3.5f, 12f, 3.5f, 14.5f, 8f);
+                            eye.AddBezier(14.5f, 8f, 12f, 12.5f, 4f, 12.5f, 1.5f, 8f);
+                            graphics.DrawPath(pen, eye);
+                        }
 
-                    case StatusIcon.ChevronDown:
-                        graphics.DrawLine(pen, 4, 6, 8, 10);
-                        graphics.DrawLine(pen, 8, 10, 12, 6);
+                        if (closed)
+                        {
+                            graphics.DrawLine(pen, 2.5f, 2.5f, 13.5f, 13.5f);
+                        }
+                        else
+                        {
+                            graphics.FillEllipse(brush, 6f, 6f, 4f, 4f);
+                        }
                         break;
+                    }
                 }
             }
             return bitmap;
@@ -341,8 +388,11 @@ namespace Grimoire.UI
             GamePanel.Dock = DockStyle.None;
             GamePanel.Location = new Point(0, top);
             GamePanel.Size = new Size(ClientSize.Width, availableHeight);
-            btnToggleHeader.Text = visible ? "Hide toolbar" : "Show toolbar";
-            btnToggleHeader.Image = visible ? hideHeaderIcon : showHeaderIcon;
+            btnToggleHeader.Image = visible ? headerVisibleIcon : headerHiddenIcon;
+            btnToggleHeader.AccessibleName = visible ? "Hide upper toolbar" : "Show upper toolbar";
+            headerVisibilityToolTip.SetToolTip(
+                btnToggleHeader,
+                visible ? "Hide upper toolbar" : "Show upper toolbar");
 
             if (homeBrowser.Visible)
             {
@@ -373,22 +423,133 @@ namespace Grimoire.UI
 
         private void Root_Load(object sender, EventArgs e)
         {
-            this.WindowState = FormWindowState.Minimized;
-            this.Show();
-            this.WindowState = FormWindowState.Normal;
-            Hotkeys.Instance.LoadHotkeys();
-            Directory.CreateDirectory(PluginsPath);
-            PreloadedPlugins.LoadRange(Directory.GetFiles(PluginsPath, "*.dll"));
-            ShowHome();
-            InitializeGame();
-            Proxy.InitializeProxyHandlers();
-            Task.Factory.StartNew(Proxy.Instance.ClientExecute, TaskCreationOptions.LongRunning);
+            startupComplete = false;
+            List<string> failures = new List<string>();
+
+            RunStartupStage("Window", delegate
+            {
+                WindowState = FormWindowState.Minimized;
+                Show();
+                WindowState = FormWindowState.Normal;
+            }, failures);
+            RunStartupStage("Hotkeys", Hotkeys.Instance.LoadHotkeys, failures);
+            RunStartupStage("Plugins", delegate
+            {
+                Directory.CreateDirectory(PluginsPath);
+                PreloadedPlugins.LoadRange(Directory.GetFiles(PluginsPath, "*.dll"));
+            }, failures);
+            RunStartupStage("Home", ShowHome, failures);
+            RunStartupStage("Flash", InitializeGame, failures);
+            bool proxyReady = RunStartupStage("Proxy handlers", Proxy.InitializeProxyHandlers, failures);
+            if (proxyReady)
+            {
+                RunStartupStage("Proxy client", delegate
+                {
+                    Task proxyTask = Task.Factory
+                        .StartNew(Proxy.Instance.ClientExecute, TaskCreationOptions.LongRunning)
+                        .Unwrap();
+                    proxyTask.ContinueWith(
+                        task => StartupDiagnostics.RecordException("Proxy client", task.Exception, false),
+                        TaskContinuationOptions.OnlyOnFaulted);
+                }, failures);
+            }
+
+            startupComplete = true;
+            StartupDiagnostics.SetStage(failures.Count == 0 ? "Ready" : "Ready with startup errors");
+            StartupDiagnostics.UpdateActivity(null, false, false);
+
+            if (failures.Count > 0)
+            {
+                BeginInvoke(new Action(delegate
+                {
+                    DarkMessageBox.Show(
+                        this,
+                        "Grimoire Exodus started, but these components reported errors: "
+                            + string.Join(", ", failures)
+                            + ".\r\n\r\nDiagnostics were saved to:\r\n"
+                            + StartupDiagnostics.StartupLogFile,
+                        "Startup diagnostics",
+                        MessageBoxIcon.Warning);
+                }));
+            }
+        }
+
+        private static bool RunStartupStage(string stage, Action action, ICollection<string> failures)
+        {
+            StartupDiagnostics.SetStage(stage);
+            try
+            {
+                action();
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine("Startup stage '" + stage + "' failed: " + exception);
+                StartupDiagnostics.RecordException("Startup / " + stage, exception, false);
+                failures.Add(stage);
+                return false;
+            }
         }
 
         private void Root_Shown(object sender, EventArgs e)
         {
             Program.CheckVersion();
             SetDRM(Root.Instance, !enableCapture);
+            BeginInvoke(new Action(ShowCrashRecovery));
+        }
+
+        private void ShowCrashRecovery()
+        {
+            if (recoveryPromptShown)
+                return;
+
+            recoveryPromptShown = true;
+            RecoveryInfo recovery = StartupDiagnostics.PreviousSession;
+            if (recovery == null)
+                return;
+
+            string stage = string.IsNullOrWhiteSpace(recovery.LastStage) ? "an unknown stage" : recovery.LastStage;
+            bool botCanBeReloaded = !string.IsNullOrWhiteSpace(recovery.LastBotPath)
+                && File.Exists(recovery.LastBotPath);
+
+            if (botCanBeReloaded)
+            {
+                string botName = Path.GetFileName(recovery.LastBotPath);
+                DialogResult result = DarkMessageBox.Show(
+                    this,
+                    "The previous Grimoire session did not close normally. Its last recorded stage was '"
+                        + stage
+                        + "'.\r\n\r\nReload '"
+                        + botName
+                        + "'? The bot will be loaded for review and will not start automatically.",
+                    "Recover previous session",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+
+                if (result == DialogResult.Yes && BotManager.Instance.LoadBotFromFile(recovery.LastBotPath, true))
+                {
+                    if (!BotManager.Instance.Visible)
+                    {
+                        ShowForm(BotManager.Instance);
+                    }
+                    else
+                    {
+                        BotManager.Instance.BringToFront();
+                        BotManager.Instance.Focus();
+                    }
+                }
+                return;
+            }
+
+            DarkMessageBox.Show(
+                this,
+                "The previous Grimoire session did not close normally. Its last recorded stage was '"
+                    + stage
+                    + "'. A recovery report was saved to:\r\n\r\n"
+                    + AppPaths.CrashReportsDirectory,
+                "Previous session recovered",
+                MessageBoxIcon.Warning);
         }
 
         private void InitializeGame()
@@ -427,10 +588,12 @@ namespace Grimoire.UI
             }
             catch(Exception ex)
             {
+                StartupDiagnostics.RecordException("Flash initialization", ex, false);
                 if (!Program.CheckFlashVersion())
                 {
                     DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen }, ex.Message, $"Error in Loading the Game!", MessageBoxIcon.Error);
                 }
+                throw;
             }
         }
 
@@ -783,18 +946,48 @@ namespace Grimoire.UI
                 }
             }
 
-            Hotkeys.InstalledHotkeys.ForEach(delegate (Hotkey h)
+            if (shutdownInProgress)
+                return;
+
+            shutdownInProgress = true;
+            StartupDiagnostics.SetStage("Shutdown");
+            RunShutdownStep("Hotkeys", delegate
             {
-                h.Uninstall();
+                Hotkeys.InstalledHotkeys.ForEach(delegate (Hotkey h)
+                {
+                    h.Uninstall();
+                });
             });
-            Proxy.AppClosingToken.Cancel(true);
-            KeyboardHook.Instance.Dispose();
-            CommandColorForm.Instance.Dispose();
-            StopCredentialFill();
-            nTray.Visible = false;
-            nTray.Icon.Dispose();
-            nTray.Dispose();
-            Process.GetCurrentProcess().Kill();
+            RunShutdownStep("Proxy", delegate
+            {
+                if (Proxy.AppClosingToken != null && !Proxy.AppClosingToken.IsCancellationRequested)
+                {
+                    Proxy.AppClosingToken.Cancel(true);
+                }
+            });
+            RunShutdownStep("Keyboard hook", delegate { KeyboardHook.Instance.Dispose(); });
+            RunShutdownStep("Command colors", delegate { CommandColorForm.Instance.Dispose(); });
+            RunShutdownStep("Credential fill", StopCredentialFill);
+            RunShutdownStep("Tray icon", delegate
+            {
+                nTray.Visible = false;
+                nTray.Icon?.Dispose();
+                nTray.Icon = null;
+                nTray.Dispose();
+            });
+        }
+
+        private static void RunShutdownStep(string name, Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine("Shutdown step '" + name + "' failed: " + exception);
+                StartupDiagnostics.RecordException("Shutdown / " + name, exception, false);
+            }
         }
 
         protected override void Dispose(bool disposing)
@@ -806,8 +999,8 @@ namespace Grimoire.UI
                 cpuMetricIcon?.Dispose();
                 uptimeMetricIcon?.Dispose();
                 networkMetricIcon?.Dispose();
-                hideHeaderIcon?.Dispose();
-                showHeaderIcon?.Dispose();
+                headerVisibleIcon?.Dispose();
+                headerHiddenIcon?.Dispose();
             }
             if (disposing && components != null)
             {
@@ -832,6 +1025,7 @@ namespace Grimoire.UI
             this.lblUptimeMetric = new System.Windows.Forms.Label();
             this.lblNetworkMetric = new System.Windows.Forms.Label();
             this.btnToggleHeader = new DarkUI.Controls.DarkButton();
+            this.headerVisibilityToolTip = new System.Windows.Forms.ToolTip(this.components);
             this.metricsTimer = new System.Windows.Forms.Timer(this.components);
             this.rtbPing = new System.Windows.Forms.RichTextBox();
             this.cbCells = new DarkUI.Controls.DarkComboBox();
@@ -1032,22 +1226,24 @@ namespace Grimoire.UI
             //
             // btnToggleHeader
             //
-            this.hideHeaderIcon = CreateStatusIcon(StatusIcon.ChevronUp, System.Drawing.Color.MediumPurple);
-            this.showHeaderIcon = CreateStatusIcon(StatusIcon.ChevronDown, System.Drawing.Color.MediumPurple);
+            this.headerVisibleIcon = CreateStatusIcon(StatusIcon.EyeOpen, System.Drawing.Color.MediumPurple);
+            this.headerHiddenIcon = CreateStatusIcon(StatusIcon.EyeClosed, System.Drawing.Color.MediumPurple);
+            this.btnToggleHeader.AccessibleDescription = "Controls visibility of the upper toolbar.";
+            this.btnToggleHeader.AccessibleName = "Hide upper toolbar";
             this.btnToggleHeader.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnToggleHeader.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(36)))), ((int)(((byte)(40)))), ((int)(((byte)(50)))));
             this.btnToggleHeader.BackColorUseGeneric = false;
             this.btnToggleHeader.Checked = false;
             this.btnToggleHeader.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
-            this.btnToggleHeader.Image = this.hideHeaderIcon;
-            this.btnToggleHeader.Location = new System.Drawing.Point(830, 1);
+            this.btnToggleHeader.Image = this.headerVisibleIcon;
+            this.btnToggleHeader.Location = new System.Drawing.Point(922, 1);
             this.btnToggleHeader.Name = "btnToggleHeader";
-            this.btnToggleHeader.Padding = new System.Windows.Forms.Padding(5, 0, 5, 0);
-            this.btnToggleHeader.Size = new System.Drawing.Size(122, 18);
+            this.btnToggleHeader.Padding = new System.Windows.Forms.Padding(0);
+            this.btnToggleHeader.Size = new System.Drawing.Size(30, 18);
             this.btnToggleHeader.TabIndex = 3;
-            this.btnToggleHeader.Text = "Hide toolbar";
-            this.btnToggleHeader.TextImageRelation = System.Windows.Forms.TextImageRelation.ImageBeforeText;
+            this.btnToggleHeader.Text = "";
             this.btnToggleHeader.Click += new System.EventHandler(this.btnToggleHeader_Click);
+            this.headerVisibilityToolTip.SetToolTip(this.btnToggleHeader, "Hide upper toolbar");
             //
             // metricsTimer
             //
@@ -1630,6 +1826,7 @@ namespace Grimoire.UI
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Root_FormClosing);
             this.Load += new System.EventHandler(this.Root_Load);
             this.Shown += new System.EventHandler(this.Root_Shown);
+            this.Resize += new System.EventHandler(this.Root_Resize);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.customTravel_KeyPress);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
@@ -1703,6 +1900,10 @@ namespace Grimoire.UI
             }
 
             UpdateBotTitle(IsRunning, BotManager.Instance.CurrentBotName);
+            StartupDiagnostics.UpdateActivity(
+                BotManager.Instance.CurrentBotPath,
+                IsRunning,
+                !Visible);
         }
 
         public void UpdateBotTitle(bool isRunning, string botName)
@@ -1716,7 +1917,75 @@ namespace Grimoire.UI
 
         private void nTray_MouseClick(object sender, MouseEventArgs e)
         {
-            ShowForm(this);
+            if (e.Button == MouseButtons.Left)
+            {
+                RestoreFromTray();
+            }
+        }
+
+        private void Root_Resize(object sender, EventArgs e)
+        {
+            if (startupComplete && WindowState == FormWindowState.Minimized)
+            {
+                BeginInvoke(new Action(delegate { HideToTray(true); }));
+            }
+        }
+
+        private void HideToTray(bool showHint)
+        {
+            if (IsDisposed || shutdownInProgress)
+                return;
+
+            Hide();
+            ShowInTaskbar = false;
+            UpdateRecoveryActivity(true);
+
+            if (!showHint)
+                return;
+
+            try
+            {
+                if (!Config.Instance.GetValue<bool>("trayHintShown"))
+                {
+                    nTray.BalloonTipTitle = "Grimoire Exodus is still running";
+                    nTray.BalloonTipText = "Use the tray icon to restore Grimoire, hide it, or exit safely.";
+                    nTray.BalloonTipIcon = ToolTipIcon.Info;
+                    nTray.ShowBalloonTip(5000);
+                    Config.Instance.SetValue("trayHintShown", "true");
+                }
+            }
+            catch (Exception exception)
+            {
+                StartupDiagnostics.RecordException("Tray notification", exception, false);
+            }
+        }
+
+        private void RestoreFromTray()
+        {
+            if (IsDisposed || shutdownInProgress)
+                return;
+
+            ShowInTaskbar = true;
+            Show();
+            WindowState = FormWindowState.Normal;
+            BringToFront();
+            Activate();
+            UpdateRecoveryActivity(false);
+        }
+
+        private static void UpdateRecoveryActivity(bool hiddenToTray)
+        {
+            try
+            {
+                StartupDiagnostics.UpdateActivity(
+                    BotManager.Instance.CurrentBotPath,
+                    BotManager.Instance.ActiveBotEngine.IsRunning,
+                    hiddenToTray);
+            }
+            catch (Exception exception)
+            {
+                StartupDiagnostics.RecordException("Recovery activity", exception, false);
+            }
         }
 
         private void eyeDropperToolStripMenuItem_Click_1(object sender, EventArgs e)

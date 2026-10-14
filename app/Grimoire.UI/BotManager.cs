@@ -476,10 +476,33 @@ namespace Grimoire.UI
 
         public string CurrentBotName { get; private set; } = "Untitled Bot";
 
+        public string CurrentBotPath { get; private set; }
+
         public void SetCurrentBotName(string path)
         {
             string name = string.IsNullOrWhiteSpace(path) ? null : Path.GetFileNameWithoutExtension(path);
             CurrentBotName = string.IsNullOrWhiteSpace(name) ? "Untitled Bot" : name;
+            try
+            {
+                CurrentBotPath = string.IsNullOrWhiteSpace(path) ? null : Path.GetFullPath(path);
+            }
+            catch
+            {
+                CurrentBotPath = path;
+            }
+
+            bool isRunning = false;
+            try
+            {
+                isRunning = ActiveBotEngine.IsRunning;
+            }
+            catch
+            {
+            }
+            StartupDiagnostics.UpdateActivity(
+                CurrentBotPath,
+                isRunning,
+                Root.Instance != null && !Root.Instance.Visible);
 
             if (Root.Instance != null && ActiveBotEngine.IsRunning)
             {

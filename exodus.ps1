@@ -355,7 +355,7 @@ function New-InstallerStage([string]$SourceDirectory, [string]$StageDirectory) {
         Copy-Item -LiteralPath $resources -Destination $StageDirectory -Recurse
     }
     Copy-Item -LiteralPath (Join-Path $script:RootDirectory "LICENSE") -Destination $StageDirectory
-    Copy-Item -LiteralPath (Join-Path $script:RootDirectory "THIRD-PARTY-NOTICES.md") -Destination $StageDirectory
+    Copy-Item -LiteralPath (Join-Path $script:RootDirectory "README.md") -Destination $StageDirectory
 
     foreach ($requiredFile in @("Grimoire Exodus.exe", "Flash.ocx", "grimoire-exodus.swf")) {
         if (-not (Test-Path -LiteralPath (Join-Path $StageDirectory $requiredFile))) {
