@@ -1,6 +1,7 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
 using Grimoire.Tools.Plugins;
+using Grimoire.Utils;
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -33,7 +34,7 @@ namespace Grimoire.UI
             InitializeComponent();
         }
 
-        private string path = Application.StartupPath + "\\Plugins";
+        private string path = AppPaths.PluginsDirectory;
 
         private void PluginManager_Load(object sender, EventArgs e)
         {

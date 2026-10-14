@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="Grimoire Exodus"
+    Language="1033"
+    Version="$(var.ProductVersion)"
+    Manufacturer="dsenin"
+    UpgradeCode="{778D0F40-82C2-4B09-864F-440A1D75AF47}">
+
+    <Package
+      Id="*"
+      InstallerVersion="500"
+      Compressed="yes"
+      InstallScope="perMachine"
+      Platform="x86"
+      Description="Grimoire Exodus $(var.ProductVersion)" />
+
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of Grimoire Exodus is already installed."
+      AllowSameVersionUpgrades="yes"
+      Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="GrimoireIcon" SourceFile="$(var.ProjectDir)\app\Resources\Brand\grimoire-exodus.ico" />
+    <Property Id="ARPPRODUCTICON" Value="GrimoireIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/UnknownSecurity/grimoire-exodus" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Grimoire Exodus" />
+    <PropertyRef Id="NETFRAMEWORK45" />
+    <Condition Message="Grimoire Exodus requires Microsoft .NET Framework 4.8 or newer.">
+      Installed OR NETFRAMEWORK45 &gt;= "#528040"
+    </Condition>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="Grimoire Exodus" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="Grimoire Exodus" />
+      </Directory>
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcuts" Guid="{9A8BA57C-4200-41BD-B08C-F3F5EA837F90}">
+        <Shortcut
+          Id="ApplicationStartMenuShortcut"
+          Name="Grimoire Exodus"
+          Description="Launch Grimoire Exodus"
+          Target="[INSTALLFOLDER]Grimoire Exodus.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\dsenin\Grimoire Exodus"
+          Name="installed"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="{37C1FD47-E186-4331-B4DB-54A494F40895}">
+        <Shortcut
+          Id="ApplicationDesktopShortcut"
+          Name="Grimoire Exodus"
+          Description="Launch Grimoire Exodus"
+          Target="[INSTALLFOLDER]Grimoire Exodus.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\dsenin\Grimoire Exodus"
+          Name="desktopShortcut"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="ProductFeature" Title="Grimoire Exodus" Level="1" Absent="disallow">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="ApplicationShortcuts" />
+      <Feature
+        Id="DesktopShortcutFeature"
+        Title="Desktop shortcut"
+        Description="Create a Grimoire Exodus shortcut on the desktop."
+        Level="1"
+        Absent="allow">
+        <ComponentRef Id="DesktopShortcut" />
+      </Feature>
+    </Feature>
+
+    <UIRef Id="WixUI_FeatureTree" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.ProjectDir)\installer\License.rtf" />
+
+    <CustomAction
+      Id="SetLaunchTarget"
+      Property="WixShellExecTarget"
+      Value="[INSTALLFOLDER]Grimoire Exodus.exe" />
+    <CustomAction
+      Id="LaunchApplication"
+      BinaryKey="WixCA"
+      DllEntry="WixShellExec"
+      Impersonate="yes" />
+    <UI>
+      <Publish
+        Dialog="ExitDialog"
+        Control="Finish"
+        Event="DoAction"
+        Value="SetLaunchTarget"
+        Order="1">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed</Publish>
+      <Publish
+        Dialog="ExitDialog"
+        Control="Finish"
+        Event="DoAction"
+        Value="LaunchApplication"
+        Order="2">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed</Publish>
+    </UI>
+  </Product>
+</Wix>

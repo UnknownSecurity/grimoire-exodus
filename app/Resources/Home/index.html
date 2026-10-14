@@ -15,7 +15,7 @@
     }
     body {
       color: #eeeaf4;
-      background: #0b0a0f;
+      background: #1c2028;
       font-family: "Segoe UI", Arial, sans-serif;
       font-size: 13px;
     }
@@ -60,9 +60,11 @@
       min-height: 100%;
       padding: 18px;
       background:
-        radial-gradient(circle at 82% 0, rgba(110, 65, 174, .18), transparent 34%),
-        radial-gradient(circle at 5% 92%, rgba(68, 35, 108, .12), transparent 38%),
-        #0b0a0f;
+        radial-gradient(circle at 82% 0, rgba(137, 87, 205, .24), transparent 36%),
+        radial-gradient(circle at 4% 78%, rgba(81, 48, 128, .18), transparent 38%),
+        linear-gradient(180deg, rgba(28, 32, 40, .30) 0, rgba(28, 32, 40, .82) 390px, #1c2028 690px),
+        url("images/aqworlds-master-header.jpg") center top / auto 480px no-repeat,
+        #1c2028;
     }
     .page { width: 100%; max-width: 1120px; margin: 0 auto; }
     .hero {
@@ -70,9 +72,9 @@
       min-height: 168px;
       padding: 24px;
       overflow: hidden;
-      border: 1px solid #3a2e49;
+      border: 1px solid #574171;
       border-radius: 17px;
-      background: #17121f;
+      background: rgba(28, 32, 40, .94);
       box-shadow: 0 18px 44px rgba(0, 0, 0, .32);
     }
     .hero:before {
@@ -84,7 +86,7 @@
       bottom: 0;
       left: 0;
       background: url("images/ashfall-dragons.png") center 44% / cover no-repeat;
-      opacity: .16;
+      opacity: .13;
     }
     .hero:after {
       content: "";
@@ -94,7 +96,7 @@
       right: 0;
       bottom: 0;
       left: 0;
-      background: linear-gradient(90deg, rgba(15, 11, 20, .97) 0%, rgba(19, 13, 27, .88) 51%, rgba(17, 11, 24, .66) 100%);
+      background: linear-gradient(90deg, rgba(28, 32, 40, .98) 0%, rgba(28, 32, 40, .90) 52%, rgba(28, 32, 40, .72) 100%);
     }
     .brand-row, .client-mode {
       position: relative;
@@ -147,9 +149,9 @@
     }
     .button:hover { background: #8053cb; }
     .button.secondary {
-      border-color: #3d354b;
+      border-color: #58456e;
       color: #d7cde8;
-      background: #211b2c;
+      background: #252a34;
       box-shadow: none;
     }
     .button.small { min-width: 0; padding: 8px 12px; }
@@ -162,7 +164,7 @@
       border: 1px solid #4a385f;
       border-radius: 10px;
       color: #d9c8f6;
-      background: #171121;
+      background: #1c2028;
     }
     .notice.show { display: block; }
     .notice.error { border-color: #774046; color: #ffb7bd; background: #241216; }
@@ -177,7 +179,7 @@
       padding: 14px;
       border: 1px solid #3d3545;
       border-radius: 13px;
-      background: rgba(12, 10, 16, .82);
+      background: rgba(28, 32, 40, .88);
       opacity: .72;
       cursor: not-allowed;
     }
@@ -196,7 +198,7 @@
       border: 1px solid #584369;
       border-radius: 999px;
       color: #b08fc5;
-      background: #211728;
+      background: #272331;
       font-size: 9px;
       font-weight: 800;
       letter-spacing: .7px;
@@ -211,11 +213,11 @@
       border: 1px solid #34303a;
       border-radius: 8px;
       color: #74707a;
-      background: #121016;
+      background: #222731;
       font-size: 10px;
       text-align: center;
     }
-    .selector-option.active { border-color: #644890; color: #bda9d9; background: #1a1422; }
+    .selector-option.active { border-color: #644890; color: #cbb5eb; background: #2a2635; }
     .selector-option span { display: block; margin-top: 4px; color: #5f5967; font-size: 9px; }
 
     .columns {
@@ -231,9 +233,9 @@
     .panel {
       height: 100%;
       padding: 18px;
-      border: 1px solid #292532;
+      border: 1px solid #4b3a61;
       border-radius: 15px;
-      background: rgba(18, 16, 25, .95);
+      background: rgba(28, 32, 40, .95);
       box-shadow: 0 12px 34px rgba(0, 0, 0, .22);
     }
     .panel-head {
@@ -256,7 +258,7 @@
       border: 1px solid #4c3970;
       border-radius: 9px;
       color: #bd98ff;
-      background: #1c1528;
+      background: #272532;
     }
     .icon-box svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
     .account-list { margin-top: 4px; }
@@ -269,13 +271,13 @@
       width: 100%;
       margin-bottom: 8px;
       padding: 11px 42px 11px 11px;
-      border: 1px solid #30293b;
+      border: 1px solid #3f374d;
       border-radius: 11px;
       color: #f5f1ff;
-      background: #17141e;
+      background: #222731;
       text-align: left;
     }
-    .account-card:hover { border-color: #7654aa; background: #1d1728; }
+    .account-card:hover { border-color: #7654aa; background: #2a2f3b; }
     .avatar {
       width: 34px;
       height: 34px;
@@ -325,7 +327,7 @@
       border-radius: 8px;
       outline: none;
       color: #fff;
-      background: #0e0c13;
+      background: #171b22;
     }
     .field input:focus { border-color: #7650bd; box-shadow: 0 0 0 2px rgba(118, 80, 189, .18); }
     .form-actions { text-align: right; }
@@ -371,9 +373,9 @@
       display: none;
       margin-top: 18px;
       padding: 20px;
-      border: 1px solid #302a38;
+      border: 1px solid #4b3a61;
       border-radius: 15px;
-      background: #121017;
+      background: rgba(28, 32, 40, .95);
       opacity: .82;
     }
     .army.visible { display: block; }
@@ -396,14 +398,14 @@
       overflow: hidden;
       border: 1px solid #34303a;
       border-radius: 9px;
-      background: #0d0c10;
+      background: #171b22;
     }
     .client-slot:before {
       content: "";
       display: block;
       height: 14px;
       border-bottom: 1px solid #2c2831;
-      background: #1a171e;
+      background: #252a34;
     }
     .client-slot span {
       position: absolute;
@@ -418,10 +420,10 @@
     .footer {
       margin-top: 18px;
       padding: 18px 20px;
-      border: 1px solid #292532;
+      border: 1px solid #4b3a61;
       border-radius: 15px;
       color: #85808d;
-      background: #100e15;
+      background: rgba(28, 32, 40, .96);
       font-size: 11px;
       line-height: 1.65;
     }
@@ -559,8 +561,8 @@
                 <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Conventional commit linting with Commitlint and Husky<span class="status-tag">Done</span></li>
                 <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Tag-triggered GitHub Actions release builds<span class="status-tag">Done</span></li>
                 <li class="roadmap-item"><span class="roadmap-dot">•</span>Army Mode with a split-screen multi-client layout<span class="status-tag">Planned</span></li>
-                <li class="roadmap-item"><span class="roadmap-dot">•</span>Grimoire Exodus installer for Windows<span class="status-tag">Planned</span></li>
-                <li class="roadmap-item"><span class="roadmap-dot">•</span>Bundled native Flash runtime instead of a separate Clean Flash installation<span class="status-tag">Planned</span></li>
+                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Windows installer with desktop-shortcut and launch-after-setup options<span class="status-tag">Done</span></li>
+                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Bundled native Flash runtime instead of a separate Clean Flash installation<span class="status-tag">Done</span></li>
                 <li class="roadmap-item"><span class="roadmap-dot">•</span>Automatic application updates<span class="status-tag">Planned</span></li>
                 <li class="roadmap-item"><span class="roadmap-dot">•</span>Background-process and orphan-state cleanup<span class="status-tag">Planned</span></li>
                 <li class="roadmap-item"><span class="roadmap-dot">•</span>Remote control through a companion mobile app<span class="status-tag">Planned</span></li>

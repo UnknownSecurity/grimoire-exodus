@@ -123,7 +123,7 @@ namespace Grimoire.UI
 
         private AxShockwaveFlash Game;
 
-        public static string PluginsPath { get; private set; } = Path.Combine(System.Windows.Forms.Application.StartupPath, "Plugins");
+        public static string PluginsPath { get; private set; } = Grimoire.Utils.AppPaths.PluginsDirectory;
 
         public static PluginManager PreloadedPlugins { get; private set; }
 
@@ -747,6 +747,42 @@ namespace Grimoire.UI
 
         private void Root_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                bool botIsRunning = false;
+                bool gameSessionIsActive = clientRunning;
+                try
+                {
+                    botIsRunning = BotManager.Instance.ActiveBotEngine.IsRunning;
+                    gameSessionIsActive = gameSessionIsActive || Player.IsLoggedIn;
+                }
+                catch
+                {
+                    // The confirmation still protects the user if client state
+                    // cannot be queried while Windows is closing the form.
+                }
+
+                string warning = botIsRunning
+                    ? "A bot is still running. Closing Grimoire will stop it immediately and end the current game session."
+                    : gameSessionIsActive
+                        ? "An AQW session is still open. Closing Grimoire will end the client and stop any active automation."
+                        : "Closing Grimoire will end the current client session.";
+
+                DialogResult result = DarkMessageBox.Show(
+                    this,
+                    warning + "\r\n\r\nAre you sure you want to close Grimoire Exodus?",
+                    "Close Grimoire Exodus?",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+
+                if (result != DialogResult.Yes)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+            }
+
             Hotkeys.InstalledHotkeys.ForEach(delegate (Hotkey h)
             {
                 h.Uninstall();

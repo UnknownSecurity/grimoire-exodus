@@ -1,6 +1,7 @@
 ﻿using Grimoire.Game;
 using Grimoire.Game.Data;
 using Grimoire.UI;
+using Grimoire.Utils;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -26,7 +27,7 @@ namespace Grimoire.Botting.Commands.Item
 
             string path = Path.IsPathRooted(ItemName)
                 ? ItemName
-                : Path.Combine(Application.StartupPath, "Sets", ItemName ?? string.Empty);
+                : Path.Combine(AppPaths.SetsDirectory, ItemName ?? string.Empty);
             if (!File.Exists(path))
                 throw new FileNotFoundException("Equipment set was not found.", path);
 

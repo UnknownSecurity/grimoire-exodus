@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build release package
+    name: Build Windows release packages
     runs-on: windows-latest
 
     steps:
@@ -20,23 +20,37 @@ jobs:
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore and build
-        shell: pwsh
-        run: .\exodus.ps1 build -Configuration Release
-
-      - name: Package release files
+      - name: Build release packages
         id: package
         shell: pwsh
         run: |
-          $artifact = "Grimoire-Exodus-${{ github.ref_name }}.zip"
-          Compress-Archive -Path "app\bin\Release\*" -DestinationPath $artifact -Force
-          "artifact=$artifact" >> $env:GITHUB_OUTPUT
+          .\exodus.ps1 installer
+          $installer = (Get-ChildItem "dist\Grimoire-Exodus-Setup-*.msi" | Select-Object -First 1).FullName
+          if (-not $installer) { throw "The installer build did not produce an MSI." }
 
-      - name: Upload release package
+          $portableSource = Join-Path $PWD "installer\obj\stage"
+          if (-not (Test-Path -LiteralPath $portableSource)) {
+            throw "The installer build did not produce the portable staging directory."
+          }
+
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          $portable = Join-Path $PWD "dist\Grimoire-Exodus-Portable-$version.zip"
+          Compress-Archive `
+            -Path (Join-Path $portableSource "*") `
+            -DestinationPath $portable `
+            -CompressionLevel Optimal `
+            -Force
+
+          "installer=$installer" >> $env:GITHUB_OUTPUT
+          "portable=$portable" >> $env:GITHUB_OUTPUT
+
+      - name: Upload release packages
         uses: actions/upload-artifact@v4
         with:
           name: Grimoire-Exodus-${{ github.ref_name }}
-          path: ${{ steps.package.outputs.artifact }}
+          path: |
+            ${{ steps.package.outputs.installer }}
+            ${{ steps.package.outputs.portable }}
           if-no-files-found: error
 
       - name: Publish GitHub release
@@ -45,15 +59,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $artifact = "${{ steps.package.outputs.artifact }}"
+          $artifacts = @(
+            "${{ steps.package.outputs.installer }}"
+            "${{ steps.package.outputs.portable }}"
+          )
           gh release view $tag --repo "${{ github.repository }}" *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $artifact --clobber --repo "${{ github.repository }}"
+            gh release upload $tag @artifacts --clobber --repo "${{ github.repository }}"
+            gh release edit $tag --prerelease --repo "${{ github.repository }}"
           }
           else {
-            gh release create $tag $artifact `
+            gh release create $tag @artifacts `
               --repo "${{ github.repository }}" `
               --title "Grimoire Exodus $tag" `
               --generate-notes `
+              --prerelease `
               --verify-tag
           }

@@ -4,13 +4,13 @@ using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Diagnostics;
-using Microsoft.Win32;
+using System.IO;
 
 namespace Grimoire
 {
     internal static class Program
     {
-        public static string versionDate = "2026-10-13";
+        public static string versionDate = "2026-10-14";
 
         public static string flashVersion;
 
@@ -48,12 +48,20 @@ namespace Grimoire
 
         public static string FlashVersion()
         {
-            var subKey = Registry.ClassesRoot.OpenSubKey(@"ShockwaveFlash.ShockwaveFlash\CurVer");
-            if (subKey != null)
+            string bundledRuntime = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Flash.ocx");
+            if (File.Exists(bundledRuntime))
             {
-                var value = subKey.GetValue(null) as String;
-                return value;
+                try
+                {
+                    string version = FileVersionInfo.GetVersionInfo(bundledRuntime).FileVersion;
+                    return string.IsNullOrWhiteSpace(version) ? "Bundled runtime" : $"Bundled {version.Replace(',', '.')}";
+                }
+                catch
+                {
+                    return "Bundled runtime";
+                }
             }
+
             return string.Empty;
         }
 
@@ -68,7 +76,7 @@ namespace Grimoire
         {
             if (flashVersion == string.Empty)
             {
-                DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen }, "You may have to install the Adobe Flash Player plugin (for ActiveX) in order for the bot client to load the game.", $"Flash Player", MessageBoxIcon.Error);
+                DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen }, "The app-local Flash runtime is missing. Rebuild with '.\\exodus.ps1 build' or install Grimoire Exodus with the v1.1.0 installer. A separate Clean Flash installation is not required.", "Flash runtime missing", MessageBoxIcon.Error);
                 return true;
             }
             return false;

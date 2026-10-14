@@ -344,7 +344,7 @@ namespace Grimoire.UI
             };
             SaveFileDialog saveFileDialog = new SaveFileDialog()
             {
-                InitialDirectory = Application.StartupPath + "\\Sets",
+                InitialDirectory = Grimoire.Utils.AppPaths.SetsDirectory,
                 Filter = "Grimoire sets|*.gset"
             };
             if (saveFileDialog.ShowDialog() == DialogResult.OK)
@@ -355,7 +355,7 @@ namespace Grimoire.UI
         {
             OpenFileDialog openFileDialog = new OpenFileDialog()
             {
-                InitialDirectory = Application.StartupPath + "\\Sets",
+                InitialDirectory = Grimoire.Utils.AppPaths.SetsDirectory,
                 Filter = "Grimoire sets|*.gset"
             };
             if (openFileDialog.ShowDialog() == DialogResult.OK)

@@ -2,6 +2,7 @@
 using Grimoire.Botting;
 using Grimoire.Game;
 using Grimoire.Game.Data;
+using Grimoire.Utils;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -56,7 +57,7 @@ namespace Grimoire.UI
             });
         }
 
-        private string path = Application.StartupPath + "\\Sets";
+        private string path = AppPaths.SetsDirectory;
 
         private void Set_Load(object sender, EventArgs e)
         {
@@ -206,9 +207,8 @@ namespace Grimoire.UI
         private void btnSave_Click(object sender, EventArgs e)
         {
             saveFileDialog1.Title = "Save Set";
-            if (!Directory.Exists(Application.StartupPath + "\\Sets"))
-                Directory.CreateDirectory(Application.StartupPath + "\\Sets");
-            saveFileDialog1.InitialDirectory = Path.Combine(Application.StartupPath, "Sets");
+            Directory.CreateDirectory(AppPaths.SetsDirectory);
+            saveFileDialog1.InitialDirectory = AppPaths.SetsDirectory;
             saveFileDialog1.DefaultExt = ".gset";
             saveFileDialog1.Filter = "Grimoire sets|*.gset";
             saveFileDialog1.CheckFileExists = false;
@@ -243,9 +243,8 @@ namespace Grimoire.UI
         private void btnLoad_Click(object sender, EventArgs e)
         {
             openFileDialog1.Title = "Load Set";
-            if (!Directory.Exists(Application.StartupPath + "\\Sets"))
-                Directory.CreateDirectory(Application.StartupPath + "\\Sets");
-            openFileDialog1.InitialDirectory = Path.Combine(Application.StartupPath, "Sets");
+            Directory.CreateDirectory(AppPaths.SetsDirectory);
+            openFileDialog1.InitialDirectory = AppPaths.SetsDirectory;
             openFileDialog1.DefaultExt = ".gset";
             openFileDialog1.Filter = "Grimoire sets|*.gset";
             if (openFileDialog1.ShowDialog() == DialogResult.OK && TryDeserialize(File.ReadAllText(openFileDialog1.FileName), out SetItem config))

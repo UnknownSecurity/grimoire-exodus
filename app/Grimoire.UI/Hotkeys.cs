@@ -264,7 +264,7 @@ namespace Grimoire.UI
             get;
         } = new Hotkeys();
 
-        private string configPath => Path.Combine(Application.StartupPath, "hotkeys.json");
+        private string configPath => Grimoire.Utils.AppPaths.HotkeysFile;
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
         private static extern IntPtr GetForegroundWindow();

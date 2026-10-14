@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("build", "dev", "version", "plugin", "help", "man")]
+    [ValidateSet("build", "dev", "runtime", "installer", "version", "plugin", "help", "man")]
     [string]$Command = "help",
     [ValidateSet("Debug", "Release", "All")]
     [string]$Configuration = "Debug",
@@ -17,6 +17,12 @@ $script:RootDirectory = $PSScriptRoot
 $script:SolutionPath = Join-Path $script:RootDirectory "app\Grimoire Exodus.sln"
 $script:AssemblyInfoPath = Join-Path $script:RootDirectory "app\Properties\AssemblyInfo.cs"
 $script:ProgramPath = Join-Path $script:RootDirectory "app\Grimoire\Program.cs"
+$script:FlashRuntimeUrl = "https://github.com/darktohka/clean-flash-builds/releases/download/v1.54/ChineseFlash-Patched-Win-34.0.0.376.7z"
+$script:FlashArchiveHash = "19A8D1036110AF024DC877CA96A9184835C3E944FB14CA8D509662F00BF1BD31"
+$script:FlashOcxHash = "4E1CAA0B6805E5D4E4F737C4389B8E94E92CA49E7D7AEF17C3773A9D744DCC42"
+$script:FlashRuntimePath = Join-Path $script:RootDirectory "app\Runtime\Flash\Flash.ocx"
+$script:WixUrl = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
+$script:WixArchiveHash = "6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7DAA2FF43D31"
 
 function Show-ExodusBanner {
     $banner = @'
@@ -38,6 +44,8 @@ function Show-ExodusHelp {
     Write-Host "Commands:"
     Write-Host "  build    Restore and build Debug, Release, or both configurations."
     Write-Host "  dev      Build Debug with detailed output, then launch the client."
+    Write-Host "  runtime  Acquire and verify the private app-local Flash runtime."
+    Write-Host "  installer Build the Release configuration and native Windows MSI."
     Write-Host "  version  Increment the four-part application version."
     Write-Host "  plugin   Create an empty plugin development workspace."
     Write-Host "  help     Show this quick reference."
@@ -48,6 +56,8 @@ function Show-ExodusHelp {
     Write-Host "  .\exodus.ps1 build -Configuration Release"
     Write-Host "  .\exodus.ps1 build -Configuration All"
     Write-Host "  .\exodus.ps1 dev"
+    Write-Host "  .\exodus.ps1 runtime"
+    Write-Host "  .\exodus.ps1 installer"
     Write-Host "  .\exodus.ps1 version -Part patch"
     Write-Host "  .\exodus.ps1 plugin -Name MyPlugin"
 }
@@ -64,6 +74,15 @@ function Show-ExodusManual {
     Write-Host "  -NoRestore"
     Write-Host "      Skip NuGet package restore when dependencies are already available."
     Write-Host ""
+    Write-Host "  runtime"
+    Write-Host "      Downloads the pinned 32-bit Flash ActiveX runtime, verifies the"
+    Write-Host "      archive and OCX SHA-256 hashes, and stages it for registration-free"
+    Write-Host "      activation. Normal build and installer commands do this automatically."
+    Write-Host ""
+    Write-Host "  installer"
+    Write-Host "      Produces dist\Grimoire-Exodus-Setup-<version>.msi. WiX 3.14.1 is"
+    Write-Host "      downloaded as a hash-pinned local build tool when needed."
+    Write-Host ""
     Write-Host "  -Part major|minor|patch|revision"
     Write-Host "      Choose the version component to increment. Components to its right"
     Write-Host "      are reset to zero. AssemblyVersion and AssemblyFileVersion are kept"
@@ -74,6 +93,109 @@ function Show-ExodusManual {
     Write-Host ""
     Write-Host "  -OutputDirectory <path>"
     Write-Host "      Override the default plugin-workspaces\<name> destination."
+}
+
+function Assert-FileHash([string]$Path, [string]$ExpectedHash, [string]$Description) {
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "$Description was not found: $Path"
+    }
+
+    $actualHash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+    if ($actualHash -ne $ExpectedHash) {
+        throw "$Description failed SHA-256 verification. Expected $ExpectedHash but found $actualHash."
+    }
+}
+
+function Invoke-VerifiedDownload([string]$Uri, [string]$Destination, [string]$ExpectedHash, [string]$Description) {
+    $parent = Split-Path -Parent $Destination
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    $partial = "$Destination.download"
+
+    if (Test-Path -LiteralPath $partial) {
+        Remove-Item -LiteralPath $partial -Force
+    }
+
+    Write-Host "Downloading $Description..." -ForegroundColor Cyan
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $client = New-Object Net.WebClient
+    $client.Headers["User-Agent"] = "Grimoire-Exodus-Build/1.1.0"
+    try {
+        $client.DownloadFile($Uri, $partial)
+    }
+    finally {
+        $client.Dispose()
+    }
+
+    Assert-FileHash $partial $ExpectedHash $Description
+    if (Test-Path -LiteralPath $Destination) {
+        Remove-Item -LiteralPath $Destination -Force
+    }
+    Move-Item -LiteralPath $partial -Destination $Destination
+}
+
+function Get-BundledFlashRuntime {
+    if (Test-Path -LiteralPath $script:FlashRuntimePath) {
+        try {
+            Assert-FileHash $script:FlashRuntimePath $script:FlashOcxHash "Bundled Flash runtime"
+            Write-Host "Flash runtime: $($script:FlashRuntimePath)" -ForegroundColor DarkGray
+            return $script:FlashRuntimePath
+        }
+        catch {
+            Write-Host "Replacing an unverified Flash runtime." -ForegroundColor Yellow
+            Remove-Item -LiteralPath $script:FlashRuntimePath -Force
+        }
+    }
+
+    $cacheDirectory = Join-Path $script:RootDirectory ".tools\cache"
+    $archive = Join-Path $cacheDirectory "ChineseFlash-Patched-Win-34.0.0.376.7z"
+    if (Test-Path -LiteralPath $archive) {
+        try {
+            Assert-FileHash $archive $script:FlashArchiveHash "Flash runtime archive"
+        }
+        catch {
+            Remove-Item -LiteralPath $archive -Force
+        }
+    }
+    if (-not (Test-Path -LiteralPath $archive)) {
+        Invoke-VerifiedDownload $script:FlashRuntimeUrl $archive $script:FlashArchiveHash "Flash runtime archive"
+    }
+
+    $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+    $extractDirectory = Join-Path $temporaryRoot ("grimoire-flash-" + [Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $extractDirectory | Out-Null
+    try {
+        $relativeOcx = "flash32/Flash32_34_0_0_376.ocx"
+        $sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
+        if ($sevenZip) {
+            & $sevenZip.Source x $archive "-o$extractDirectory" $relativeOcx -y | Out-Null
+        }
+        else {
+            $tar = Get-Command tar.exe -ErrorAction SilentlyContinue
+            if (-not $tar) {
+                throw "Neither 7z.exe nor tar.exe is available to extract the Flash runtime archive."
+            }
+            & $tar.Source -xf $archive -C $extractDirectory $relativeOcx
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "Extracting the Flash runtime failed with exit code $LASTEXITCODE."
+        }
+
+        $extractedOcx = Join-Path $extractDirectory "flash32\Flash32_34_0_0_376.ocx"
+        Assert-FileHash $extractedOcx $script:FlashOcxHash "Extracted Flash runtime"
+        New-Item -ItemType Directory -Path (Split-Path -Parent $script:FlashRuntimePath) -Force | Out-Null
+        Copy-Item -LiteralPath $extractedOcx -Destination $script:FlashRuntimePath -Force
+        Assert-FileHash $script:FlashRuntimePath $script:FlashOcxHash "Bundled Flash runtime"
+    }
+    finally {
+        $resolvedExtractDirectory = [IO.Path]::GetFullPath($extractDirectory)
+        if ($resolvedExtractDirectory.StartsWith($temporaryRoot, [StringComparison]::OrdinalIgnoreCase) -and
+            (Test-Path -LiteralPath $resolvedExtractDirectory)) {
+            Remove-Item -LiteralPath $resolvedExtractDirectory -Recurse -Force
+        }
+    }
+
+    Write-Host "Flash runtime ready: $($script:FlashRuntimePath)" -ForegroundColor Green
+    return $script:FlashRuntimePath
 }
 
 function Get-MSBuildPath {
@@ -115,8 +237,13 @@ function Invoke-NuGetRestore([string]$MSBuild) {
     }
 }
 
-function Complete-BrandedOutput([string]$BuildConfiguration) {
-    $outputDirectory = Join-Path $script:RootDirectory "app\bin\$BuildConfiguration"
+function Complete-BrandedOutput([string]$BuildConfiguration, [string]$RequestedOutputDirectory) {
+    $outputDirectory = if ([string]::IsNullOrWhiteSpace($RequestedOutputDirectory)) {
+        Join-Path $script:RootDirectory "app\bin\$BuildConfiguration"
+    }
+    else {
+        $RequestedOutputDirectory
+    }
     $legacyExecutable = Join-Path $outputDirectory "Grimoire.exe"
     $brandedExecutable = Join-Path $outputDirectory "Grimoire Exodus.exe"
     if (-not (Test-Path -LiteralPath $legacyExecutable)) {
@@ -143,7 +270,8 @@ function Complete-BrandedOutput([string]$BuildConfiguration) {
     return $brandedExecutable
 }
 
-function Invoke-ExodusBuild([string]$BuildConfiguration, [string]$Verbosity = "minimal") {
+function Invoke-ExodusBuild([string]$BuildConfiguration, [string]$Verbosity = "minimal", [string]$RequestedOutputDirectory) {
+    Get-BundledFlashRuntime | Out-Null
     $msbuild = Get-MSBuildPath
     Invoke-NuGetRestore $msbuild
     $configurations = if ($BuildConfiguration -eq "All") { @("Debug", "Release") } else { @($BuildConfiguration) }
@@ -151,14 +279,140 @@ function Invoke-ExodusBuild([string]$BuildConfiguration, [string]$Verbosity = "m
 
     foreach ($configurationName in $configurations) {
         Write-Host "Building $configurationName..." -ForegroundColor Cyan
-        & $msbuild $script:SolutionPath /p:Configuration=$configurationName '/p:Platform=Any CPU' /m "/v:$Verbosity" |
+        $msbuildArguments = @($script:SolutionPath, "/p:Configuration=$configurationName", "/p:Platform=Any CPU", "/m", "/v:$Verbosity")
+        if (-not [string]::IsNullOrWhiteSpace($RequestedOutputDirectory)) {
+            $msbuildArguments += "/p:OutputPath=$RequestedOutputDirectory"
+        }
+        & $msbuild @msbuildArguments |
             ForEach-Object { Write-Host $_ }
         if ($LASTEXITCODE -ne 0) {
             throw "$configurationName build failed with exit code $LASTEXITCODE."
         }
-        $outputs += Complete-BrandedOutput $configurationName
+        $outputs += Complete-BrandedOutput $configurationName $RequestedOutputDirectory
     }
     return $outputs
+}
+
+function Get-ExodusProductVersion {
+    $assemblyInfo = Get-Content -LiteralPath $script:AssemblyInfoPath -Raw
+    $match = [regex]::Match($assemblyInfo, 'AssemblyFileVersion\("(?<version>\d+\.\d+\.\d+)\.\d+"\)')
+    if (-not $match.Success) {
+        throw "Could not read a four-part AssemblyFileVersion from $($script:AssemblyInfoPath)."
+    }
+    return $match.Groups["version"].Value
+}
+
+function Get-WixToolset {
+    $toolDirectory = Join-Path $script:RootDirectory ".tools\wix314"
+    $heat = Join-Path $toolDirectory "heat.exe"
+    $candle = Join-Path $toolDirectory "candle.exe"
+    $light = Join-Path $toolDirectory "light.exe"
+    if ((Test-Path -LiteralPath $heat) -and (Test-Path -LiteralPath $candle) -and (Test-Path -LiteralPath $light)) {
+        return $toolDirectory
+    }
+
+    $cacheDirectory = Join-Path $script:RootDirectory ".tools\cache"
+    $archive = Join-Path $cacheDirectory "wix314-binaries.zip"
+    if (Test-Path -LiteralPath $archive) {
+        try {
+            Assert-FileHash $archive $script:WixArchiveHash "WiX Toolset archive"
+        }
+        catch {
+            Remove-Item -LiteralPath $archive -Force
+        }
+    }
+    if (-not (Test-Path -LiteralPath $archive)) {
+        Invoke-VerifiedDownload $script:WixUrl $archive $script:WixArchiveHash "WiX Toolset 3.14.1"
+    }
+
+    if (Test-Path -LiteralPath $toolDirectory) {
+        Remove-Item -LiteralPath $toolDirectory -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $toolDirectory -Force | Out-Null
+    Expand-Archive -LiteralPath $archive -DestinationPath $toolDirectory -Force
+
+    foreach ($tool in @($heat, $candle, $light)) {
+        if (-not (Test-Path -LiteralPath $tool)) {
+            throw "The WiX Toolset archive did not contain $tool."
+        }
+    }
+    return $toolDirectory
+}
+
+function New-InstallerStage([string]$SourceDirectory, [string]$StageDirectory) {
+    if (Test-Path -LiteralPath $StageDirectory) {
+        Remove-Item -LiteralPath $StageDirectory -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $StageDirectory -Force | Out-Null
+
+    $runtimeExtensions = @(".exe", ".dll", ".config", ".cfg", ".swf", ".ocx")
+    Get-ChildItem -LiteralPath $SourceDirectory -File |
+        Where-Object { $runtimeExtensions -contains $_.Extension.ToLowerInvariant() } |
+        ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $StageDirectory }
+
+    $resources = Join-Path $SourceDirectory "Resources"
+    if (Test-Path -LiteralPath $resources) {
+        Copy-Item -LiteralPath $resources -Destination $StageDirectory -Recurse
+    }
+    Copy-Item -LiteralPath (Join-Path $script:RootDirectory "LICENSE") -Destination $StageDirectory
+    Copy-Item -LiteralPath (Join-Path $script:RootDirectory "THIRD-PARTY-NOTICES.md") -Destination $StageDirectory
+
+    foreach ($requiredFile in @("Grimoire Exodus.exe", "Flash.ocx", "grimoire-exodus.swf")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $StageDirectory $requiredFile))) {
+            throw "Installer staging is missing required file: $requiredFile"
+        }
+    }
+}
+
+function New-ExodusInstaller {
+    $isolatedBuildDirectory = Join-Path $script:RootDirectory "installer\obj\build"
+    if (Test-Path -LiteralPath $isolatedBuildDirectory) {
+        Remove-Item -LiteralPath $isolatedBuildDirectory -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $isolatedBuildDirectory -Force | Out-Null
+    $executable = Invoke-ExodusBuild "Release" "minimal" $isolatedBuildDirectory | Select-Object -Last 1
+    $sourceDirectory = Split-Path -Parent $executable
+    $productVersion = Get-ExodusProductVersion
+    $wixDirectory = Get-WixToolset
+
+    $objectDirectory = Join-Path $script:RootDirectory "installer\obj"
+    $stageDirectory = Join-Path $objectDirectory "stage"
+    New-InstallerStage $sourceDirectory $stageDirectory
+
+    $harvestSource = Join-Path $objectDirectory "ApplicationFiles.wxs"
+    $productSource = Join-Path $script:RootDirectory "installer\Product.wxs"
+    $productObject = Join-Path $objectDirectory "Product.wixobj"
+    $harvestObject = Join-Path $objectDirectory "ApplicationFiles.wixobj"
+    New-Item -ItemType Directory -Path $objectDirectory -Force | Out-Null
+
+    Write-Host "Harvesting installer payload..." -ForegroundColor Cyan
+    & (Join-Path $wixDirectory "heat.exe") dir $stageDirectory -nologo -ag -cg ApplicationFiles -dr INSTALLFOLDER -srd -sfrag -sreg -scom -var var.SourceDir -out $harvestSource
+    if ($LASTEXITCODE -ne 0) {
+        throw "WiX heat failed with exit code $LASTEXITCODE."
+    }
+
+    Write-Host "Compiling installer..." -ForegroundColor Cyan
+    $definitions = @("-dSourceDir=$stageDirectory", "-dProductVersion=$productVersion", "-dProjectDir=$($script:RootDirectory)")
+    & (Join-Path $wixDirectory "candle.exe") -nologo -ext WixNetFxExtension -ext WixUtilExtension @definitions -out $productObject $productSource
+    if ($LASTEXITCODE -ne 0) {
+        throw "WiX candle failed while compiling Product.wxs (exit code $LASTEXITCODE)."
+    }
+    & (Join-Path $wixDirectory "candle.exe") -nologo @definitions -out $harvestObject $harvestSource
+    if ($LASTEXITCODE -ne 0) {
+        throw "WiX candle failed while compiling the application payload (exit code $LASTEXITCODE)."
+    }
+
+    $distDirectory = Join-Path $script:RootDirectory "dist"
+    New-Item -ItemType Directory -Path $distDirectory -Force | Out-Null
+    $installerPath = Join-Path $distDirectory "Grimoire-Exodus-Setup-$productVersion.msi"
+    $installerPdb = Join-Path $objectDirectory "Grimoire-Exodus-Setup-$productVersion.wixpdb"
+    & (Join-Path $wixDirectory "light.exe") -nologo -ext WixNetFxExtension -ext WixUIExtension -ext WixUtilExtension -cultures:en-us -pdbout $installerPdb -out $installerPath $productObject $harvestObject
+    if ($LASTEXITCODE -ne 0) {
+        throw "WiX light failed with exit code $LASTEXITCODE."
+    }
+
+    Write-Host "Installer: $installerPath" -ForegroundColor Green
+    return $installerPath
 }
 
 function Update-ExodusVersion([string]$VersionPart) {
@@ -284,6 +538,14 @@ switch ($Command) {
         $executable = Invoke-ExodusBuild "Debug" "detailed" | Select-Object -Last 1
         Write-Host "Launching development client..." -ForegroundColor Cyan
         Start-Process -FilePath $executable -WorkingDirectory (Split-Path -Parent $executable)
+    }
+    "runtime" {
+        Show-ExodusBanner
+        Get-BundledFlashRuntime | Out-Null
+    }
+    "installer" {
+        Show-ExodusBanner
+        New-ExodusInstaller | Out-Null
     }
     "version" {
         Show-ExodusBanner

@@ -12,6 +12,7 @@ using Grimoire.Game;
 using Grimoire.Game.Data;
 using Grimoire.Networking;
 using Grimoire.Tools;
+using Grimoire.Utils;
 using Newtonsoft.Json;
 using Properties;
 using System;
@@ -1437,8 +1438,7 @@ namespace Grimoire.UI
                 string initialDirectory = Config.Instance.GetValue<string>("botsDirectory");
                 if (string.IsNullOrWhiteSpace(initialDirectory) || !Directory.Exists(initialDirectory))
                 {
-                    string bundledBots = Path.Combine(Application.StartupPath, "Bots");
-                    initialDirectory = Directory.Exists(bundledBots) ? bundledBots : Application.StartupPath;
+                    initialDirectory = AppPaths.BotsDirectory;
                 }
 
                 openFileDialog.InitialDirectory = initialDirectory;
@@ -1530,7 +1530,7 @@ namespace Grimoire.UI
             using (SaveFileDialog saveFileDialog = new SaveFileDialog())
             {
                 saveFileDialog.Title = "Save bot";
-                saveFileDialog.InitialDirectory = Config.Instance.GetValue<string>("botsDirectory") ?? Path.Combine(Application.StartupPath, "Bots");
+                saveFileDialog.InitialDirectory = Config.Instance.GetValue<string>("botsDirectory") ?? AppPaths.BotsDirectory;
                 saveFileDialog.DefaultExt = ".gbot";
                 saveFileDialog.Filter = "Grimoire bots|*.gbot";
                 saveFileDialog.CheckFileExists = false;
@@ -1555,7 +1555,7 @@ namespace Grimoire.UI
             {
                 openFileDialog.Title = "Select bot to load";
                 openFileDialog.Filter = "Grimoire bots|*.gbot";
-                openFileDialog.InitialDirectory = Config.Instance.GetValue<string>("botsDirectory") ?? Path.Combine(Application.StartupPath, "Bots");
+                openFileDialog.InitialDirectory = Config.Instance.GetValue<string>("botsDirectory") ?? AppPaths.BotsDirectory;
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     AddCommand(new CmdLoadBot
@@ -1959,7 +1959,7 @@ namespace Grimoire.UI
                 using (SaveFileDialog saveFileDialog = new SaveFileDialog())
                 {
                     saveFileDialog.Title = "Save bot";
-                    saveFileDialog.InitialDirectory = Config.Instance.GetValue<string>("botsDirectory") ?? Path.Combine(Application.StartupPath, "Bots");
+                    saveFileDialog.InitialDirectory = Config.Instance.GetValue<string>("botsDirectory") ?? AppPaths.BotsDirectory;
                     saveFileDialog.DefaultExt = ".gbot";
                     saveFileDialog.Filter = "Grimoire bots|*.gbot";
                     saveFileDialog.CheckFileExists = false;
@@ -7682,7 +7682,7 @@ namespace Grimoire.UI
         {
             if (e.TabPage == tabBots)
             {
-                this.txtSaved.Text = Config.Instance.GetValue<string>("botsDirectory") ?? Path.Combine(Application.StartupPath, "Bots");
+                this.txtSaved.Text = Config.Instance.GetValue<string>("botsDirectory") ?? AppPaths.BotsDirectory;
                 UpdateTree();
             }
             else if (e.TabPage == tabMisc)

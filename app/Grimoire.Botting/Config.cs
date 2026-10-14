@@ -2,7 +2,7 @@
 using System.IO;
 using System;
 using System.Linq;
-using System.Windows.Forms;
+using Grimoire.Utils;
 
 namespace Grimoire.Botting
 {
@@ -18,7 +18,7 @@ namespace Grimoire.Botting
         {
             get;
             set;
-        } = Config.Load(Application.StartupPath + "\\config.cfg");
+        } = Config.Load(AppPaths.ConfigFile);
 
         public string Get(string key)
         {
@@ -38,6 +38,7 @@ namespace Grimoire.Botting
 
         public static Config Load(string path)
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
             if (!File.Exists(path))
             {
                 File.WriteAllText(path, string.Empty);
