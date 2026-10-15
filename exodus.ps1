@@ -422,9 +422,34 @@ function New-ExodusInstaller {
     New-Item -ItemType Directory -Path $distDirectory -Force | Out-Null
     $installerPath = Join-Path $distDirectory "Grimoire-Exodus-Setup-$productVersion.msi"
     $installerPdb = Join-Path $objectDirectory "Grimoire-Exodus-Setup-$productVersion.wixpdb"
-    & (Join-Path $wixDirectory "light.exe") -nologo -ext WixNetFxExtension -ext WixUIExtension -ext WixUtilExtension -cultures:en-us -pdbout $installerPdb -out $installerPath $productObject $harvestObject
+    $light = Join-Path $wixDirectory "light.exe"
+    $lightArguments = @(
+        "-nologo",
+        "-ext", "WixNetFxExtension",
+        "-ext", "WixUIExtension",
+        "-ext", "WixUtilExtension",
+        "-cultures:en-us",
+        "-pdbout", $installerPdb,
+        "-out", $installerPath,
+        $productObject,
+        $harvestObject
+    )
+    & $light @lightArguments
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "WiX ICE validation was unavailable (exit code $LASTEXITCODE). Retrying the same link with ICE validation suppressed."
+        if (Test-Path -LiteralPath $installerPath) {
+            Remove-Item -LiteralPath $installerPath -Force
+        }
+        if (Test-Path -LiteralPath $installerPdb) {
+            Remove-Item -LiteralPath $installerPdb -Force
+        }
+        & $light -sval @lightArguments
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "WiX light failed with exit code $LASTEXITCODE."
+    }
+    if (-not (Test-Path -LiteralPath $installerPath)) {
+        throw "WiX completed without producing $installerPath."
     }
 
     Write-Host "Installer: $installerPath" -ForegroundColor Green
