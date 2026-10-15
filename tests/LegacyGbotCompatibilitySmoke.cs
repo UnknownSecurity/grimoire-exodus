@@ -51,7 +51,7 @@ internal static class LegacyGbotCompatibilitySmoke
             if (args.Length > 0 && Directory.Exists(args[0]))
             {
                 string[] botFiles = Directory.GetFiles(args[0], "*.gbot", SearchOption.AllDirectories);
-                int failed = 0;
+                bool failed = false;
                 foreach (string botFile in botFiles)
                 {
                     try
@@ -94,14 +94,15 @@ internal static class LegacyGbotCompatibilitySmoke
                     }
                     catch (Exception exception)
                     {
-                        failed++;
-                        Console.Error.WriteLine(Path.GetFileName(botFile) + ": " + exception.GetBaseException().Message);
+                        failed = true;
+                        Console.Error.WriteLine("A GBot in the local compatibility corpus failed validation: "
+                            + exception.GetBaseException().Message);
                     }
                 }
 
-                if (failed > 0)
-                    return Fail(failed + " of " + botFiles.Length + " GBot files failed compatibility validation.");
-                Console.WriteLine("Validated " + botFiles.Length + " GBot files from " + args[0] + ".");
+                if (failed)
+                    return Fail("The local GBot compatibility corpus did not pass validation.");
+                Console.WriteLine("Local GBot compatibility corpus validated.");
             }
 
             Console.WriteLine("Legacy GBot compatibility passed.");

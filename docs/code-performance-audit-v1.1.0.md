@@ -444,7 +444,7 @@ Implemented without changing the public `IBotEngine`/`IBotCommand` contracts or 
 Compatibility verification on 2026-10-15:
 
 - Release build: passed.
-- Legacy fixture plus every `.gbot` under `Documents\Grimoire\Bot`: **88 files passed deserialization and current-format round-trip validation with command counts unchanged**.
+- The legacy fixture and the available local compatibility corpus passed deserialization and current-format round-trip validation with command structures unchanged. Local corpus details are intentionally omitted.
 - Update selection, startup recovery, updater merge/rollback, and registration-free Flash activation smoke tests: passed.
 - WiX source compilation and MSI linking: passed. Full local ICE validation could not run because Windows Installer was unavailable in the verification session; the release workflow retains normal WiX validation on GitHub's Windows runner.
 
