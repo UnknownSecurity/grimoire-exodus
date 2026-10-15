@@ -17,7 +17,7 @@ namespace Grimoire.Networking.Handlers
             "loadShop"
         };
 
-        public async void Handle(JsonMessage message)
+        public void Handle(JsonMessage message)
         {
             JToken jToken = message.DataObject["shopinfo"];
             if (jToken != null)
@@ -37,7 +37,7 @@ namespace Grimoire.Networking.Handlers
             "buyItem"
         };
 
-        public async void Handle(JsonMessage message)
+        public void Handle(JsonMessage message)
         {
             if (message.DataObject["bitSuccess"].Value<int>() == 1)
             {

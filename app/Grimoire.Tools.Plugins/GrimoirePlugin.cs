@@ -59,6 +59,14 @@ namespace Grimoire.Tools.Plugins
                     LastError = "Could not find file: " + _pluginPath;
                     return false;
                 }
+                string normalizedPath = Path.GetFullPath(_pluginPath);
+                GrimoirePlugin existing = LoadedPlugins.FirstOrDefault(plugin =>
+                    string.Equals(Path.GetFullPath(plugin._pluginPath), normalizedPath, StringComparison.OrdinalIgnoreCase));
+                if (existing != null)
+                {
+                    LastError = "This plugin is already loaded: " + Name;
+                    return false;
+                }
                 Assembly asm = Assembly.LoadFile(_pluginPath);
                 Type[] source;
                 if ((source = TryGetTypes(asm)) == null)

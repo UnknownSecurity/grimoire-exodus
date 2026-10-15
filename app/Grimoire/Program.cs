@@ -11,7 +11,7 @@ namespace Grimoire
 {
     internal static class Program
     {
-        public static string versionDate = "2026-10-14";
+        public static string versionDate = "2026-10-15";
 
         public static string flashVersion;
 
@@ -106,7 +106,7 @@ namespace Grimoire
         {
             if (flashVersion == string.Empty)
             {
-                DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen }, "The app-local Flash runtime is missing. Rebuild with '.\\exodus.ps1 build' or install Grimoire Exodus with the v1.1.0 installer. A separate Clean Flash installation is not required.", "Flash runtime missing", MessageBoxIcon.Error);
+                DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen }, "The app-local Flash runtime is missing. Rebuild with '.\\exodus.ps1 build' or install Grimoire Exodus with the v1.2.0 installer. A separate Clean Flash installation is not required.", "Flash runtime missing", MessageBoxIcon.Error);
                 return true;
             }
             return false;

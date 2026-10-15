@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Grimoire.Game
@@ -69,14 +70,14 @@ namespace Grimoire.Game
             return flag;
         }
 
-        public async Task<bool> RemoveAll(int itemId)
+        public Task<bool> RemoveAll(int itemId)
         {
             if (Contains(itemId))
             {
                 _drops.RemoveAll((InventoryItem d) => d.Id == itemId);
-                return true;
+                return Task.FromResult(true);
             }
-            return false;
+            return Task.FromResult(false);
         }
 
         public async Task<bool> GetDrop(int itemId)
@@ -128,21 +129,34 @@ namespace Grimoire.Game
         //    }
         //}
 
-        public async Task RejectDrops()
+        public Task RejectDrops()
         {
-            while (BotManager.Instance.ActiveBotEngine.IsRunning && BotManager.Instance.ActiveBotEngine.Configuration.EnableRejection)
+            Configuration configuration = BotManager.Instance.ActiveBotEngine.Configuration;
+            return configuration == null
+                ? Task.CompletedTask
+                : RejectDrops(configuration, CancellationToken.None);
+        }
+
+        public async Task RejectDrops(Configuration configuration, CancellationToken token)
+        {
+            if (configuration == null || !configuration.EnableRejection)
             {
-                Configuration configuration = BotManager.Instance.ActiveBotEngine.Configuration;
-                string wlArray;
-                if (configuration.Drops.Count > 0)
+                return;
+            }
+
+            string wlArray = configuration.Drops.Count > 0
+                ? string.Join(",", configuration.Drops).ToLowerInvariant()
+                : string.Empty;
+            try
+            {
+                while (!token.IsCancellationRequested && configuration.EnableRejection)
                 {
-                    string[] whitelisted = configuration.Drops.ToArray();
-                    wlArray = string.Join(",", whitelisted).ToLower();
-                }
-                else
-                    wlArray = "";
                 Flash.Call("RejectDrop", wlArray);
-                await Task.Delay(100);
+                    await Task.Delay(100, token);
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
             }
         }
 

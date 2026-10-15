@@ -23,6 +23,7 @@ namespace Grimoire.Botting
             {
                 DefaultValueHandling = defaultValueHandling,
                 NullValueHandling = nullValueHandling,
+                MaxDepth = 128,
                 TypeNameHandling = TypeNameHandling.All,
                 SerializationBinder = SafeBotSerializationBinder.Instance
             };

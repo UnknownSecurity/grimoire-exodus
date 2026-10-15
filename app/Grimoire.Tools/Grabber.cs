@@ -356,9 +356,9 @@ namespace Grimoire.Tools
                 //System.Diagnostics.Process.Start
                 Search("https://aqwwiki.wikidot.com/search:site/q/" + item.Name.Replace(" ", "+"));
             };
-            toolStripMenuItem2.Click += delegate (object S, EventArgs E)
+            toolStripMenuItem2.Click += async delegate (object S, EventArgs E)
             {
-                Shop.Load(item.Id);
+                await Shop.Load(item.Id);
             };
             contextMenuStrip.Items.Add(toolStripMenuItem);
             contextMenuStrip.Items.Add(toolStripMenuItem1);

@@ -6,6 +6,7 @@ using Grimoire.UI;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Grimoire.Networking.Handlers
 {
@@ -33,7 +34,12 @@ namespace Grimoire.Networking.Handlers
             "OnMenuBtnItemEvents"
         };
 
-        public async void Handle(XtMessage message)
+        public void Handle(XtMessage message)
+        {
+            HandlerTask.Observe(HandleAsync(message), nameof(HandlerLogin));
+        }
+
+        private async Task HandleAsync(XtMessage message)
         {
             if (message.Command == "loginResponse")
             {

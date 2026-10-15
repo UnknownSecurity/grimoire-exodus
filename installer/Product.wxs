@@ -51,7 +51,7 @@
           WorkingDirectory="INSTALLFOLDER" />
         <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
         <RegistryValue
-          Root="HKCU"
+          Root="HKLM"
           Key="Software\dsenin\Grimoire Exodus"
           Name="installed"
           Type="integer"
@@ -69,7 +69,7 @@
           Target="[INSTALLFOLDER]Grimoire Exodus.exe"
           WorkingDirectory="INSTALLFOLDER" />
         <RegistryValue
-          Root="HKCU"
+          Root="HKLM"
           Key="Software\dsenin\Grimoire Exodus"
           Name="desktopShortcut"
           Type="integer"

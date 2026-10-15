@@ -535,6 +535,11 @@ namespace Grimoire.UI
         public BotManager()
         {
             InitializeComponent();
+            chkHideYulgarPlayers.Checked = BotClientConfig.Instance.GetValue<bool>("hideYulgarPlayers");
+            chkAntiAfk.Checked = BotClientConfig.Instance.GetValue<bool>("antiAFK");
+            chkChangeRoomTag.Checked = BotClientConfig.Instance.GetValue<bool>("anonymousRoom");
+            chkChangeChat.Checked = BotClientConfig.Instance.GetValue<bool>("anonymousUser");
+            chkExitCombatUponStop.Checked = BotClientConfig.Instance.GetValue<bool>("exitCombatUponStop");
         }
 
         public void BotManager_Load(object sender, EventArgs e)
@@ -820,7 +825,7 @@ namespace Grimoire.UI
         {
             if (InvokeRequired)
             {
-                Invoke((Action)delegate
+                BeginInvoke((Action)delegate
                 {
                     ApplyConfiguration(config);
                 });
@@ -837,7 +842,7 @@ namespace Grimoire.UI
             {
                 if (InvokeRequired)
                 {
-                    Invoke((Action)delegate
+                    BeginInvoke((Action)delegate
                     {
                         lstCommands.SelectedIndex = index;
                     });
@@ -853,16 +858,20 @@ namespace Grimoire.UI
         {
             if (index > -1 && index < lstSkills.Items.Count)
             {
-                Invoke((Action)delegate
+                Action update = delegate
                 {
                     lstSkills.SelectedIndex = index;
-                });
+                };
+                if (InvokeRequired)
+                    BeginInvoke(update);
+                else
+                    update();
             }
         }
 
         public void OnIsRunningChanged(bool IsRunning)
         {
-            Invoke((Action)delegate
+            Action update = delegate
             {
                 if (!IsRunning)
                 {
@@ -872,7 +881,11 @@ namespace Grimoire.UI
                 }
                 BotStateChanged(IsRunning);
                 Root.Instance?.BotStateChanged(IsRunning);
-            });
+            };
+            if (InvokeRequired)
+                BeginInvoke(update);
+            else
+                update();
         }
 
         private void lstCommands_DoubleClick(object sender, EventArgs e)
@@ -1487,6 +1500,12 @@ namespace Grimoire.UI
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 {
                     throw new FileNotFoundException("The selected GBot file could not be found.", path);
+                }
+
+                const long maximumBotFileBytes = 32L * 1024L * 1024L;
+                if (new FileInfo(path).Length > maximumBotFileBytes)
+                {
+                    throw new InvalidDataException("The selected GBot file is larger than the 32 MB safety limit.");
                 }
 
                 Configuration config = JsonConvert.DeserializeObject<Configuration>(
@@ -2165,6 +2184,41 @@ namespace Grimoire.UI
             {
                 action();
             }
+        }
+
+        public Task RunOnUiThreadAsync(Action action)
+        {
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+
+            if (!InvokeRequired)
+            {
+                action();
+                return Task.CompletedTask;
+            }
+
+            TaskCompletionSource<bool> completion = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                BeginInvoke((Action)(() =>
+                {
+                    try
+                    {
+                        action();
+                        completion.SetResult(true);
+                    }
+                    catch (Exception exception)
+                    {
+                        completion.SetException(exception);
+                    }
+                }));
+            }
+            catch (Exception exception)
+            {
+                completion.SetException(exception);
+            }
+            return completion.Task;
         }
 
         private void btnAddSkillSet_Click(object sender, EventArgs e)
@@ -8462,30 +8516,17 @@ namespace Grimoire.UI
             try
             {
                 rtbInfo.Rtf = richTextBox2.Text;
-                return;
-
-                var currDir = System.AppDomain.CurrentDomain.BaseDirectory;
-                var tempDoc = $@"{currDir}/tempdoc";
-                var target = $@"{currDir}/temprtf";
-                if (File.Exists(tempDoc))
-                {
-                    File.Delete(tempDoc);
-                }
-                using (FileStream newFile = File.Create(tempDoc))
-                {
-                    byte[] toWrite = new UTF8Encoding(true).GetBytes(richTextBox2.Text);
-                    newFile.Write(toWrite, 0, toWrite.Length);
-                }
-                var tempRtf = "";
-                Task.WaitAll(Task.Run(() => DocConvert.toRtf(tempDoc, target, out tempRtf)));
-                rtbInfo.Rtf = File.ReadAllText(tempRtf);
             }
             catch { };
         }
 
         private void rtbInfo_LinkClicked(object sender, LinkClickedEventArgs e)
         {
-            Process.Start(e.LinkText);
+            if (Uri.TryCreate(e.LinkText, UriKind.Absolute, out Uri uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+            }
         }
 
         private void btnCancelTargetCmd_Click(object sender, EventArgs e)
@@ -8778,6 +8819,9 @@ namespace Grimoire.UI
 
         public void OnBotExecute(bool Type)
         {
+            ActiveBotEngine.IsRunningChanged -= OnIsRunningChanged;
+            ActiveBotEngine.IndexChanged -= OnIndexChanged;
+            ActiveBotEngine.ConfigurationChanged -= OnConfigurationChanged;
             ActiveBotEngine.IsRunningChanged += OnIsRunningChanged;
             ActiveBotEngine.IndexChanged += OnIndexChanged;
             ActiveBotEngine.ConfigurationChanged += OnConfigurationChanged;

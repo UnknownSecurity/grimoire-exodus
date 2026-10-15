@@ -74,6 +74,13 @@ namespace Grimoire.UI
         private Travel()
         {
             InitializeComponent();
+            chkCustomHotkeys.Checked = BotClientConfig.Instance.GetValue<bool>("customTravelHotkeys");
+            chkCustomChatTrigger.Checked = BotClientConfig.Instance.GetValue<bool>("customTravelTrigger");
+            scanCustomTravel();
+            if (travels.Count > 0)
+            {
+                cbCustomTravels.SelectedIndex = 0;
+            }
         }
 
         private void Travel_Shown(object sender, EventArgs e)

@@ -2,6 +2,7 @@ using DarkUI.Controls;
 using DarkUI.Forms;
 using Grimoire.Game;
 using Grimoire.Networking;
+using Grimoire.Utils;
 using System;
 using System.ComponentModel;
 using System.Windows.Forms;
@@ -24,6 +25,7 @@ namespace Grimoire.UI
         private DarkButton btnToClient;
         private DarkButton btnClearCaptured;
         private TableLayoutPanel tableLayoutPanel1;
+        private BoundedTextBuffer receiveBuffer;
 
         public static PacketTamperer Instance
         {
@@ -33,6 +35,12 @@ namespace Grimoire.UI
         private PacketTamperer()
         {
             InitializeComponent();
+            receiveBuffer = new BoundedTextBuffer(txtReceive, 2000000);
+        }
+
+        public void AppendCapturedPacket(string packet)
+        {
+            receiveBuffer.Append(packet);
         }
 
         private void PacketTamperer_Shown(object sender, EventArgs e)
@@ -87,7 +95,7 @@ namespace Grimoire.UI
 
         private void btnClearCaptured_Click(object sender, EventArgs e)
         {
-            txtReceive.Clear();
+            receiveBuffer.Clear();
         }
 
         protected override void Dispose(bool disposing)

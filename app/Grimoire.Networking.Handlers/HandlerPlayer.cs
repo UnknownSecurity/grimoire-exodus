@@ -23,7 +23,12 @@ namespace Grimoire.Networking.Handlers
             "sAct"
         };
 
-        public async void Handle(JsonMessage message)
+        public void Handle(JsonMessage message)
+        {
+            HandlerTask.Observe(HandleAsync(message), nameof(HandlerSkills));
+        }
+
+        private async Task HandleAsync(JsonMessage message)
         {
             await Task.Delay(10);
             Flash.Call("getRange", new string[0]);
@@ -41,7 +46,7 @@ namespace Grimoire.Networking.Handlers
             "ct"
         };
 
-        public async void Handle(JsonMessage message)
+        public void Handle(JsonMessage message)
         {
             if (message.RawContent.IndexOf("\"msg\":", StringComparison.OrdinalIgnoreCase) > -1 && message.RawContent.IndexOf("counter attack", StringComparison.OrdinalIgnoreCase) > -1 && message.RawContent.Contains($"\"strFrame\":\"{Player.Cell}\""))
             {
@@ -74,12 +79,12 @@ namespace Grimoire.Networking.Handlers
             "uotls"
         };
 
-        public async void Handle(JsonMessage message)
+        public void Handle(JsonMessage message)
         {
-            await ParseInfo(message, message.Command);
+            HandlerTask.Observe(ParseInfo(message, message.Command), nameof(HandlerInfo));
         }
 
-        public async Task ParseInfo(JsonMessage message, string command)
+        public Task ParseInfo(JsonMessage message, string command)
         {
             switch (command)
             {
@@ -137,6 +142,7 @@ namespace Grimoire.Networking.Handlers
                     //}
                     break;
             }
+            return Task.CompletedTask;
         }
         //{"t":"xt","b":{"r":-1,"o":{"cmd":"ct","p":{"gayifyoureadthis":{"intMP":100,"intSP":100,"intHP":3069}}}}}
         //{"t":"xt","b":{"r":-1,"o":{"cmd":"cb","p":{"dishonoured":{}},"m":{"3":{},"2":{},"1":{},"6":{},"5":{},"4":{}}}}}
@@ -158,7 +164,12 @@ namespace Grimoire.Networking.Handlers
             "ct"
         };
 
-        public async void Handle(JsonMessage message)
+        public void Handle(JsonMessage message)
+        {
+            HandlerTask.Observe(HandleAsync(message), nameof(HandlerAura));
+        }
+
+        private async Task HandleAsync(JsonMessage message)
         {
             await Task.Delay(10);
             JToken list = message.DataObject?["a"];
@@ -185,88 +196,59 @@ namespace Grimoire.Networking.Handlers
             }
         }
 
-        public async void addAura(JToken datas, bool onEnemy, int entityID)
+        public void addAura(JToken datas, bool onEnemy, int entityID)
         {
             if (datas == null)
                 return;
             foreach (JToken data in datas)
             {
-                Aura aura = !onEnemy ? World.PlayerAuras.FirstOrDefault((Aura x) => x.Name.Equals(data["nam"].ToString()) && x.entityID.Equals(entityID)) : World.EnemyAuras.FirstOrDefault((Aura x) => x.Name.Equals(data["nam"].ToString()) && x.entityID.Equals(entityID));
-                if (!onEnemy)
+                List<Aura> auras = onEnemy ? World.EnemyAuras : World.PlayerAuras;
+                string auraName = data["nam"].ToString();
+                Aura aura;
+                lock (World.AuraSyncRoot)
                 {
+                    aura = auras.FirstOrDefault(item => item.Name.Equals(auraName) && item.entityID == entityID);
                     if (aura == null)
                     {
-                        Aura newAura = new Aura
+                        aura = new Aura
                         {
                             entityID = entityID,
-                            Name = data["nam"].ToString(),
+                            Name = auraName,
                             Value = 1,
-                            realValue = data["val"] == null ? null : data["val"].ToString(),
-                            disableType = data["cat"] == null ? null : data["cat"].ToString(),
-                            durationSpan = int.Parse(data["dur"].ToString()),
-                            timeNow = DateTime.Now,
-
                         };
-                        World.PlayerAuras.Add(newAura);
-                        World.auraCountdown += newAura.countdown;
+                        auras.Add(aura);
                     }
                     else
                     {
-                        World.auraCountdown -= aura.countdown;
-                        World.PlayerAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.Value++);
-                        World.PlayerAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.realValue = data["val"] == null ? null : data["val"].ToString());
-                        World.PlayerAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.disableType = data["cat"] == null ? null : data["cat"].ToString());
-                        World.PlayerAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.durationSpan = int.Parse(data["dur"].ToString()));
-                        World.PlayerAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.timeNow = DateTime.Now);
-                        World.auraCountdown += aura.countdown;
+                        aura.Value++;
                     }
+                    aura.realValue = data["val"] == null ? null : data["val"].ToString();
+                    aura.disableType = data["cat"] == null ? null : data["cat"].ToString();
+                    aura.durationSpan = int.Parse(data["dur"].ToString());
+                    aura.timeNow = DateTime.Now;
                 }
-                else
-                {
-                    if (aura == null)
-                    {
-                        Aura newAura = new Aura
-                        {
-                            entityID = entityID,
-                            Name = data["nam"].ToString(),
-                            Value = 1,
-                            realValue = data["val"] == null ? null : data["val"].ToString(),
-                            disableType = data["cat"] == null ? null : data["cat"].ToString(),
-                            durationSpan = int.Parse(data["dur"].ToString()),
-                            timeNow = DateTime.Now
-                        };
-                        World.EnemyAuras.Add(newAura);
-                        World.auraCountdown += newAura.countdown;
-                    }
-                    else
-                    {
-                        World.auraCountdown -= aura.countdown;
-                        World.EnemyAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.Value++);
-                        World.EnemyAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.realValue = data["val"] == null ? null : data["val"].ToString());
-                        World.EnemyAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.disableType = data["cat"] == null ? null : data["cat"].ToString());
-                        World.EnemyAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.durationSpan = int.Parse(data["dur"].ToString()));
-                        World.EnemyAuras.Where(a => a.Name == data["nam"].ToString()).ToList().ForEach(v => v.timeNow = DateTime.Now);
-                        World.auraCountdown += aura.countdown;
-                    }
-                }
+                aura.countdown(aura);
             }
-
         }
 
         public void removeAura(JToken datas, bool onEnemy, int entityID)
         {
             if (datas == null)
                 return;
-            Aura aura = !onEnemy ? World.PlayerAuras.FirstOrDefault((Aura x) => x.Name.Equals(datas["nam"].ToString()) && x.entityID.Equals(entityID)) : World.EnemyAuras.FirstOrDefault((Aura x) => x.Name.Equals(datas["nam"].ToString()) && x.entityID.Equals(entityID));
-            if (!onEnemy)
+            List<Aura> auras = onEnemy ? World.EnemyAuras : World.PlayerAuras;
+            Aura aura;
+            lock (World.AuraSyncRoot)
             {
-                World.PlayerAuras.Remove(aura);
+                aura = auras.FirstOrDefault(item => item.Name.Equals(datas["nam"].ToString()) && item.entityID == entityID);
+                if (aura != null)
+                {
+                    auras.Remove(aura);
+                }
             }
-            else
+            if (aura != null)
             {
-                World.EnemyAuras.Remove(aura);
+                aura.CancelCountdown();
             }
-            World.auraCountdown -= aura.countdown;
         }
 
     }

@@ -3,7 +3,7 @@ name: Tagged Windows Build
 on:
   push:
     tags:
-      - "*"
+      - "v*"
 
 permissions:
   contents: write
@@ -16,6 +16,13 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_name }}" -notmatch '^v\d+\.\d+\.\d+(?:\.\d+)?$') {
+            throw "Release tags must use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH.REVISION."
+          }
 
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -44,6 +51,32 @@ jobs:
           "installer=$installer" >> $env:GITHUB_OUTPUT
           "portable=$portable" >> $env:GITHUB_OUTPUT
 
+      - name: Run compatibility smoke tests
+        shell: pwsh
+        run: |
+          .\exodus.ps1 build -Configuration Release
+          .\tests\Test-LegacyGbotCompatibility.ps1 -Configuration Release
+          .\tests\Test-UpdateService.ps1 -Configuration Release
+          .\tests\Test-StartupDiagnostics.ps1 -Configuration Release
+          .\tests\Test-UpdaterMerge.ps1 -Configuration Release
+          .\tests\Test-FlashActivation.ps1 -Configuration Release
+
+      - name: Create SHA-256 checksums
+        id: checksums
+        shell: pwsh
+        run: |
+          $checksumFile = Join-Path $PWD "dist\SHA256SUMS.txt"
+          $artifacts = @(
+            "${{ steps.package.outputs.installer }}"
+            "${{ steps.package.outputs.portable }}"
+          )
+          $lines = foreach ($artifact in $artifacts) {
+            $hash = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $([IO.Path]::GetFileName($artifact))"
+          }
+          [IO.File]::WriteAllLines($checksumFile, $lines)
+          "path=$checksumFile" >> $env:GITHUB_OUTPUT
+
       - name: Upload release packages
         uses: actions/upload-artifact@v4
         with:
@@ -51,6 +84,7 @@ jobs:
           path: |
             ${{ steps.package.outputs.installer }}
             ${{ steps.package.outputs.portable }}
+            ${{ steps.checksums.outputs.path }}
           if-no-files-found: error
 
       - name: Publish GitHub release
@@ -59,20 +93,46 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
+          $notes = Join-Path $PWD "docs\releases\$tag.md"
           $artifacts = @(
             "${{ steps.package.outputs.installer }}"
             "${{ steps.package.outputs.portable }}"
+            "${{ steps.checksums.outputs.path }}"
           )
           gh release view $tag --repo "${{ github.repository }}" *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag @artifacts --clobber --repo "${{ github.repository }}"
-            gh release edit $tag --prerelease=false --latest --repo "${{ github.repository }}"
+            if (Test-Path -LiteralPath $notes) {
+              gh release edit $tag `
+                --repo "${{ github.repository }}" `
+                --title "Grimoire Exodus $tag" `
+                --notes-file $notes `
+                --prerelease=false `
+                --latest
+            }
+            else {
+              gh release edit $tag `
+                --repo "${{ github.repository }}" `
+                --title "Grimoire Exodus $tag" `
+                --prerelease=false `
+                --latest
+            }
           }
           else {
-            gh release create $tag @artifacts `
-              --repo "${{ github.repository }}" `
-              --title "Grimoire Exodus $tag" `
-              --generate-notes `
-              --latest `
-              --verify-tag
+            if (Test-Path -LiteralPath $notes) {
+              gh release create $tag @artifacts `
+                --repo "${{ github.repository }}" `
+                --title "Grimoire Exodus $tag" `
+                --notes-file $notes `
+                --latest `
+                --verify-tag
+            }
+            else {
+              gh release create $tag @artifacts `
+                --repo "${{ github.repository }}" `
+                --title "Grimoire Exodus $tag" `
+                --generate-notes `
+                --latest `
+                --verify-tag
+            }
           }

@@ -168,6 +168,33 @@
     }
     .notice.show { display: block; }
     .notice.error { border-color: #774046; color: #ffb7bd; background: #241216; }
+    .loading-progress { display: none; margin-top: 9px; }
+    .loading-progress.show { display: block; }
+    .loading-progress-head {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-pack: justify;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      color: #bfa9e8;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .loading-progress-track {
+      height: 7px;
+      overflow: hidden;
+      border: 1px solid #443752;
+      border-radius: 999px;
+      background: #12151b;
+    }
+    .loading-progress-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #663caf, #a36de8);
+      box-shadow: 0 0 12px rgba(142, 88, 218, .48);
+      transition: width .18s ease-out;
+    }
 
     .client-mode { display: none; width: 100%; }
     .hero.client-running .brand-row { display: none; }
@@ -180,8 +207,6 @@
       border: 1px solid #3d3545;
       border-radius: 13px;
       background: rgba(28, 32, 40, .88);
-      opacity: .72;
-      cursor: not-allowed;
     }
     .selector-head {
       display: -ms-flexbox;
@@ -193,17 +218,6 @@
       margin-bottom: 10px;
     }
     .selector-head strong { font-size: 13px; }
-    .coming-soon {
-      padding: 4px 8px;
-      border: 1px solid #584369;
-      border-radius: 999px;
-      color: #b08fc5;
-      background: #272331;
-      font-size: 9px;
-      font-weight: 800;
-      letter-spacing: .7px;
-      text-transform: uppercase;
-    }
     .selector-options { display: -ms-flexbox; display: flex; margin: 0 -4px; }
     .selector-option {
       width: 25%;
@@ -214,11 +228,16 @@
       border-radius: 8px;
       color: #74707a;
       background: #222731;
+      cursor: default;
       font-size: 10px;
       text-align: center;
     }
-    .selector-option.active { border-color: #644890; color: #cbb5eb; background: #2a2635; }
+    .selector-option.active { border-color: #744cbd; color: #e5d8fa; background: #2a2635; cursor: pointer; }
+    .selector-option.active:hover { border-color: #9d74dd; background: #352d43; }
+    .selector-option.active:focus { outline: 1px solid #aa82e7; outline-offset: 2px; }
+    .selector-option.locked { opacity: .62; cursor: not-allowed; }
     .selector-option span { display: block; margin-top: 4px; color: #5f5967; font-size: 9px; }
+    .selector-option.active span { color: #ad91d1; }
 
     .columns {
       display: -ms-flexbox;
@@ -331,6 +350,86 @@
     }
     .field input:focus { border-color: #7650bd; box-shadow: 0 0 0 2px rgba(118, 80, 189, .18); }
     .form-actions { text-align: right; }
+    .accordion-stack { width: 100%; }
+    .accordion {
+      margin-bottom: 12px;
+      overflow: hidden;
+      border: 1px solid #4b3a61;
+      border-radius: 15px;
+      background: rgba(28, 32, 40, .95);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .22);
+    }
+    .accordion:last-child { margin-bottom: 0; }
+    .accordion-toggle {
+      display: block;
+      position: relative;
+      width: 100%;
+      padding: 16px 52px 16px 18px;
+      border: 0;
+      color: #eeeaf4;
+      background: transparent;
+      text-align: left;
+    }
+    .accordion-toggle:hover { background: #252a34; }
+    .accordion-heading { display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; }
+    .accordion-copy { display: block; min-width: 0; }
+    .accordion-title { display: block; font-size: 17px; font-weight: 700; }
+    .accordion-subtitle { display: block; margin-top: 4px; color: #8e899a; font-size: 12px; font-weight: 400; }
+    .accordion-chevron {
+      position: absolute;
+      top: 50%;
+      right: 19px;
+      width: 24px;
+      height: 24px;
+      margin-top: -12px;
+      border: 1px solid #584369;
+      border-radius: 7px;
+      color: #c7a9f6;
+      background: #272331;
+      font-size: 17px;
+      line-height: 20px;
+      text-align: center;
+    }
+    .accordion-content {
+      display: none;
+      max-height: 290px;
+      padding: 0 18px 16px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      border-top: 1px solid #30283a;
+    }
+    .accordion.open .accordion-content { display: block; }
+    .bot-actions { padding: 12px 0 0; text-align: right; }
+    .bot-list { margin-top: 12px; }
+    .bot-item {
+      position: relative;
+      min-height: 42px;
+      padding: 11px 12px 11px 40px;
+      overflow: hidden;
+      border-bottom: 1px solid #29242f;
+      color: #d4cfda;
+      line-height: 20px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .bot-item:last-child { border-bottom: 0; }
+    .bot-item:before {
+      content: "GB";
+      position: absolute;
+      top: 10px;
+      left: 4px;
+      width: 25px;
+      height: 21px;
+      border: 1px solid #594475;
+      border-radius: 6px;
+      color: #b898e5;
+      background: #272331;
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 19px;
+      text-align: center;
+    }
+    .bot-empty { margin: 12px 0 0; }
     .roadmap-list { margin: 0; padding: 0; list-style: none; }
     .roadmap-item {
       position: relative;
@@ -368,54 +467,6 @@
       text-transform: uppercase;
     }
     .roadmap-item.done .status-tag { border-color: #315e4c; color: #71c6a1; }
-
-    .army {
-      display: none;
-      margin-top: 18px;
-      padding: 20px;
-      border: 1px solid #4b3a61;
-      border-radius: 15px;
-      background: rgba(28, 32, 40, .95);
-      opacity: .82;
-    }
-    .army.visible { display: block; }
-    .army-head {
-      display: -ms-flexbox;
-      display: flex;
-      -ms-flex-align: center;
-      align-items: center;
-      -ms-flex-pack: justify;
-      justify-content: space-between;
-      margin-bottom: 14px;
-    }
-    .army-copy { margin: 5px 0 0; color: #8f8998; font-size: 12px; }
-    .client-grid { display: -ms-flexbox; display: flex; margin: 14px -5px 0; }
-    .client-slot {
-      position: relative;
-      width: 25%;
-      height: 78px;
-      margin: 0 5px;
-      overflow: hidden;
-      border: 1px solid #34303a;
-      border-radius: 9px;
-      background: #171b22;
-    }
-    .client-slot:before {
-      content: "";
-      display: block;
-      height: 14px;
-      border-bottom: 1px solid #2c2831;
-      background: #252a34;
-    }
-    .client-slot span {
-      position: absolute;
-      top: 36px;
-      right: 0;
-      left: 0;
-      color: #5f5b65;
-      font-size: 10px;
-      text-align: center;
-    }
 
     .footer {
       margin-top: 18px;
@@ -482,7 +533,7 @@
             </div>
           </div>
 
-          <div class="client-mode" aria-disabled="true">
+          <div class="client-mode">
             <div class="client-intro">
               <div class="eyebrow">Army Mode Lab</div>
               <h1>Client selector</h1>
@@ -491,17 +542,22 @@
             <div class="client-selector">
               <div class="selector-head">
                 <strong>Available clients</strong>
-                <span class="coming-soon">Coming soon</span>
               </div>
               <div class="selector-options">
-                <div class="selector-option active">Client 01<span>Running</span></div>
-                <div class="selector-option">Client 02<span>Locked</span></div>
-                <div class="selector-option">Client 03<span>Locked</span></div>
-                <div class="selector-option">Client 04<span>Locked</span></div>
+                <button id="primary-client" class="selector-option active" type="button" onclick="openRunningClient()">Client 01<span>Running</span></button>
+                <button class="selector-option locked" type="button" disabled>Client 02<span>Locked</span></button>
+                <button class="selector-option locked" type="button" disabled>Client 03<span>Locked</span></button>
+                <button class="selector-option locked" type="button" disabled>Client 04<span>Locked</span></button>
               </div>
             </div>
           </div>
-          <div id="notice" class="notice"></div>
+          <div id="notice" class="notice">
+            <div id="notice-message"></div>
+            <div id="loading-progress" class="loading-progress" role="progressbar" aria-label="AQW loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div class="loading-progress-head"><span>Loading AQW</span><span id="loading-progress-value">0%</span></div>
+              <div class="loading-progress-track"><div id="loading-progress-fill" class="loading-progress-fill"></div></div>
+            </div>
+          </div>
         </section>
 
         <div class="columns">
@@ -543,50 +599,60 @@
           </section>
 
           <section class="column roadmap">
-            <div class="panel">
-              <div class="panel-head">
-                <div class="icon-title">
-                  <span class="icon-box" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><path d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"></path><path d="M8 7h8M8 11h6"></path></svg>
+            <div class="accordion-stack">
+              <section id="bot-manager-accordion" class="accordion">
+                <button class="accordion-toggle" type="button" aria-expanded="false" aria-controls="bot-manager-content" onclick="toggleAccordion('bot-manager-accordion')">
+                  <span class="accordion-heading">
+                    <span class="icon-box" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path><path d="M2 7h.01M2 12h.01M2 17h.01"></path></svg>
+                    </span>
+                    <span class="accordion-copy">
+                      <span class="accordion-title">Bot Manager</span>
+                      <span id="bot-manager-summary" class="accordion-subtitle">Scanning available GBots...</span>
+                    </span>
                   </span>
-                  <div>
-                    <h2 class="panel-title">Development Roadmap</h2>
-                    <p class="panel-subtitle">Current work and what is coming next.</p>
+                  <span class="accordion-chevron" aria-hidden="true">+</span>
+                </button>
+                <div id="bot-manager-content" class="accordion-content">
+                  <div class="bot-actions">
+                    <button class="button secondary small" type="button" onclick="openBotFolder()">Open Bot folder</button>
                   </div>
+                  <div id="bot-list" class="bot-list"></div>
                 </div>
-              </div>
-              <ul class="roadmap-list">
-                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Compatibility fixes for the current AQW UI and SWF client<span class="status-tag">Done</span></li>
-                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Grimoire Home with an encrypted, one-click Account Locker<span class="status-tag">Done</span></li>
-                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Conventional commit linting with Commitlint and Husky<span class="status-tag">Done</span></li>
-                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Tag-triggered GitHub Actions release builds<span class="status-tag">Done</span></li>
-                <li class="roadmap-item"><span class="roadmap-dot">•</span>Army Mode with a split-screen multi-client layout<span class="status-tag">Planned</span></li>
-                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Windows installer with desktop-shortcut and launch-after-setup options<span class="status-tag">Done</span></li>
-                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Bundled native Flash runtime instead of a separate Clean Flash installation<span class="status-tag">Done</span></li>
-                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Verified in-app updates from official GitHub releases<span class="status-tag">Done</span></li>
-                <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Startup diagnostics, orphan-state cleanup, tray controls, and crash recovery<span class="status-tag">Done</span></li>
-                <li class="roadmap-item"><span class="roadmap-dot">•</span>Remote control through a companion mobile app<span class="status-tag">Planned</span></li>
-                <li class="roadmap-item"><span class="roadmap-dot">•</span>A community-maintained bot script repository<span class="status-tag">Planned</span></li>
-              </ul>
+              </section>
+
+              <section id="roadmap-accordion" class="accordion">
+                <button class="accordion-toggle" type="button" aria-expanded="false" aria-controls="roadmap-content" onclick="toggleAccordion('roadmap-accordion')">
+                  <span class="accordion-heading">
+                    <span class="icon-box" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5"></path><path d="M8 7h8M8 11h6"></path></svg>
+                    </span>
+                    <span class="accordion-copy">
+                      <span class="accordion-title">Development Roadmap</span>
+                      <span class="accordion-subtitle">Current work and what is coming next.</span>
+                    </span>
+                  </span>
+                  <span class="accordion-chevron" aria-hidden="true">+</span>
+                </button>
+                <div id="roadmap-content" class="accordion-content">
+                  <ul class="roadmap-list">
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Compatibility fixes for the current AQW UI and SWF client<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Grimoire Home with an encrypted, one-click Account Locker<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Conventional commit linting with Commitlint and Husky<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Tag-triggered GitHub Actions release builds<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item"><span class="roadmap-dot">•</span>Army Mode with a split-screen multi-client layout<span class="status-tag">Planned</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Windows installer with desktop-shortcut and launch-after-setup options<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Bundled native Flash runtime instead of a separate Clean Flash installation<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Verified in-app updates from official GitHub releases<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Startup diagnostics, orphan-state cleanup, tray controls, and crash recovery<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item"><span class="roadmap-dot">•</span>Remote control through a companion mobile app<span class="status-tag">Planned</span></li>
+                    <li class="roadmap-item"><span class="roadmap-dot">•</span>A community-maintained bot script repository<span class="status-tag">Planned</span></li>
+                  </ul>
+                </div>
+              </section>
             </div>
           </section>
         </div>
-
-        <section id="army-panel" class="army" aria-disabled="true">
-          <div class="army-head">
-            <div>
-              <h2 class="panel-title">Army Mode</h2>
-              <p class="army-copy">Coordinate multiple clients from one split-screen workspace.</p>
-            </div>
-            <span class="coming-soon">Coming soon</span>
-          </div>
-          <div class="client-grid">
-            <div class="client-slot"><span>Primary client</span></div>
-            <div class="client-slot"><span>Client slot 02</span></div>
-            <div class="client-slot"><span>Client slot 03</span></div>
-            <div class="client-slot"><span>Client slot 04</span></div>
-          </div>
-        </section>
 
         <footer class="footer">
           <div class="footer-top">
@@ -628,6 +694,7 @@
 
   <script>
     var scrollTimer = null;
+    var awaitingGameOpen = false;
 
     function parseHostResponse(raw) {
       try { return JSON.parse(raw); }
@@ -645,6 +712,8 @@
         if (method === "RemoveAccount") return parseHostResponse(window.external.RemoveAccount(first));
         if (method === "OpenAccount") return parseHostResponse(window.external.OpenAccount(first));
         if (method === "OpenGame") return parseHostResponse(window.external.OpenGame());
+        if (method === "OpenRunningClient") return parseHostResponse(window.external.OpenRunningClient());
+        if (method === "OpenBotFolder") return parseHostResponse(window.external.OpenBotFolder());
         if (method === "OpenWebsite") return parseHostResponse(window.external.OpenWebsite(first));
       } catch (error) {
         return { success: false, message: error.message || "Grimoire could not complete the request.", accounts: [] };
@@ -653,15 +722,27 @@
       return { success: false, message: "Unknown Grimoire Home action.", accounts: [] };
     }
 
-    function showNotice(message, isError) {
+    function showNotice(message, isError, progress) {
       var notice = document.getElementById("notice");
+      var noticeMessage = document.getElementById("notice-message");
+      var progressBox = document.getElementById("loading-progress");
       if (!message) {
         notice.className = "notice";
-        notice.innerText = "";
+        noticeMessage.innerText = "";
+        progressBox.className = "loading-progress";
         return;
       }
       notice.className = isError ? "notice show error" : "notice show";
-      notice.innerText = message;
+      noticeMessage.innerText = message;
+      if (typeof progress === "number" && !isError) {
+        var normalized = Math.max(0, Math.min(100, Math.round(progress)));
+        progressBox.className = "loading-progress show";
+        progressBox.setAttribute("aria-valuenow", normalized);
+        document.getElementById("loading-progress-value").innerText = normalized + "%";
+        document.getElementById("loading-progress-fill").style.width = normalized + "%";
+      } else {
+        progressBox.className = "loading-progress";
+      }
     }
 
     function initials(label, username) {
@@ -725,16 +806,64 @@
       }
     }
 
+    function renderQuickBots(bots, loading) {
+      var list = document.getElementById("bot-list");
+      var summary = document.getElementById("bot-manager-summary");
+      while (list.firstChild) list.removeChild(list.firstChild);
+
+      if (!bots || !bots.length) {
+        var empty = document.createElement("div");
+        empty.className = "empty bot-empty";
+        empty.innerText = loading
+          ? "Scanning the bundled and Documents GBot folders..."
+          : "No GBots found. Add .gbot files to Documents\\Grimoire\\Bot.";
+        list.appendChild(empty);
+        summary.innerText = loading ? "Scanning available GBots..." : "No GBots found.";
+        return;
+      }
+
+      summary.innerText = bots.length + " GBot" + (bots.length === 1 ? "" : "s")
+        + (loading ? " · Refreshing..." : " available for quick loading.");
+      for (var index = 0; index < bots.length; index++) {
+        var item = document.createElement("div");
+        item.className = "bot-item";
+        item.title = bots[index];
+        item.innerText = bots[index];
+        list.appendChild(item);
+      }
+    }
+
+    function toggleAccordion(id) {
+      var accordion = document.getElementById(id);
+      var toggle = accordion.getElementsByTagName("button")[0];
+      var chevron = toggle.getElementsByClassName("accordion-chevron")[0];
+      var open = accordion.className.indexOf("open") < 0;
+      accordion.className = open ? "accordion open" : "accordion";
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      chevron.innerText = open ? "−" : "+";
+      window.setTimeout(function () { updateScrollThumb(false); }, 20);
+    }
+
     function setClientRunning(running) {
       document.getElementById("home-hero").className = running ? "hero client-running" : "hero";
-      document.getElementById("army-panel").className = running ? "army visible" : "army";
     }
 
     function applyState(state, announce) {
       renderAccounts(state.accounts || []);
+      renderQuickBots(state.quickBots || [], !!state.quickBotsLoading);
       setClientRunning(!!state.clientRunning);
       document.getElementById("app-version").innerText = state.version || "Development";
-      if (announce && state.message) showNotice(state.message, !state.success);
+      if (state.gameReady && awaitingGameOpen) {
+        awaitingGameOpen = false;
+        showNotice(null, false);
+      } else if (awaitingGameOpen && !state.gameReady) {
+        showNotice(
+          state.message || "AQW is still loading. It will open automatically when ready.",
+          !state.success,
+          Number(state.gameLoadProgress || 0));
+      } else if (announce && state.message) {
+        showNotice(state.message, !state.success);
+      }
       updateScrollThumb(false);
     }
 
@@ -772,12 +901,24 @@
 
     function openAccount(id) {
       var state = invokeHost("OpenAccount", id);
+      awaitingGameOpen = !!state.success && !state.gameReady;
       if (!state.success || !state.gameReady) applyState(state, true);
     }
 
     function openGame() {
       var state = invokeHost("OpenGame");
+      awaitingGameOpen = !!state.success && !state.gameReady;
       if (!state.success || !state.gameReady) applyState(state, true);
+    }
+
+    function openRunningClient() {
+      var state = invokeHost("OpenRunningClient");
+      if (!state.success) applyState(state, true);
+    }
+
+    function openBotFolder() {
+      var state = invokeHost("OpenBotFolder");
+      if (!state.success) applyState(state, true);
     }
 
     function openExternal(address) {

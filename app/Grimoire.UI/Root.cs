@@ -6,6 +6,7 @@ using Grimoire.Game;
 using Grimoire.Game.Data;
 using Grimoire.Networking;
 using Grimoire.Tools;
+using Grimoire.Tools.Plugins;
 using Grimoire.Utils;
 using System;
 using System.Drawing;
@@ -14,6 +15,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -60,6 +62,7 @@ namespace Grimoire.UI
         private System.Windows.Forms.Timer credentialFillTimer;
         private int credentialFillAttempts;
         private volatile bool swfLoadComplete;
+        private volatile int swfLoadProgress;
         private bool clientRunning;
         public MenuStrip MenuMain;
         public CancellationTokenSource login_cts;
@@ -80,6 +83,8 @@ namespace Grimoire.UI
         private TimeSpan lastProcessorTime;
         private long lastNetworkReceived;
         private long lastNetworkSent;
+        private NetworkInterface[] metricsNetworkAdapters = Array.Empty<NetworkInterface>();
+        private DateTime metricsNetworkAdaptersRefreshedUtc = DateTime.MinValue;
         private Bitmap cpuMetricIcon;
         private Bitmap uptimeMetricIcon;
         private Bitmap networkMetricIcon;
@@ -88,6 +93,12 @@ namespace Grimoire.UI
         private Bitmap updateAvailableIcon;
         private ToolStripMenuItem updateToolStripMenuItem;
         private ToolStripDropDownButton quickBotsMenuItem;
+        private readonly List<FileSystemWatcher> quickBotWatchers = new List<FileSystemWatcher>();
+        private List<string> quickBotCache = new List<string>();
+        private CancellationTokenSource quickBotRefreshCancellation;
+        private bool quickBotIndexDirty = true;
+        private bool quickBotIndexing;
+        private DateTime quickBotIndexRefreshedUtc = DateTime.MinValue;
         private UpdateRelease availableUpdate;
         private PreparedUpdate preparedUpdate;
         private readonly CancellationTokenSource updateCancellation = new CancellationTokenSource();
@@ -155,7 +166,9 @@ namespace Grimoire.UI
 
         public static string PluginsPath { get; private set; } = Grimoire.Utils.AppPaths.PluginsDirectory;
 
-        public static PluginManager PreloadedPlugins { get; private set; }
+        // Preserve the legacy plugin-facing getter without constructing the
+        // manager form during normal startup.
+        public static PluginManager PreloadedPlugins => PluginManager.Instance;
 
         private static bool lightMode;
 
@@ -201,10 +214,8 @@ namespace Grimoire.UI
             InitializeQuickBots();
             InitializeUpdateButton();
             InitializeTrayBehavior();
-            PreloadedPlugins = new PluginManager();
             pingMonitorToggle();
             clientHeaderToggle();
-            triggerToggle();
             InitializeMetrics();
         }
 
@@ -362,6 +373,7 @@ namespace Grimoire.UI
             quickBotsMenuItem.DropDown.ForeColor = Color.Gainsboro;
             quickBotsMenuItem.DropDownOpening += quickBotsMenuItem_DropDownOpening;
             MenuStrip1.Items.Add(quickBotsMenuItem);
+            InitializeQuickBotWatchers();
             RefreshQuickBots();
         }
 
@@ -372,54 +384,183 @@ namespace Grimoire.UI
 
         private void RefreshQuickBots()
         {
+            if (DateTime.UtcNow - quickBotIndexRefreshedUtc > TimeSpan.FromMinutes(1))
+            {
+                quickBotIndexDirty = true;
+            }
+            RenderQuickBots(quickBotCache, quickBotIndexing);
+            if (quickBotIndexDirty && !quickBotIndexing)
+            {
+                ObserveQuickBotRefresh(RefreshQuickBotIndexAsync());
+            }
+        }
+
+        private static void ObserveQuickBotRefresh(Task refreshTask)
+        {
+            refreshTask.ContinueWith(
+                task => Debug.WriteLine("Unable to refresh quick GBots: " + task.Exception?.GetBaseException()),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
+        }
+
+        private async Task RefreshQuickBotIndexAsync()
+        {
+            quickBotIndexing = true;
+            RenderQuickBots(quickBotCache, true);
             try
             {
-                quickBotsMenuItem.DropDownItems.Clear();
-                List<string> bots = new List<string>();
-                bots.AddRange(GetQuickBots(AppPaths.CommunityBotsDirectory));
-                bots.AddRange(GetQuickBots(AppPaths.ExternalBotsDirectory));
-                bots.Sort(CompareQuickBotPaths);
+                List<string> bots = await Task.Run(() =>
+                {
+                    IEnumerable<string> indexed = GetQuickBots(AppPaths.CommunityBotsDirectory)
+                        .Concat(GetQuickBots(AppPaths.ExternalBotsDirectory));
+                    List<string> result = indexed
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    result.Sort(CompareQuickBotPaths);
+                    return result;
+                });
 
-                if (bots.Count == 0)
-                {
-                    quickBotsMenuItem.DropDownItems.Add(new QuickBotStatusMenuItem("No GBots found"));
-                }
-                else
-                {
-                    AddQuickBotItems(bots);
-                }
-
-                int botCount = bots.Count;
-                bool currentExists = IsQuickBotPath(lastQuickBotPath);
-                if (!currentExists)
-                {
-                    lastQuickBotPath = null;
-                }
-                quickBotsMenuItem.Text = currentExists
-                    ? Path.GetFileNameWithoutExtension(lastQuickBotPath)
-                    : "Quick load GBot...";
-                quickBotsMenuItem.ToolTipText = botCount == 0
-                    ? "Add .gbot files to Documents\\Grimoire\\Bot"
-                    : "Quick load one of " + botCount + " GBot" + (botCount == 1 ? string.Empty : "s");
+                if (IsDisposed || Disposing)
+                    return;
+                quickBotCache = bots;
+                quickBotIndexDirty = false;
+                quickBotIndexRefreshedUtc = DateTime.UtcNow;
             }
             catch (Exception exception)
             {
                 Debug.WriteLine("Unable to refresh quick GBots: " + exception);
-                quickBotsMenuItem.DropDownItems.Clear();
-                quickBotsMenuItem.DropDownItems.Add(new QuickBotStatusMenuItem("GBots unavailable"));
-                quickBotsMenuItem.Text = "Quick load GBot...";
-                quickBotsMenuItem.ToolTipText = "Grimoire could not read the GBot folders";
+            }
+            finally
+            {
+                quickBotIndexing = false;
+                if (!IsDisposed && !Disposing)
+                {
+                    RenderQuickBots(quickBotCache, false);
+                    RefreshHomeState();
+                }
             }
         }
 
-        private static string[] GetQuickBots(string directory)
+        private void RenderQuickBots(IReadOnlyCollection<string> bots, bool indexing)
+        {
+            if (quickBotsMenuItem == null || IsDisposed)
+                return;
+
+            quickBotsMenuItem.DropDownItems.Clear();
+            if (bots.Count == 0)
+            {
+                quickBotsMenuItem.DropDownItems.Add(new QuickBotStatusMenuItem(indexing ? "Scanning GBots..." : "No GBots found"));
+            }
+            else
+            {
+                AddQuickBotItems(bots);
+            }
+
+            int botCount = bots.Count;
+            bool currentExists = IsQuickBotPath(lastQuickBotPath);
+            if (!currentExists)
+            {
+                lastQuickBotPath = null;
+            }
+            quickBotsMenuItem.Text = currentExists
+                ? Path.GetFileNameWithoutExtension(lastQuickBotPath)
+                : "Quick load GBot...";
+            quickBotsMenuItem.ToolTipText = indexing
+                ? "Refreshing the GBot list..."
+                : botCount == 0
+                    ? "Add .gbot files to Documents\\Grimoire\\Bot"
+                    : "Quick load one of " + botCount + " GBot" + (botCount == 1 ? string.Empty : "s");
+        }
+
+        private static IEnumerable<string> GetQuickBots(string directory)
         {
             if (!Directory.Exists(directory))
             {
-                return new string[0];
+                return Array.Empty<string>();
             }
 
-            return Directory.GetFiles(directory, "*.gbot", SearchOption.AllDirectories);
+            try
+            {
+                return Directory.EnumerateFiles(directory, "*.gbot", SearchOption.AllDirectories).ToArray();
+            }
+            catch (IOException exception)
+            {
+                Debug.WriteLine("Unable to index GBots in '" + directory + "': " + exception.Message);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                Debug.WriteLine("Unable to index GBots in '" + directory + "': " + exception.Message);
+            }
+            return Array.Empty<string>();
+        }
+
+        private void InitializeQuickBotWatchers()
+        {
+            AddQuickBotWatcher(AppPaths.CommunityBotsDirectory);
+            AddQuickBotWatcher(AppPaths.ExternalBotsDirectory);
+        }
+
+        private void AddQuickBotWatcher(string directory)
+        {
+            if (!Directory.Exists(directory))
+                return;
+
+            try
+            {
+                FileSystemWatcher watcher = new FileSystemWatcher(directory, "*.gbot")
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite
+                };
+                watcher.Changed += QuickBotDirectoryChanged;
+                watcher.Created += QuickBotDirectoryChanged;
+                watcher.Deleted += QuickBotDirectoryChanged;
+                watcher.Renamed += QuickBotDirectoryChanged;
+                watcher.Error += QuickBotWatcherError;
+                watcher.EnableRaisingEvents = true;
+                quickBotWatchers.Add(watcher);
+            }
+            catch (Exception exception) when (exception is IOException
+                || exception is UnauthorizedAccessException
+                || exception is ArgumentException)
+            {
+                Debug.WriteLine("Unable to watch GBot directory '" + directory + "': " + exception.Message);
+            }
+        }
+
+        private void QuickBotWatcherError(object sender, ErrorEventArgs e)
+        {
+            quickBotIndexDirty = true;
+            if (!IsDisposed && !Disposing && IsHandleCreated)
+            {
+                try
+                {
+                    BeginInvoke((Action)RefreshQuickBots);
+                }
+                catch (InvalidOperationException)
+                {
+                }
+            }
+        }
+
+        private void QuickBotDirectoryChanged(object sender, FileSystemEventArgs e)
+        {
+            quickBotIndexDirty = true;
+            CancellationTokenSource next = new CancellationTokenSource();
+            CancellationTokenSource previous = Interlocked.Exchange(ref quickBotRefreshCancellation, next);
+            previous?.Cancel();
+            previous?.Dispose();
+            Task.Delay(300, next.Token).ContinueWith(
+                task =>
+                {
+                    if (task.IsCanceled || IsDisposed || Disposing || !IsHandleCreated)
+                        return;
+                    BeginInvoke((Action)RefreshQuickBots);
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
 
         private static int CompareQuickBotPaths(string left, string right)
@@ -664,7 +805,7 @@ namespace Grimoire.UI
 
             lblCpuMetric.Text = $"CPU  {cpuPercent:0}%";
             lblUptimeMetric.Text = $"UPTIME  {uptimeText}";
-            lblNetworkMetric.Text = $"NET  ↓ {FormatRate(receivedPerSecond)}  ↑ {FormatRate(sentPerSecond)}";
+            lblNetworkMetric.Text = $"SYSTEM NET  ↓ {FormatRate(receivedPerSecond)}  ↑ {FormatRate(sentPerSecond)}";
 
             lastMetricsSampleUtc = now;
             lastProcessorTime = processorTime;
@@ -672,13 +813,20 @@ namespace Grimoire.UI
             lastNetworkSent = sent;
         }
 
-        private static void GetNetworkTotals(out long received, out long sent)
+        private void GetNetworkTotals(out long received, out long sent)
         {
             received = 0L;
             sent = 0L;
             try
             {
-                foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
+                if (metricsNetworkAdapters.Length == 0
+                    || DateTime.UtcNow - metricsNetworkAdaptersRefreshedUtc > TimeSpan.FromMinutes(1))
+                {
+                    metricsNetworkAdapters = NetworkInterface.GetAllNetworkInterfaces();
+                    metricsNetworkAdaptersRefreshedUtc = DateTime.UtcNow;
+                }
+
+                foreach (NetworkInterface adapter in metricsNetworkAdapters)
                 {
                     if (adapter.OperationalStatus != OperationalStatus.Up
                         || adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback
@@ -854,7 +1002,14 @@ namespace Grimoire.UI
             RunStartupStage("Plugins", delegate
             {
                 Directory.CreateDirectory(PluginsPath);
-                PreloadedPlugins.LoadRange(Directory.GetFiles(PluginsPath, "*.dll"));
+                foreach (string pluginPath in Directory.GetFiles(PluginsPath, "*.dll"))
+                {
+                    GrimoirePlugin plugin = new GrimoirePlugin(pluginPath);
+                    if (!plugin.Load())
+                    {
+                        Debug.WriteLine("Plugin startup load failed for '" + pluginPath + "': " + plugin.LastError);
+                    }
+                }
             }, failures);
             RunStartupStage("Home", ShowHome, failures);
             RunStartupStage("Flash", InitializeGame, failures);
@@ -1135,6 +1290,16 @@ namespace Grimoire.UI
 
         private void OnLoadProgress(int progress)
         {
+            int normalizedProgress = Math.Max(0, Math.Min(100, progress));
+            if (normalizedProgress != swfLoadProgress)
+            {
+                swfLoadProgress = normalizedProgress;
+                if (IsHandleCreated && !IsDisposed)
+                {
+                    BeginInvoke((Action)RefreshHomeState);
+                }
+            }
+
             if (progress < 100)
             {
                 return;
@@ -1187,7 +1352,15 @@ namespace Grimoire.UI
 
         public bool IsGameReady => swfLoadComplete && Game != null;
 
+        public int GameLoadProgress => swfLoadComplete ? 100 : swfLoadProgress;
+
         public bool IsClientRunning => clientRunning;
+
+        public string[] QuickBotNames => quickBotCache
+            .Select(Path.GetFileNameWithoutExtension)
+            .ToArray();
+
+        public bool IsQuickBotIndexing => quickBotIndexing;
 
         public string AppVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Development";
 
@@ -1202,6 +1375,19 @@ namespace Grimoire.UI
             }
 
             BeginInvoke((Action)TryCompleteGameOpen);
+        }
+
+        public bool ShowRunningClient()
+        {
+            if (!clientRunning || !IsGameReady || Game == null)
+            {
+                return false;
+            }
+
+            homeBrowser.Visible = false;
+            Game.Visible = true;
+            Game.BringToFront();
+            return true;
         }
 
         private void TryCompleteGameOpen()
@@ -1540,6 +1726,13 @@ namespace Grimoire.UI
                 updateAvailableIcon?.Dispose();
                 updateCancellation.Cancel();
                 updateCancellation.Dispose();
+                quickBotRefreshCancellation?.Cancel();
+                quickBotRefreshCancellation?.Dispose();
+                foreach (FileSystemWatcher watcher in quickBotWatchers)
+                {
+                    watcher.Dispose();
+                }
+                quickBotWatchers.Clear();
             }
             if (disposing && components != null)
             {
@@ -1711,6 +1904,7 @@ namespace Grimoire.UI
             // lblCpuMetric
             //
             this.lblCpuMetric.BackColor = System.Drawing.Color.Transparent;
+            this.lblCpuMetric.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblCpuMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
             this.lblCpuMetric.Location = new System.Drawing.Point(63, 2);
             this.lblCpuMetric.Name = "lblCpuMetric";
@@ -1733,6 +1927,7 @@ namespace Grimoire.UI
             // lblUptimeMetric
             //
             this.lblUptimeMetric.BackColor = System.Drawing.Color.Transparent;
+            this.lblUptimeMetric.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblUptimeMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
             this.lblUptimeMetric.Location = new System.Drawing.Point(163, 2);
             this.lblUptimeMetric.Name = "lblUptimeMetric";
@@ -1755,6 +1950,7 @@ namespace Grimoire.UI
             // lblNetworkMetric
             //
             this.lblNetworkMetric.BackColor = System.Drawing.Color.Transparent;
+            this.lblNetworkMetric.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblNetworkMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
             this.lblNetworkMetric.Location = new System.Drawing.Point(321, 2);
             this.lblNetworkMetric.Name = "lblNetworkMetric";
@@ -2556,17 +2752,17 @@ namespace Grimoire.UI
             BotManager.Instance.chkInfiniteRange.Checked = infRangeToolStripMenuItem.Checked;
         }
 
-        private async void provokeToolStripMenuItem1_Click(object sender, EventArgs e)
+        private void provokeToolStripMenuItem1_Click(object sender, EventArgs e)
         {
             OptionsManager.ProvokeMonsters = provokeToolStripMenuItem1.Checked;
             BotManager.Instance.chkProvoke.Checked = provokeToolStripMenuItem1.Checked;
             if (provokeToolStripMenuItem1.Checked && !OptionsManager.IsRunning)
             {
-                OptionsManager.ApplySettings();
+                _ = OptionsManager.ApplySettings();
             }
         }
 
-        private async void provokeToolStripMenuItem1_Clicked(object sender, EventArgs e)
+        private void provokeToolStripMenuItem1_Clicked(object sender, EventArgs e)
         {
             if (!provokeToolStripMenuItem1.Checked && (Player.CurrentState == Player.State.InCombat))
             {
@@ -2584,17 +2780,17 @@ namespace Grimoire.UI
             }
             if (provokeAllMonsterInMapToolStripMenuItem.Checked && !OptionsManager.IsRunning)
             {
-                OptionsManager.ApplySettings();
+                _ = OptionsManager.ApplySettings();
             }
         }
 
-        private async void enemyMagnetToolStripMenuItem_Click(object sender, EventArgs e)
+        private void enemyMagnetToolStripMenuItem_Click(object sender, EventArgs e)
         {
             OptionsManager.EnemyMagnet = enemyMagnetToolStripMenuItem.Checked;
             BotManager.Instance.chkMagnet.Checked = enemyMagnetToolStripMenuItem.Checked;
             if (enemyMagnetToolStripMenuItem.Checked && !OptionsManager.IsRunning)
             {
-                OptionsManager.ApplySettings();
+                _ = OptionsManager.ApplySettings();
             }
         }
 
@@ -2610,13 +2806,13 @@ namespace Grimoire.UI
             BotManager.Instance.chkHidePlayers.Checked = hidePlayersToolStripMenuItem.Checked;
         }
 
-        private async void skipCutscenesToolStripMenuItem_Click(object sender, EventArgs e)
+        private void skipCutscenesToolStripMenuItem_Click(object sender, EventArgs e)
         {
             OptionsManager.SkipCutscenes = skipCutscenesToolStripMenuItem.Checked;
             BotManager.Instance.chkSkipCutscenes.Checked = skipCutscenesToolStripMenuItem.Checked;
             if (skipCutscenesToolStripMenuItem.Checked && !OptionsManager.IsRunning)
             {
-                OptionsManager.ApplySettings();
+                _ = OptionsManager.ApplySettings();
             }
         }
 
@@ -2950,6 +3146,10 @@ namespace Grimoire.UI
             }
         }
 
+        /// <summary>
+        /// Retained for plugins that used the legacy initialization entry point.
+        /// Normal startup now restores these form-specific options lazily.
+        /// </summary>
         public void triggerToggle()
         {
             enableCapture = true;
@@ -2967,7 +3167,7 @@ namespace Grimoire.UI
             }
         }
 
-        public bool enableCapture { get; set; } = false;
+        public bool enableCapture { get; set; } = true;
         private const uint WDA_NONE = 0x0;
         private const uint WDA_MONITOR = 0x1;
 

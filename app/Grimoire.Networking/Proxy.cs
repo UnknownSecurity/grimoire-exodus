@@ -27,6 +27,17 @@ namespace Grimoire.Networking
 
         private List<IXmlMessageHandler> _handlersXml;
 
+        private readonly object _handlerSync = new object();
+
+        private Dictionary<string, IJsonMessageHandler[]> _jsonHandlersByCommand =
+            new Dictionary<string, IJsonMessageHandler[]>(StringComparer.Ordinal);
+
+        private Dictionary<string, IXtMessageHandler[]> _xtHandlersByCommand =
+            new Dictionary<string, IXtMessageHandler[]>(StringComparer.Ordinal);
+
+        private Dictionary<string, IXmlMessageHandler[]> _xmlHandlersByCommand =
+            new Dictionary<string, IXmlMessageHandler[]>(StringComparer.Ordinal);
+
         public static CancellationTokenSource AppClosingToken;
 
         public bool _catchXtPackets { get; set; } = false;
@@ -75,6 +86,7 @@ namespace Grimoire.Networking
             Instance._handlersXml = new List<IXmlMessageHandler>
             {
             };
+            Instance.RebuildHandlerIndexes();
             ReceivedFromGame += Instance.ProcessMessage;
         }
 
@@ -95,25 +107,74 @@ namespace Grimoire.Networking
 
         public void UnregisterHandler(IJsonMessageHandler handler)
         {
-            _handlersJson.Remove(handler);
+            lock (_handlerSync)
+            {
+                _handlersJson.Remove(handler);
+                RebuildHandlerIndexes();
+            }
         }
 
         public void UnregisterHandler(IXmlMessageHandler handler)
         {
-            _handlersXml.Remove(handler);
+            lock (_handlerSync)
+            {
+                _handlersXml.Remove(handler);
+                RebuildHandlerIndexes();
+            }
         }
 
         public void UnregisterHandler(IXtMessageHandler handler)
         {
-            _handlersXt.Remove(handler);
+            lock (_handlerSync)
+            {
+                _handlersXt.Remove(handler);
+                RebuildHandlerIndexes();
+            }
         }
 
         private void RegisterHandler<T>(T handler, List<T> list)
         {
-            if (handler != null && !list.Contains(handler))
+            lock (_handlerSync)
             {
-                list.Add(handler);
+                if (handler != null && !list.Contains(handler))
+                {
+                    list.Add(handler);
+                    RebuildHandlerIndexes();
+                }
             }
+        }
+
+        private void RebuildHandlerIndexes()
+        {
+            _jsonHandlersByCommand = BuildHandlerIndex(_handlersJson, handler => handler.HandledCommands);
+            _xtHandlersByCommand = BuildHandlerIndex(_handlersXt, handler => handler.HandledCommands);
+            _xmlHandlersByCommand = BuildHandlerIndex(_handlersXml, handler => handler.HandledCommands);
+        }
+
+        private static Dictionary<string, T[]> BuildHandlerIndex<T>(
+            IEnumerable<T> handlers,
+            Func<T, string[]> handledCommands)
+        {
+            Dictionary<string, List<T>> index = new Dictionary<string, List<T>>(StringComparer.Ordinal);
+            foreach (T handler in handlers.Where(item => item != null))
+            {
+                foreach (string command in handledCommands(handler) ?? Array.Empty<string>())
+                {
+                    if (string.IsNullOrEmpty(command))
+                    {
+                        continue;
+                    }
+
+                    if (!index.TryGetValue(command, out List<T> commandHandlers))
+                    {
+                        commandHandlers = new List<T>();
+                        index.Add(command, commandHandlers);
+                    }
+                    commandHandlers.Add(handler);
+                }
+            }
+
+            return index.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal);
         }
 
         public Task SendToServer(string data)
@@ -143,7 +204,9 @@ namespace Grimoire.Networking
             switch (message)
             {
                 case XtMessage xtMessage:
-                    foreach (IXtMessageHandler item in Instance._handlersXt.Where(h => h != null && h.HandledCommands.Contains(xtMessage.Command)).ToArray())
+                    if (!_xtHandlersByCommand.TryGetValue(xtMessage.Command, out IXtMessageHandler[] xtHandlers))
+                        break;
+                    foreach (IXtMessageHandler item in xtHandlers)
                     {
                         try
                         {
@@ -156,7 +219,9 @@ namespace Grimoire.Networking
                     }
                     break;
                 case JsonMessage jsonMessage:
-                    foreach (IJsonMessageHandler item in Instance._handlersJson.Where(h => h != null && h.HandledCommands.Contains(jsonMessage.Command)).ToArray())
+                    if (!_jsonHandlersByCommand.TryGetValue(jsonMessage.Command, out IJsonMessageHandler[] jsonHandlers))
+                        break;
+                    foreach (IJsonMessageHandler item in jsonHandlers)
                     {
                         try
                         {
@@ -169,7 +234,9 @@ namespace Grimoire.Networking
                     }
                     break;
                 case XmlMessage xmlMessage:
-                    foreach (IXmlMessageHandler item in Instance._handlersXml.Where(h => h != null && h.HandledCommands.Contains(xmlMessage.Command)).ToArray())
+                    if (!_xmlHandlersByCommand.TryGetValue(xmlMessage.Command, out IXmlMessageHandler[] xmlHandlers))
+                        break;
+                    foreach (IXmlMessageHandler item in xmlHandlers)
                     {
                         try
                         {
@@ -251,18 +318,24 @@ namespace Grimoire.Networking
 
         public async Task ClientExecute()
         {
-            while (!AppClosingToken.IsCancellationRequested)
+            try
             {
-                if (Player.IsLoggedIn)
+                while (!AppClosingToken.IsCancellationRequested)
                 {
-                    if (BotManager.Instance.ActiveBotEngine.IsRunning && BotManager.Instance.ActiveBotEngine.Configuration.EnableRejection && !World.VisibleDropUI)
+                    if (Player.IsLoggedIn)
                     {
-                        Flash.Call("dropUIOpt", false);
+                        if (BotManager.Instance.ActiveBotEngine.IsRunning && BotManager.Instance.ActiveBotEngine.Configuration.EnableRejection && !World.VisibleDropUI)
+                        {
+                            Flash.Call("dropUIOpt", false);
+                        }
                     }
+                    else if (Root.Instance.rtbPing.Text != "")
+                        Root.Instance.rtbPing.Clear();
+                    await Task.Delay(Player.IsLoggedIn ? 250 : 1000, AppClosingToken.Token);
                 }
-                else if (Root.Instance.rtbPing.Text != "")
-                    Root.Instance.rtbPing.Clear();
-                await Task.Delay(100);
+            }
+            catch (OperationCanceledException) when (AppClosingToken.IsCancellationRequested)
+            {
             }
         }
 
@@ -314,9 +387,9 @@ namespace Grimoire.Networking
                 return;
 
             if (_catchXtPackets)
-                PacketLogger.Instance.txtPackets.AppendText(packet + Environment.NewLine);
+                PacketLogger.Instance.AppendPacket(packet + Environment.NewLine);
             if (_catchAllPackets)
-                PacketTamperer.Instance.txtReceive.AppendText("From client: " + packet + Environment.NewLine);
+                PacketTamperer.Instance.AppendCapturedPacket("From client: " + packet + Environment.NewLine);
         }
 
         private void PublishServerPacket(string packet)
@@ -328,7 +401,7 @@ namespace Grimoire.Networking
             if (message != null)
                 ReceivedFromGame?.Invoke(message);
             if (_catchAllPackets)
-                PacketTamperer.Instance.txtReceive.AppendText("From server: " + packet + Environment.NewLine + Environment.NewLine);
+                PacketTamperer.Instance.AppendCapturedPacket("From server: " + packet + Environment.NewLine + Environment.NewLine);
         }
 
         private void PublishExtensionResponse(string response)

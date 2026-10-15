@@ -1,6 +1,7 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
 using Grimoire.Networking;
+using Grimoire.Utils;
 using System;
 using System.ComponentModel;
 using System.Windows.Forms;
@@ -20,6 +21,7 @@ namespace Grimoire.UI
         private DarkButton btnCopy;
         private TableLayoutPanel tableLayoutPanel1;
         private DarkButton btnClear;
+        private BoundedTextBuffer packetBuffer;
 
         public static PacketLogger Instance
         {
@@ -29,11 +31,17 @@ namespace Grimoire.UI
         private PacketLogger()
         {
             InitializeComponent();
+            packetBuffer = new BoundedTextBuffer(txtPackets, 2000000);
+        }
+
+        public void AppendPacket(string packet)
+        {
+            packetBuffer.Append(packet);
         }
 
         private void btnClear_Click(object sender, EventArgs e)
         {
-            txtPackets.Clear();
+            packetBuffer.Clear();
         }
 
         private void btnCopy_Click(object sender, EventArgs e)

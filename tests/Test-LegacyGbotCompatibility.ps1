@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Debug"
+    [string]$Configuration = "Debug",
+    [string]$BotDirectory
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,7 +39,19 @@ try {
         $temporaryAssemblyAlias = $true
     }
 
-    & $smokeExecutable
+    if ([string]::IsNullOrWhiteSpace($BotDirectory)) {
+        $defaultBotDirectory = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)) "Grimoire\Bot"
+        if (Test-Path -LiteralPath $defaultBotDirectory) {
+            $BotDirectory = $defaultBotDirectory
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($BotDirectory)) {
+        & $smokeExecutable
+    }
+    else {
+        & $smokeExecutable $BotDirectory
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "Legacy GBot compatibility failed with exit code $LASTEXITCODE."
     }

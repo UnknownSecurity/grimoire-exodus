@@ -157,7 +157,11 @@ namespace Grimoire.Game
 
         public static List<Aura> EnemyAuras { get; set; } = new List<Aura>();
 
+        internal static object AuraSyncRoot { get; } = new object();
+
         public static event Action<Aura> auraCountdown;
+
+        internal static void OnAuraExpired(Aura aura) => auraCountdown?.Invoke(aura);
 
         public static bool FPSBox
         {

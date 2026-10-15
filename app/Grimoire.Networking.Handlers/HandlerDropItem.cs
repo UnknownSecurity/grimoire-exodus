@@ -26,7 +26,12 @@ namespace Grimoire.Networking.Handlers
 
         public InventoryItem drop;
 
-        public async void Handle(JsonMessage message)
+        public void Handle(JsonMessage message)
+        {
+            HandlerTask.Observe(HandleAsync(message), nameof(HandlerDrops));
+        }
+
+        private async Task HandleAsync(JsonMessage message)
         {
             try
             {
@@ -42,10 +47,10 @@ namespace Grimoire.Networking.Handlers
                         break;
                     case "getDrop":
                         await Task.Delay(10);
-                        ParseLog(message, true);
+                        await ParseLog(message, true);
                         break;
                     case "addItems":
-                        ParseLog(message, false);
+                        await ParseLog(message, false);
                         break;
                 }
             }
@@ -55,7 +60,7 @@ namespace Grimoire.Networking.Handlers
             }
         }
 
-        private void ParseLog(JsonMessage content, bool manual)
+        private async Task ParseLog(JsonMessage content, bool manual)
         {
             switch (manual)
             {
@@ -65,7 +70,7 @@ namespace Grimoire.Networking.Handlers
                         return;
                     }
                     int id = content.DataObject["ItemID"].Value<int>();
-                    World.DropStack.RemoveAll(id);
+                    await World.DropStack.RemoveAll(id);
                     if (BotManager.Instance.ActiveBotEngine.IsRunning)
                     {
                         bool inBank = content.DataObject["bBank"].Value<int>() != 0;

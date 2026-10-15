@@ -6,15 +6,21 @@ namespace Grimoire.Botting.Commands.Misc
     {
         public async Task Execute(IBotEngine instance)
         {
-            BotManager.Instance.btnBotStart.Enabled = false;
-            Root.Instance.stopToolStripMenuItem.Enabled = false;
-            BotManager.Instance.ActiveBotEngine.Stop();
-            BotManager.Instance.CustomCommandToggle(true);
-            BotManager.Instance.SelectionModeToggle(false);
-            BotManager.Instance.BotStateChanged(IsRunning: false);
+            await BotManager.Instance.RunOnUiThreadAsync(() =>
+            {
+                BotManager.Instance.btnBotStart.Enabled = false;
+                Root.Instance.stopToolStripMenuItem.Enabled = false;
+                BotManager.Instance.ActiveBotEngine.Stop();
+                BotManager.Instance.CustomCommandToggle(true);
+                BotManager.Instance.SelectionModeToggle(false);
+                BotManager.Instance.BotStateChanged(IsRunning: false);
+            });
             await Task.Delay(2000);
-            Root.Instance.BotStateChanged(IsRunning: false);
-            BotManager.Instance.btnBotStart.Enabled = true;
+            await BotManager.Instance.RunOnUiThreadAsync(() =>
+            {
+                Root.Instance.BotStateChanged(IsRunning: false);
+                BotManager.Instance.btnBotStart.Enabled = true;
+            });
         }
 
         public override string ToString()

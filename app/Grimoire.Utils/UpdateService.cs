@@ -43,6 +43,11 @@ namespace Grimoire.Utils
 
         public static UpdateRelease SelectUpdate(string releasesJson, Version currentVersion)
         {
+            return SelectUpdate(releasesJson, currentVersion, includePrereleases: false);
+        }
+
+        public static UpdateRelease SelectUpdate(string releasesJson, Version currentVersion, bool includePrereleases)
+        {
             if (string.IsNullOrWhiteSpace(releasesJson))
                 return null;
 
@@ -51,6 +56,8 @@ namespace Grimoire.Utils
             foreach (JObject releaseJson in releases.OfType<JObject>())
             {
                 if (releaseJson.Value<bool?>("draft") == true)
+                    continue;
+                if (!includePrereleases && releaseJson.Value<bool?>("prerelease") == true)
                     continue;
 
                 string tag = releaseJson.Value<string>("tag_name");
@@ -125,17 +132,20 @@ namespace Grimoire.Utils
 
             string versionDirectory = Path.Combine(AppPaths.UpdatesDirectory, release.Version.ToString(3));
             Directory.CreateDirectory(versionDirectory);
-            CleanupOldUpdates(versionDirectory);
+            await Task.Run(() => CleanupOldUpdates(versionDirectory), cancellationToken);
             string packagePath = Path.Combine(versionDirectory, asset.Name);
 
             bool packageReady = File.Exists(packagePath)
-                && string.Equals(ComputeSha256(packagePath), asset.Sha256, StringComparison.OrdinalIgnoreCase);
+                && string.Equals(
+                    await Task.Run(() => ComputeSha256(packagePath), cancellationToken),
+                    asset.Sha256,
+                    StringComparison.OrdinalIgnoreCase);
             if (!packageReady)
             {
                 string partialPath = packagePath + ".download";
                 TryDeleteFile(partialPath);
                 await DownloadAssetAsync(asset, partialPath, progress, cancellationToken);
-                string actualHash = ComputeSha256(partialPath);
+                string actualHash = await Task.Run(() => ComputeSha256(partialPath), cancellationToken);
                 if (!string.Equals(actualHash, asset.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
                     TryDeleteFile(partialPath);
@@ -150,22 +160,9 @@ namespace Grimoire.Utils
             string payloadDirectory = null;
             if (!useInstaller)
             {
-                payloadDirectory = Path.Combine(versionDirectory, "payload");
-                string readyMarker = Path.Combine(payloadDirectory, ".update-sha256");
-                bool payloadReady = File.Exists(readyMarker)
-                    && string.Equals(File.ReadAllText(readyMarker).Trim(), asset.Sha256, StringComparison.OrdinalIgnoreCase)
-                    && ValidatePayload(payloadDirectory);
-                if (!payloadReady)
-                {
-                    SafeDeleteUpdateDirectory(payloadDirectory);
-                    ExtractVerifiedArchive(packagePath, payloadDirectory);
-                    if (!ValidatePayload(payloadDirectory))
-                    {
-                        SafeDeleteUpdateDirectory(payloadDirectory);
-                        throw new InvalidDataException("The portable update is missing required Grimoire files.");
-                    }
-                    File.WriteAllText(readyMarker, asset.Sha256, Encoding.ASCII);
-                }
+                payloadDirectory = await Task.Run(
+                    () => PreparePortablePayload(versionDirectory, packagePath, asset.Sha256, cancellationToken),
+                    cancellationToken);
             }
 
             string bundledUpdater = Path.Combine(applicationDirectory, "Grimoire.Updater.exe");
@@ -173,7 +170,7 @@ namespace Grimoire.Utils
                 throw new FileNotFoundException("The bundled update helper is missing.", bundledUpdater);
 
             string updaterCopy = Path.Combine(versionDirectory, "Apply-Grimoire-Update.exe");
-            File.Copy(bundledUpdater, updaterCopy, true);
+            await Task.Run(() => File.Copy(bundledUpdater, updaterCopy, true), cancellationToken);
             return new PreparedUpdate
             {
                 Release = release,
@@ -183,6 +180,36 @@ namespace Grimoire.Utils
                 UpdaterPath = updaterCopy,
                 RequiresElevation = useInstaller || !CanWriteToDirectory(applicationDirectory)
             };
+        }
+
+        private static string PreparePortablePayload(
+            string versionDirectory,
+            string packagePath,
+            string expectedHash,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string payloadDirectory = Path.Combine(versionDirectory, "payload");
+            string readyMarker = Path.Combine(payloadDirectory, ".update-sha256");
+            bool payloadReady = File.Exists(readyMarker)
+                && string.Equals(File.ReadAllText(readyMarker).Trim(), expectedHash, StringComparison.OrdinalIgnoreCase)
+                && ValidatePayload(payloadDirectory);
+            if (payloadReady)
+            {
+                return payloadDirectory;
+            }
+
+            SafeDeleteUpdateDirectory(payloadDirectory);
+            cancellationToken.ThrowIfCancellationRequested();
+            ExtractVerifiedArchive(packagePath, payloadDirectory);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!ValidatePayload(payloadDirectory))
+            {
+                SafeDeleteUpdateDirectory(payloadDirectory);
+                throw new InvalidDataException("The portable update is missing required Grimoire files.");
+            }
+            File.WriteAllText(readyMarker, expectedHash, Encoding.ASCII);
+            return payloadDirectory;
         }
 
         public static Process LaunchUpdater(PreparedUpdate update, int processId)

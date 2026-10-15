@@ -25,8 +25,12 @@ internal static class UpdateServiceSmoke
                 + "]";
 
             UpdateRelease update = UpdateService.SelectUpdate(releases, new Version(1, 1, 0, 0));
+            if (update != null)
+                return Fail("A prerelease was offered to the stable update channel.");
+
+            update = UpdateService.SelectUpdate(releases, new Version(1, 1, 0, 0), true);
             if (update == null || update.Version != new Version(1, 2, 0, 0))
-                return Fail("The newest valid non-draft release was not selected.");
+                return Fail("The newest valid prerelease was not selected for the prerelease channel.");
             if (!update.IsPrerelease || update.PortableAsset == null)
                 return Fail("The prerelease or portable asset metadata was not retained.");
 

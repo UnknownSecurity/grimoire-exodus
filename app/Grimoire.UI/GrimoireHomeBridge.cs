@@ -1,7 +1,9 @@
 using Grimoire.Tools;
+using Grimoire.Utils;
 using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace Grimoire.UI
@@ -92,6 +94,36 @@ namespace Grimoire.UI
             }
         }
 
+        public string OpenRunningClient()
+        {
+            try
+            {
+                bool opened = root.ShowRunningClient();
+                return CreateResponse(
+                    opened,
+                    opened ? "Opening Client 01." : "Client 01 is not currently running.");
+            }
+            catch (Exception ex)
+            {
+                return CreateError(ex.Message);
+            }
+        }
+
+        public string OpenBotFolder()
+        {
+            try
+            {
+                string botFolder = AppPaths.ExternalBotsDirectory;
+                Directory.CreateDirectory(botFolder);
+                Process.Start(new ProcessStartInfo(botFolder) { UseShellExecute = true });
+                return CreateResponse(true, null);
+            }
+            catch (Exception ex)
+            {
+                return CreateError(ex.Message);
+            }
+        }
+
         public string OpenWebsite(string address)
         {
             try
@@ -118,7 +150,10 @@ namespace Grimoire.UI
                 success,
                 message,
                 gameReady = root.IsGameReady,
+                gameLoadProgress = root.GameLoadProgress,
                 clientRunning = root.IsClientRunning,
+                quickBots = root.QuickBotNames,
+                quickBotsLoading = root.IsQuickBotIndexing,
                 version = root.AppVersion,
                 accounts = AccountVault.GetAccounts()
             });
@@ -132,6 +167,8 @@ namespace Grimoire.UI
                 message = string.IsNullOrWhiteSpace(message) ? "The request could not be completed." : message,
                 gameReady = false,
                 clientRunning = root.IsClientRunning,
+                quickBots = new object[0],
+                quickBotsLoading = false,
                 version = root.AppVersion,
                 accounts = new object[0]
             });

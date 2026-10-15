@@ -27,11 +27,17 @@ $script:WixArchiveHash = "6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7D
 
 function Show-ExodusBanner {
     $banner = @'
-   ____      _                 _            ______              __
-  / ___|_ __(_)_ __ ___   ___(_)_ __ ___  |  ____|_  _____   / /_  ___
- | |  _| '__| | '_ ` _ \ / _ \ | '__/ _ \ |  _| \ \/ / _ \ / /| |/ / |
- | |_| | |  | | | | | | | (_) | | | |  __/ | |___ >  < (_) / / |   <| |
-  \____|_|  |_|_| |_| |_|\___/|_|_|  \___| |_____/_/\_\___/_/  |_|\_\_|
+  ____ ____  ___ __  __  ___ ___ ____  _____
+ / ___|  _ \|_ _|  \/  |/ _ \_ _|  _ \| ____|
+| |  _| |_) || || |\/| | | | | || |_) |  _|
+| |_| |  _ < | || |  | | |_| | ||  _ <| |___
+ \____|_| \_\___|_|  |_|\___/___|_| \_\_____|
+
+ _____ __  _____  ____  _   _ ____
+| ____|\ \/ / _ \|  _ \| | | / ___|
+|  _|   \  / | | | | | | | | \___ \
+| |___  /  \ |_| | |_| | |_| |___) |
+|_____|/_/\_\___/|____/ \___/|____/
 '@
     Write-Host $banner -ForegroundColor Magenta
     Write-Host "Grimoire Exodus developer CLI" -ForegroundColor DarkMagenta
@@ -119,7 +125,7 @@ function Invoke-VerifiedDownload([string]$Uri, [string]$Destination, [string]$Ex
     Write-Host "Downloading $Description..." -ForegroundColor Cyan
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $client = New-Object Net.WebClient
-    $client.Headers["User-Agent"] = "Grimoire-Exodus-Build/1.1.0"
+    $client.Headers["User-Agent"] = "Grimoire-Exodus-Build/1.2.0"
     try {
         $client.DownloadFile($Uri, $partial)
     }

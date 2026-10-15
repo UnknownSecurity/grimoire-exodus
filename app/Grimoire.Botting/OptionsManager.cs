@@ -37,7 +37,17 @@ namespace Grimoire.Botting
 
         private static Task _settingsTask;
 
+        private static readonly object SettingsSync = new object();
+
         private static Task _saveStateTask;
+
+        private static CancellationTokenSource _saveStateCts;
+
+        private static Task _antiAfkTask;
+
+        private static CancellationTokenSource _antiAfkCts;
+
+        private static bool antiAfkEnabled;
 
         public static bool IsRunning
         {
@@ -207,17 +217,41 @@ namespace Grimoire.Botting
             get => saveState;
             set
             {
-                saveState = value;
-                if (value && (_saveStateTask == null || _saveStateTask.IsCompleted))
-                    _saveStateTask = SaveState();
+                lock (SettingsSync)
+                {
+                    saveState = value;
+                    if (!value)
+                    {
+                        _saveStateCts?.Cancel(false);
+                        return;
+                    }
+
+                    if (_saveStateTask == null || _saveStateTask.IsCompleted)
+                    {
+                        _saveStateCts?.Dispose();
+                        _saveStateCts = new CancellationTokenSource();
+                        _saveStateTask = RunSaveState(_saveStateCts.Token);
+                        ObserveBackgroundTask(_saveStateTask, "Save-state loop");
+                    }
+                }
             }
         }
 
         public static bool _antiAfk
         {
-            get;
-            set;
-        } = false;
+            get => antiAfkEnabled;
+            set
+            {
+                lock (SettingsSync)
+                {
+                    antiAfkEnabled = value;
+                    if (!value)
+                    {
+                        _antiAfkCts?.Cancel(false);
+                    }
+                }
+            }
+        }
 
         public static bool HideYulgar
         {
@@ -257,7 +291,6 @@ namespace Grimoire.Botting
 
         public static void Start()
         {
-            ApplySettings();
             if (BotManager.Instance.chkLag.Checked)
             {
                 LagKiller = true;
@@ -274,12 +307,16 @@ namespace Grimoire.Botting
             {
                 _saveState = true;
             }
+            ObserveBackgroundTask(ApplySettings(), "Settings loop");
         }
 
         public static void Stop()
         {
-            IsRunning = false;
-            _settingsCts?.Cancel(false);
+            lock (SettingsSync)
+            {
+                IsRunning = false;
+                _settingsCts?.Cancel(false);
+            }
             if (BotManager.Instance.chkLag.Checked)
             {
                 LagKiller = false;
@@ -312,41 +349,103 @@ namespace Grimoire.Botting
         {
             if (!ProvokePacket.Contains("MonMapID"))
             {
-                Proxy.Instance.SendToServer($"{ProvokePacket}");
+                _ = Proxy.Instance.SendToServer($"{ProvokePacket}");
             }
             else
             {
-                Proxy.Instance.SendToServer($"%xt%zm%aggroMon%{World.RoomId}%{string.Join("%", World.Monsters.ConvertAll<int>((Monster m) => m.MonMapID))}%");
+                _ = Proxy.Instance.SendToServer($"%xt%zm%aggroMon%{World.RoomId}%{string.Join("%", World.Monsters.ConvertAll<int>((Monster m) => m.MonMapID))}%");
             }
         }
 
         public static async Task SetPacketSpam()
         {
-            Proxy.Instance.SendToServer($"{SpamPacket}");
-            await Task.Delay(PacketDelay);
+            await SetPacketSpam(CancellationToken.None);
         }
 
-        public static async Task SaveState()
+        private static async Task SetPacketSpam(CancellationToken token)
         {
-            while (Player.IsLoggedIn && _saveState)
+            await Proxy.Instance.SendToServer($"{SpamPacket}");
+            await Task.Delay(Math.Max(1, PacketDelay), token);
+        }
+
+        public static Task SaveState()
+        {
+            lock (SettingsSync)
             {
-                Proxy.Instance.SendToServer($"%xt%zm%whisper%1%Save State: Ensures any gold, experience, reputation, and class points gained are saved. Triggers after every 5 minutes passed.%{Player.Username}%");
-                LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss tt}] Save state has been triggered.");
-                await Task.Delay(300000);
+                if (!saveState)
+                {
+                    return Task.CompletedTask;
+                }
+
+                if (_saveStateTask == null || _saveStateTask.IsCompleted)
+                {
+                    _saveStateCts?.Dispose();
+                    _saveStateCts = new CancellationTokenSource();
+                    _saveStateTask = RunSaveState(_saveStateCts.Token);
+                    ObserveBackgroundTask(_saveStateTask, "Save-state loop");
+                }
+                return _saveStateTask;
             }
         }
 
-        public static async void AntiAfk()
+        private static async Task RunSaveState(CancellationToken token)
         {
-            if (!_antiAfk)
+            try
             {
+                while (Player.IsLoggedIn && saveState && !token.IsCancellationRequested)
+                {
+                    await Proxy.Instance.SendToServer($"%xt%zm%whisper%1%Save State: Ensures any gold, experience, reputation, and class points gained are saved. Triggers after every 5 minutes passed.%{Player.Username}%");
+                    LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss tt}] Save state has been triggered.");
+                    await Task.Delay(300000, token);
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+            }
+        }
+
+        public static void AntiAfk()
+        {
+            lock (SettingsSync)
+            {
+                if (!antiAfkEnabled || (_antiAfkTask != null && !_antiAfkTask.IsCompleted))
+                {
+                    return;
+                }
+
+                _antiAfkCts?.Dispose();
+                _antiAfkCts = new CancellationTokenSource();
+                _antiAfkTask = RunAntiAfk(_antiAfkCts.Token);
+                ObserveBackgroundTask(_antiAfkTask, "Anti-AFK loop");
+            }
+        }
+
+        private static async Task RunAntiAfk(CancellationToken token)
+        {
+            try
+            {
+                while (Player.IsLoggedIn && antiAfkEnabled && !token.IsCancellationRequested)
+                {
+                    Player.cancelAfk();
+                    await Task.Delay(60000, token);
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+            }
+        }
+
+        private static void ObserveBackgroundTask(Task task, string operation)
+        {
+            if (task == null)
                 return;
-            }
-            while (Player.IsLoggedIn && _antiAfk)
-            {
-                Player.cancelAfk();
-                await Task.Delay(60000);
-            }
+
+            _ = task.ContinueWith(
+                failed => System.Diagnostics.Debug.WriteLine(
+                    operation + " failed: " + failed.Exception?.GetBaseException()),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
         }
         
         private static void Provoke()
@@ -365,24 +464,43 @@ namespace Grimoire.Botting
 
         public static Task ApplySettings()
         {
-            if (_settingsTask != null && !_settingsTask.IsCompleted)
-                return _settingsTask;
+            lock (SettingsSync)
+            {
+                CancellationTokenSource previous = _settingsCts;
+                Task previousTask = _settingsTask;
+                previous?.Cancel(false);
 
-            _settingsCts?.Dispose();
-            _settingsCts = new CancellationTokenSource();
-            IsRunning = true;
-            _settingsTask = RunSettings(_settingsCts.Token);
-            return _settingsTask;
+                _settingsCts = new CancellationTokenSource();
+                IsRunning = true;
+                _settingsTask = RunSettings(_settingsCts);
+                if (previous != null)
+                {
+                    if (previousTask == null)
+                    {
+                        previous.Dispose();
+                    }
+                    else
+                    {
+                        _ = previousTask.ContinueWith(
+                            _ => previous.Dispose(),
+                            CancellationToken.None,
+                            TaskContinuationOptions.ExecuteSynchronously,
+                            TaskScheduler.Default);
+                    }
+                }
+                return _settingsTask;
+            }
         }
 
-        private static async Task RunSettings(CancellationToken token)
+        private static async Task RunSettings(CancellationTokenSource owner)
         {
+            CancellationToken token = owner.Token;
             try
             {
-                while (IsRunning && Player.IsLoggedIn && !token.IsCancellationRequested)
+                while (Player.IsLoggedIn && !token.IsCancellationRequested)
                 {
                     if (PacketSpam && Player.IsAlive)
-                        await SetPacketSpam();
+                        await SetPacketSpam(token);
                     if (EnemyMagnet && Player.IsAlive)
                         SetEnemyMagnet();
                     if (Untarget && Player.targetOnSelf)
@@ -392,11 +510,23 @@ namespace Grimoire.Botting
                     if (Player.walkSpeed != WalkSpeed)
                         SetWalkSpeed();
                     Provoke();
-                    await Task.Delay(Timer, token);
+                    await Task.Delay(Math.Max(1, Timer), token);
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
+            }
+            finally
+            {
+                lock (SettingsSync)
+                {
+                    if (ReferenceEquals(_settingsCts, owner))
+                    {
+                        _settingsCts = null;
+                        IsRunning = false;
+                        owner.Dispose();
+                    }
+                }
             }
         }
 

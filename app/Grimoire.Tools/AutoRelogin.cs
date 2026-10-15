@@ -66,10 +66,11 @@ namespace Grimoire.Tools
 
         public static async Task Login(Server server, int relogDelay, CancellationTokenSource cts, bool ensureSuccess)
         {
+            CancellationToken token = cts.Token;
             OptionsCheck(false);
             await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !IsTemporarilyKicked, () => !cts.IsCancellationRequested, 65);
             ResetServers();
-            await Task.Delay(1000);
+            await Task.Delay(1000, token);
             Login();
             await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !IsClientLoading("Account"), () => !cts.IsCancellationRequested, 10);
             Connect(server);
@@ -80,28 +81,39 @@ namespace Grimoire.Tools
                 World.ReloadCurrentMap();
                 World.GameMessage("The map has been reloaded!");
             }
-            await Task.Delay(relogDelay);
+            await Task.Delay(Math.Max(0, relogDelay), token);
             if (ensureSuccess)
             {
-                Task.Run(() => EnsureLoginSuccess(cts));
+                Task ensureTask = Task.Run(() => EnsureLoginSuccess(token), token);
+                _ = ensureTask.ContinueWith(
+                    task => System.Diagnostics.Debug.WriteLine("Login verification failed: " + task.Exception?.GetBaseException()),
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default);
             }
             OptionsCheck(true);
         }
 
-        private static async Task EnsureLoginSuccess(CancellationTokenSource cts)
+        private static async Task EnsureLoginSuccess(CancellationToken token)
         {
-            for (int i = 0; i < 20; i++)
+            try
             {
-                await Task.Delay(1000);
-                string map = Player.Map;
-                if (!string.IsNullOrEmpty(map) && !map.Equals("name", StringComparison.OrdinalIgnoreCase) && !map.Equals("battleon", StringComparison.OrdinalIgnoreCase))
+                for (int i = 0; i < 20; i++)
                 {
-                    break;
+                    await Task.Delay(1000, token);
+                    string map = Player.Map;
+                    if (!string.IsNullOrEmpty(map) && !map.Equals("name", StringComparison.OrdinalIgnoreCase) && !map.Equals("battleon", StringComparison.OrdinalIgnoreCase))
+                    {
+                        break;
+                    }
+                }
+                if (string.Equals(Player.Map, "battleon", StringComparison.OrdinalIgnoreCase))
+                {
+                    Player.Logout();
                 }
             }
-            if (Player.Map.Equals("battleon", StringComparison.OrdinalIgnoreCase))
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
-                Player.Logout();
             }
         }
 

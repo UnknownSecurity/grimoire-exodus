@@ -8,6 +8,8 @@ namespace Grimoire.Botting
 {
     public class Config
     {
+        private readonly object syncRoot = new object();
+
         public string file { get; set; }
 
         public Dictionary<string, string> Contents { get; set; } = new Dictionary<string, string>();
@@ -22,18 +24,27 @@ namespace Grimoire.Botting
 
         public string Get(string key)
         {
-            return Contents.TryGetValue(key, out string s) ? s : null;
+            lock (syncRoot)
+            {
+                return Contents.TryGetValue(key, out string s) ? s : null;
+            }
         }
 
         public void Set(string key, string value)
         {
-            Contents[key] = value;
+            lock (syncRoot)
+            {
+                Contents[key] = value;
+            }
         }
 
         public void Save()
         {
-            File.WriteAllLines(file, Contents.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(kvp => $"{kvp.Key}={kvp.Value}"));
+            lock (syncRoot)
+            {
+                AtomicFile.WriteAllLines(file, Contents.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(kvp => $"{kvp.Key}={kvp.Value}"));
+            }
         }
 
         public static Config Load(string path)

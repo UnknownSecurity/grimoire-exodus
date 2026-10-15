@@ -1,6 +1,7 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
 using Grimoire.Botting;
+using Grimoire.Utils;
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -68,6 +69,11 @@ namespace Grimoire.UI
         private Panel panel1;
         private Panel panel2;
         private DarkTextBox txtLogChat;
+        private BoundedTextBuffer debugBuffer;
+        private BoundedTextBuffer scriptBuffer;
+        private BoundedTextBuffer dropsBuffer;
+        private BoundedTextBuffer chatBuffer;
+        private BoundedTextBuffer botBuffer;
 
         public TextBox SelectedLog
         {
@@ -95,6 +101,11 @@ namespace Grimoire.UI
         public LogForm()
         {
             InitializeComponent();
+            debugBuffer = new BoundedTextBuffer(txtLogDebug, 1000000);
+            scriptBuffer = new BoundedTextBuffer(txtLogScript, 1000000);
+            dropsBuffer = new BoundedTextBuffer(txtLogDrops, 500000);
+            chatBuffer = new BoundedTextBuffer(txtLogChat, 500000);
+            botBuffer = new BoundedTextBuffer(txtLogBot, 1000000);
             logRec = new DebugLogger(this);
         }
 
@@ -131,16 +142,8 @@ namespace Grimoire.UI
         public void AppendDebug(string text)
         {
             if (text.Contains("{CLEAR}"))
-                txtLogDebug.Clear();
-            if (txtLogDebug.InvokeRequired)
-            {
-                txtLogDebug.Invoke((Action)delegate
-                {
-                    txtLogDebug.AppendText(text);
-                });
-            }
-            else
-                txtLogDebug.AppendText(text);
+                debugBuffer.Clear();
+            debugBuffer.Append(text);
         }
 
         //
@@ -149,16 +152,8 @@ namespace Grimoire.UI
         public void AppendDrops(string text)
         {
             if (text.Contains("{CLEAR}"))
-                txtLogDrops.Clear();
-            if (txtLogDrops.InvokeRequired)
-            {
-                txtLogDrops.Invoke((Action)delegate
-                {
-                    txtLogDrops.AppendText(text);
-                });
-            }
-            else
-                txtLogDrops.AppendText(text);
+                dropsBuffer.Clear();
+            dropsBuffer.Append(text);
         }
 
         //
@@ -167,16 +162,8 @@ namespace Grimoire.UI
         public void AppendChat(string text)
         {
             if (text.Contains("{CLEAR}"))
-                txtLogChat.Clear();
-            if (txtLogChat.InvokeRequired)
-            {
-                txtLogChat.Invoke((Action)delegate
-                {
-                    txtLogChat.AppendText(text);
-                });
-            }
-            else
-                txtLogChat.AppendText(text);
+                chatBuffer.Clear();
+            chatBuffer.Append(text);
         }
         //
         // Append Script
@@ -184,16 +171,8 @@ namespace Grimoire.UI
         public void AppendScript(string text, bool ignoreInvoke = false)
         {
             if (text.Contains("{CLEAR}"))
-                txtLogScript.Clear();
-            if (txtLogScript.InvokeRequired)
-            {
-                txtLogScript.Invoke((Action)delegate
-                {
-                    txtLogScript.AppendText(text);
-                });
-            }
-            else
-                txtLogScript.AppendText(text);
+                scriptBuffer.Clear();
+            scriptBuffer.Append(text);
         }
         /// <summary>
         /// Append Bot
@@ -201,16 +180,8 @@ namespace Grimoire.UI
         public void AppendBot(string text, bool ignoreInvoke = false)
         {
             if (text.Contains("{CLEAR}"))
-                txtLogBot.Clear();
-            if (txtLogBot.InvokeRequired)
-            {
-                txtLogBot.Invoke((Action)delegate
-                {
-                    txtLogBot.AppendText(text);
-                });
-            }
-            else
-                txtLogBot.AppendText(text);
+                botBuffer.Clear();
+            botBuffer.Append(text);
         }
 
         private void btnClear_Click(object sender, EventArgs e)

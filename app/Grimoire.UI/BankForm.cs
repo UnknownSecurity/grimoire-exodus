@@ -95,8 +95,8 @@ namespace Grimoire.UI
             {
                 if (item.IsAcItem || (Player.Bank.AvailableSlots > 0))
                 {
-                    Player.Bank.TransferToBank(item.Name);
-                    Task.Delay(80);
+                    await Player.Bank.TransferToBank(item.Name);
+                    await Task.Delay(80);
                 }
             }
         }
@@ -118,8 +118,8 @@ namespace Grimoire.UI
             {
                 if (item.IsAcItem || (Player.Bank.AvailableSlots > 0))
                 {
-                    Player.Bank.TransferToBank(item.Name);
-                    Task.Delay(80);
+                    await Player.Bank.TransferToBank(item.Name);
+                    await Task.Delay(80);
                 }
             }
         }

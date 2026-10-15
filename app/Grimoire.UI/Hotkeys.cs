@@ -343,7 +343,7 @@ namespace Grimoire.UI
                 Keys keys = (Keys)Enum.Parse(typeof(Keys), cbKeys.SelectedItem.ToString());
                 if (!KeyboardHook.Instance.TargetedKeys.Contains(keys))
                 {
-                    if (cbActions.Items[selectedIndex] == "Immediate Login")
+                    if (string.Equals(cbActions.Items[selectedIndex]?.ToString(), "Immediate Login", StringComparison.Ordinal))
                     {
                         string input = "";
                         DialogResult result = InputBox.InputDialog(ref input,
@@ -351,7 +351,18 @@ namespace Grimoire.UI
                             "Immediate Login", 250, 100, 40, 40);
                         if (result == DialogResult.OK)
                         {
-                            int index = Root.Instance.toolStripComboBoxLoginServer.Items.IndexOf((input, StringComparison.OrdinalIgnoreCase));
+                            int index = -1;
+                            for (int serverIndex = 0; serverIndex < Root.Instance.toolStripComboBoxLoginServer.Items.Count; serverIndex++)
+                            {
+                                if (string.Equals(
+                                    Root.Instance.toolStripComboBoxLoginServer.Items[serverIndex]?.ToString(),
+                                    input,
+                                    StringComparison.OrdinalIgnoreCase))
+                                {
+                                    index = serverIndex;
+                                    break;
+                                }
+                            }
                             BotClientConfig.Instance.SetValue("serverIndex", ((index > -1) ? index.ToString() : "0"));
                         }
                         else

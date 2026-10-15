@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using System.Linq;
+using System.Threading;
 
 namespace Grimoire.Game.Data
 {
@@ -40,7 +40,7 @@ namespace Grimoire.Game.Data
         {
             get
             {
-                return durationSpan - time().Seconds;
+                return Math.Max(0, durationSpan - (int)time().TotalMilliseconds);
             }
             set { }
         }
@@ -49,6 +49,8 @@ namespace Grimoire.Game.Data
 
         public int durationSpan;
 
+        private int countdownGeneration;
+
         public TimeSpan time()
         {
             return DateTime.Now - timeNow;
@@ -56,10 +58,22 @@ namespace Grimoire.Game.Data
 
         public async void countdown(Aura aura)
         {
-            await Task.Delay(durationSpan + 000);
-            World.PlayerAuras.Remove(aura);
-            World.EnemyAuras.Remove(aura);
-            World.auraCountdown -= aura.countdown;
+            int generation = Interlocked.Increment(ref countdownGeneration);
+            await Task.Delay(Math.Max(0, durationSpan));
+            if (generation != Volatile.Read(ref countdownGeneration))
+                return;
+
+            lock (World.AuraSyncRoot)
+            {
+                World.PlayerAuras.Remove(aura);
+                World.EnemyAuras.Remove(aura);
+            }
+            World.OnAuraExpired(aura);
+        }
+
+        public void CancelCountdown()
+        {
+            Interlocked.Increment(ref countdownGeneration);
         }
 
     }

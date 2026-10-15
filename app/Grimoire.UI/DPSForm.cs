@@ -31,8 +31,8 @@ namespace Grimoire.UI
         private void timer1_Tick(object sender, EventArgs e)
         {
             if (DamagePerSecond.Count == 0) return;
-            int[] dps = DamagePerSecond.Values.ToArray();
-            darkLabel1.Text = int.Parse(string.Concat(dps)).ToString();
+            long totalDamagePerSecond = DamagePerSecond.Values.Sum(value => (long)value);
+            darkLabel1.Text = totalDamagePerSecond.ToString();
             chart1.Series.Clear();
             foreach (var kv in DamagePerSecond)
             {
