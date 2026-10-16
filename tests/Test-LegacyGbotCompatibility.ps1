@@ -10,6 +10,7 @@ $rootDirectory = Split-Path -Parent $PSScriptRoot
 $outputDirectory = Join-Path $rootDirectory "app\bin\$Configuration"
 $compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe"
 $source = Join-Path $PSScriptRoot "LegacyGbotCompatibilitySmoke.cs"
+$sharedFixtureDirectory = Join-Path $rootDirectory "shared\fixtures\gbot"
 $smokeExecutable = Join-Path $outputDirectory "LegacyGbotCompatibilitySmoke.exe"
 $legacyAssemblyName = Join-Path $outputDirectory "Grimoire.exe"
 $brandedAssemblyName = Join-Path $outputDirectory "Grimoire Exodus.exe"
@@ -21,7 +22,7 @@ else {
 }
 $jsonAssembly = Join-Path $outputDirectory "Newtonsoft.Json.dll"
 
-foreach ($requiredPath in @($compiler, $source, $grimoireAssembly, $jsonAssembly)) {
+foreach ($requiredPath in @($compiler, $source, $sharedFixtureDirectory, $grimoireAssembly, $jsonAssembly)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required legacy-compatibility test input was not found: $requiredPath"
     }
@@ -39,21 +40,25 @@ try {
         $temporaryAssemblyAlias = $true
     }
 
-    if ([string]::IsNullOrWhiteSpace($BotDirectory)) {
-        $defaultBotDirectory = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments)) "Grimoire\Bot"
-        if (Test-Path -LiteralPath $defaultBotDirectory) {
-            $BotDirectory = $defaultBotDirectory
-        }
+    & $smokeExecutable $sharedFixtureDirectory
+    if ($LASTEXITCODE -ne 0) {
+        throw "Shared legacy GBot fixture compatibility failed with exit code $LASTEXITCODE."
     }
 
     if ([string]::IsNullOrWhiteSpace($BotDirectory)) {
-        & $smokeExecutable
+        $BotDirectory = Join-Path $rootDirectory "app\Bot"
     }
-    else {
+
+    $normalizedBotDirectory = [System.IO.Path]::GetFullPath($BotDirectory)
+    $normalizedSharedFixtureDirectory = [System.IO.Path]::GetFullPath($sharedFixtureDirectory)
+    $isSharedFixtureDirectory = $normalizedBotDirectory.Equals(
+        $normalizedSharedFixtureDirectory,
+        [System.StringComparison]::OrdinalIgnoreCase)
+    if ((Test-Path -LiteralPath $BotDirectory) -and -not $isSharedFixtureDirectory) {
         & $smokeExecutable $BotDirectory
-    }
-    if ($LASTEXITCODE -ne 0) {
-        throw "Legacy GBot compatibility failed with exit code $LASTEXITCODE."
+        if ($LASTEXITCODE -ne 0) {
+            throw "Repository GBot compatibility failed with exit code $LASTEXITCODE."
+        }
     }
 }
 finally {

@@ -90,6 +90,19 @@ This project has a Graphify knowledge graph in `graphify-out/`.
 - `.github/workflows/tagged-build.yml` builds tagged releases, runs the complete
   compatibility smoke suite, emits checksums, and publishes the MSI and portable
   ZIP.
+- `mobile/` contains the independent Kotlin/Jetpack Compose management-shell
+  prototype and the standalone HARMAN AIR client. Kotlin modules must depend
+  inward through `core/model` and `core/domain`; neither Android surface may
+  reference WinForms, ActiveX, the desktop updater, or mutable desktop output.
+- `mobile/air-client/` compiles the checked-in ActionScript bridge into a
+  landscape-only captive-runtime APK. It loads AQW directly from the official
+  live endpoint and must not launch, patch, or control another Android app.
+- `game-client/AS3/grimoire/MobileShell.as` is the AIR-only Grimoire wrapper
+  around AQW. Preserve its always-accessible focus button, animated framed/full
+  layout, and separation from the desktop `ExternalInterface` display path.
+- `shared/` contains versioned, language-neutral contracts and synthetic
+  fixtures for both ports. It must not contain executable binaries, generated
+  platform models, credentials, user bots, or machine-specific paths.
 
 ## Compatibility contracts
 
@@ -224,6 +237,27 @@ Release and run the release-equivalent suite:
 .\tests\Test-UpdaterMerge.ps1 -Configuration Release
 .\tests\Test-FlashActivation.ps1 -Configuration Release
 ```
+
+For changes under `mobile/` or `shared/`, validate the independent Android
+workspace from `mobile/` without launching an emulator or either application:
+
+```powershell
+.\gradlew.bat test :app:assembleDebug :app:lintDebug
+```
+
+For standalone AIR changes, also build the development APK from the repository
+root without launching either application:
+
+```powershell
+.\mobile\air-client\build-air.ps1 -Configuration Debug
+```
+
+Keep `OfflineGameTransport` as the fail-closed Compose default until the native
+management shell is deliberately connected to the AIR callback registry. Do
+not use accessibility automation, runtime hooking, root, packet interception,
+or a repackaged third-party APK as a substitute. Cross-platform fixture changes
+must also pass the desktop compatibility smoke test against the
+repository-controlled bot directory.
 
 Additional rules:
 

@@ -228,7 +228,9 @@ package grimoire.game
 		// This function executes the game's GoTo function.
         public static function goTo(playerName:String):void
         {
-            game.world.goto(playerName);
+            // `goto` is a reserved word in the modern AIR compiler. Bracket
+            // access preserves the AQW runtime method name and legacy behavior.
+            game.world["goto"](playerName);
         }
 
 		// This function executes by using the corresponding item boost.

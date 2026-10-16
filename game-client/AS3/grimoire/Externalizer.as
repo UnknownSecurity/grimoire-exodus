@@ -1,6 +1,5 @@
 ﻿package grimoire
 {
-	import flash.external.ExternalInterface;
 	import grimoire.Root;
     import grimoire.game.Aura;
     import grimoire.game.Bank;
@@ -246,13 +245,13 @@
 		// This function executes by adding the corresponding callback to the External Interface.
         public function addCallback(name:String, func:Function):void
         {
-            ExternalInterface.addCallback(name, func);
+            HostBridge.addCallback(name, func);
         }
 
 		// This function executes by calling the corresponding callback from the External Interface.
         public function call(name:String, ... rest):*
         {
-            return (ExternalInterface.call(name, rest));
+            return (HostBridge.call(name, rest));
         }
 
 		// This function executes by calling the corresponding message to the Debug from the External Interface.

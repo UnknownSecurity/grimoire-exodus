@@ -48,6 +48,12 @@ Startup logs and crash reports are stored under `%LOCALAPPDATA%\Grimoire Exodus`
 
 When a newer official GitHub release is available, Grimoire shows a download icon in the toolbar with the new version in its tooltip. Selecting it downloads the appropriate portable package or installer in the background, verifies GitHub's SHA-256 digest, then asks before closing and restarting to apply the update. User bots, settings, recovery data, and the legacy `.gbot` format remain untouched.
 
+## Android foundation
+
+Android development is isolated under [`mobile/`](mobile/README.md), with language-neutral schemas and privacy-safe fixtures under [`shared/`](shared/README.md). The 0.4.4 development milestone adds a standalone HARMAN AIR client that owns the game surface, downloads the current AQW SWF from AQW's live endpoint, displays byte progress, and draws a collapsible Grimoire top menu and compact overlay drawer above the direct-stage game. AIR now owns the physical-to-logical 960×550 transform so Android touches and AQW targets use the same coordinates. The mobile Bot Manager safely imports and inspects legacy GBots, runs a fail-closed foundational command subset, and packages repository-controlled Community bots. Persistent General, Key Bindings, and Advanced settings cover focus mode, status visibility, exit confirmation, reduced motion, screen wake behavior, FPS/quality, shortcuts, credential-field clearing, reset, and official release checks. The authenticated profile and 30 FPS standard-density defaults remain intact.
+
+The existing Windows project paths and build remain unchanged. Android uses the same ActionScript callback vocabulary through a dual desktop/AIR host abstraction and does not depend on another installed AQW application. The full architecture, security, compatibility, and UI plan is in [`docs/android-port-plan.md`](docs/android-port-plan.md).
+
 ## Embedded Flash design
 
 Grimoire's game bridge depends on the original ActiveX `ExternalInterface` contract and synchronous `CallFunction`/`FlashCall` behavior. It also loads the live AQW AVM2 client, which opens the SmartFox connection used by the proxy and packet hooks. A web-hosted emulator would require replacing that host ABI and its socket integration. Version 1.3.0 continues to use the proven native player ABI while deploying the 32-bit runtime privately: `Flash.ocx` is loaded from Grimoire's own directory through registration-free COM and is never registered system-wide.
@@ -90,7 +96,8 @@ The installer build uses [WiX Toolset 3.14.1](https://github.com/wixtoolset/wix3
 | Planned | Army Mode with a split-screen multi-client layout |
 | ✅ Completed | Verified in-app updates from official GitHub releases |
 | ✅ Completed | Startup diagnostics, conservative orphan-state cleanup, tray controls, and crash recovery |
-| Planned | Remote control through a companion mobile app |
+| 🧪 In development | Standalone HARMAN AIR Android client and cross-platform compatibility contracts |
+| 🧪 In development | Local AIR host bridge, device login validation, and native control integration |
 | Planned | A community-maintained bot script repository |
 
 ## Credits

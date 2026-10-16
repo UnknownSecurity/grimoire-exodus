@@ -9,7 +9,7 @@ package grimoire.game
     import flash.events.KeyboardEvent;
 	import flash.events.TimerEvent;
 	import flash.utils.Timer;
-	import flash.external.ExternalInterface;
+	import grimoire.HostBridge;
 	import flash.utils.getQualifiedClassName;
 	import grimoire.Root;
 	
@@ -218,7 +218,7 @@ package grimoire.game
 				}
 				if (text.indexOf("/") == 0)
 				{
-					ExternalInterface.call("chatCommand", text.replace("/", ""));
+					HostBridge.call("chatCommand", text.replace("/", ""));
 					if ((text.indexOf("/combat") == 0) || (text.indexOf("/fps") == 0))
 					{
 						closeChat();
@@ -255,7 +255,7 @@ package grimoire.game
 					}
 					if (text.indexOf("/") == 0)
 					{
-						ExternalInterface.call("chatCommand", text.replace("/", ""));
+						HostBridge.call("chatCommand", text.replace("/", ""));
 						if ((text.indexOf("/combat") == 0) || (text.indexOf("/fps") == 0))
 						{
 							closeChat();

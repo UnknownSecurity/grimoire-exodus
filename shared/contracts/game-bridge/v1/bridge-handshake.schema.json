@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/UnknownSecurity/grimoire-exodus/shared/contracts/game-bridge/v1/bridge-handshake.schema.json",
+  "title": "Grimoire game bridge handshake v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "protocolVersion",
+    "clientVersion",
+    "bridgeVersion",
+    "capabilities"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "grimoire-game-bridge"
+    },
+    "protocolVersion": {
+      "const": 1
+    },
+    "clientVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "bridgeVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 64,
+      "items": {
+        "enum": [
+          "state.read",
+          "session.observe",
+          "navigation.move",
+          "combat.act",
+          "inventory.read",
+          "inventory.act",
+          "quest.read",
+          "quest.act",
+          "shop.read",
+          "shop.act"
+        ]
+      }
+    }
+  }
+}

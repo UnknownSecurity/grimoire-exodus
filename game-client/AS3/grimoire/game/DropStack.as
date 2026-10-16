@@ -60,6 +60,47 @@ package grimoire.game
 		{
 			game.sfc.sendXtMessage("zm", "getDrop", [itemID], "str", game.world.curRoom)
 		}
+
+		// Accepts a visible drop by name for the standalone mobile bot runner.
+		// It stays bounded to the existing AQW drop widgets and never walks the
+		// broader display tree.
+		public static function getDrop(itemName:String):Boolean
+		{
+			var source:*;
+			var child:*;
+			var i:int;
+			var normalized:String = (itemName || "").toLowerCase();
+			if (normalized.length == 0)
+			{
+				return false;
+			}
+			if (game.litePreference.data.bCustomDrops)
+			{
+				source = ((game.cDropsUI.mcDraggable) ? game.cDropsUI.mcDraggable.menu : game.cDropsUI);
+				for (i = 0; i < source.numChildren; i++)
+				{
+					child = source.getChildAt(i);
+					if (child.itemObj && String(child.itemObj.sName).toLowerCase() == normalized)
+					{
+						child.btYes.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+						return true;
+					}
+				}
+			}
+			else
+			{
+				for (i = 0; i < game.ui.dropStack.numChildren; i++)
+				{
+					child = game.ui.dropStack.getChildAt(i);
+					if (String(child.cnt.strName.text).toLowerCase() == normalized)
+					{
+						child.cnt.ybtn.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+						return true;
+					}
+				}
+			}
+			return false;
+		}
 		
 		// This function executes by rejecting a drop based on the corresponding list.
 		public static function rejectDrop(list:String):void
