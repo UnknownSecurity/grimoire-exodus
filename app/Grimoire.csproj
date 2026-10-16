@@ -26,7 +26,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.2.0.0</ApplicationVersion>
+    <ApplicationVersion>1.3.0.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
@@ -404,6 +404,7 @@
     </Compile>
     <Compile Include="Grimoire.Utils\InputBox.cs" />
     <Compile Include="Grimoire.Utils\AppPaths.cs" />
+    <Compile Include="Grimoire.Utils\AppPreferences.cs" />
     <Compile Include="Grimoire.Utils\AtomicFile.cs" />
     <Compile Include="Grimoire.Utils\BoundedTextBuffer.cs" />
     <Compile Include="Grimoire.Utils\StartupDiagnostics.cs" />
@@ -487,10 +488,16 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Grimoire.UI\GrimoireHomeBridge.cs" />
+    <Compile Include="Grimoire.UI\GrimoireForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Grimoire.UI\NonClosableVSTabControl.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Grimoire.UI\Root.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Grimoire.UI\SettingsForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Grimoire.UI\Set.cs">

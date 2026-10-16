@@ -21,9 +21,77 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public class Hotkeys : DarkForm
+    public sealed class HotkeyBindingDefinition
     {
-        public static readonly Action[] Actions = new Action[20]
+        public HotkeyBindingDefinition(int actionIndex, string displayName, Keys defaultKey)
+        {
+            ActionIndex = actionIndex;
+            DisplayName = displayName;
+            DefaultKey = defaultKey;
+        }
+
+        public int ActionIndex { get; }
+
+        public string DisplayName { get; }
+
+        public Keys DefaultKey { get; }
+
+        public override string ToString()
+        {
+            return DisplayName;
+        }
+    }
+
+    public class Hotkeys : GrimoireForm
+    {
+        private const string SettingsDefaultsSeededKey = "settings.hotkeyDefaultsSeeded";
+
+        public const int ToggleOptionsActionIndex = 16;
+        public const int ToggleUpperToolbarActionIndex = 19;
+        public const int StartBotActionIndex = 20;
+        public const int StopBotActionIndex = 21;
+        public const int ToggleLagKillerActionIndex = 22;
+        public const int ToggleHidePlayersActionIndex = 23;
+
+        public static readonly string[] ActionNames =
+        {
+            "Show Bot Manager",
+            "Show Hotkeys",
+            "Show Loaders/Grabbers",
+            "Show Packet Logger",
+            "Show Packet Spammer",
+            "Show Fast Travels",
+            "Minimize to Tray",
+            "Show Bank",
+            "Show Cosmetics Form",
+            "Show Logs",
+            "Show Notepad",
+            "Load Hair Shop",
+            "Load Armor Customizer",
+            "Yulgar Suite 42",
+            "Relog",
+            "Start/Stop Bot",
+            "Toggle Options",
+            "Immediate Login",
+            "Show Ping Monitor",
+            "Toggle Upper Toolbar",
+            "Start Bot",
+            "Stop Bot",
+            "Toggle Lag Killer",
+            "Toggle Hide Players"
+        };
+
+        public static readonly HotkeyBindingDefinition[] SettingsBindingDefinitions =
+        {
+            new HotkeyBindingDefinition(StartBotActionIndex, "Start bot", Keys.F5),
+            new HotkeyBindingDefinition(StopBotActionIndex, "Stop bot", Keys.F6),
+            new HotkeyBindingDefinition(ToggleUpperToolbarActionIndex, "Show / hide upper toolbar", Keys.F7),
+            new HotkeyBindingDefinition(ToggleOptionsActionIndex, "Toggle options", Keys.F8),
+            new HotkeyBindingDefinition(ToggleLagKillerActionIndex, "Toggle lag killer", Keys.F9),
+            new HotkeyBindingDefinition(ToggleHidePlayersActionIndex, "Toggle hide players", Keys.F10)
+        };
+
+        public static readonly Action[] Actions = new Action[24]
         {
             delegate
             {
@@ -155,6 +223,22 @@ namespace Grimoire.UI
             delegate
             {
                 Root.Instance.Root_MenuChanged();
+            },
+            delegate
+            {
+                Root.Instance.StartBotFromShortcut();
+            },
+            delegate
+            {
+                Root.Instance.StopBotFromShortcut();
+            },
+            delegate
+            {
+                Root.Instance.ToggleLagKillerFromShortcut();
+            },
+            delegate
+            {
+                Root.Instance.ToggleHidePlayersFromShortcut();
             }
         };
 
@@ -327,9 +411,9 @@ namespace Grimoire.UI
         {
             if (lstKeys.SelectedIndex > -1 && lstKeys.SelectedItem != null)
             {
-                string hotkeyText = lstKeys.SelectedItem.ToString();
-                int hotkeyIndex = lstKeys.Items.IndexOf(hotkeyText);
-                KeyboardHook.Instance.TargetedKeys.RemoveAt(hotkeyIndex);
+                int hotkeyIndex = lstKeys.SelectedIndex;
+                Hotkey hotkey = InstalledHotkeys[hotkeyIndex];
+                hotkey.Uninstall();
                 InstalledHotkeys.RemoveAt(hotkeyIndex);
                 lstKeys.Items.RemoveAt(hotkeyIndex);
             }
@@ -385,32 +469,181 @@ namespace Grimoire.UI
 
         private void btnSave_Click(object sender, EventArgs e)
         {
-            File.WriteAllText(configPath, JsonConvert.SerializeObject(InstalledHotkeys));
+            PersistHotkeys();
         }
 
         public void LoadHotkeys()
         {
+            InstalledHotkeys.Clear();
+            KeyboardHook.Instance.TargetedKeys.Clear();
             if (File.Exists(configPath))
             {
-                Hotkey[] array = JsonConvert.DeserializeObject<Hotkey[]>(File.ReadAllText(configPath));
-                if (array != null)
+                try
                 {
-                    InstalledHotkeys.AddRange(array);
-                    foreach (Hotkey installedHotkey in InstalledHotkeys)
-                    {
-                        lstKeys.Items.Add(installedHotkey.Text);
-                        installedHotkey.Install();
-                    }
+                    Hotkey[] array = JsonConvert.DeserializeObject<Hotkey[]>(File.ReadAllText(configPath));
+                    AddValidHotkeys(array);
                 }
+                catch (JsonException exception)
+                {
+                    StartupDiagnostics.RecordException("Hotkey configuration", exception, false);
+                }
+            }
+
+            bool seedSettingsDefaults = !Config.Instance.GetValue<bool>(SettingsDefaultsSeededKey);
+            if (!File.Exists(configPath) || seedSettingsDefaults)
+            {
+                AddMissingSettingsDefaults();
+                Config.Instance.Set(SettingsDefaultsSeededKey, "true");
+                Config.Instance.Save();
+                PersistHotkeys();
+            }
+
+            RefreshHotkeyList();
+            foreach (Hotkey installedHotkey in InstalledHotkeys)
+            {
+                installedHotkey.Install();
             }
             KeyboardHook.Instance.KeyDown += OnKeyDown;
             _processId = Process.GetCurrentProcess().Id;
         }
 
+        public static Keys? GetBindingKey(int actionIndex)
+        {
+            Hotkey hotkey = InstalledHotkeys.FirstOrDefault(item => item.ActionIndex == actionIndex);
+            return hotkey == null ? (Keys?)null : hotkey.Key;
+        }
+
+        public static void SaveSettingsBindings(IReadOnlyDictionary<int, Keys?> bindings)
+        {
+            if (bindings == null)
+                throw new ArgumentNullException(nameof(bindings));
+
+            HashSet<int> managedActions = new HashSet<int>(
+                SettingsBindingDefinitions.Select(definition => definition.ActionIndex));
+            HashSet<Keys> desiredKeys = new HashSet<Keys>();
+
+            foreach (KeyValuePair<int, Keys?> binding in bindings)
+            {
+                if (!managedActions.Contains(binding.Key))
+                    throw new InvalidOperationException("An unsupported shortcut action was selected.");
+
+                if (binding.Value.HasValue && !desiredKeys.Add(binding.Value.Value))
+                    throw new InvalidOperationException("Each shortcut must use a different key.");
+            }
+
+            Hotkey conflict = InstalledHotkeys.FirstOrDefault(item =>
+                !managedActions.Contains(item.ActionIndex) && desiredKeys.Contains(item.Key));
+            if (conflict != null)
+            {
+                throw new InvalidOperationException(
+                    conflict.Key + " is already assigned to " + GetActionName(conflict.ActionIndex) + ".");
+            }
+
+            foreach (Hotkey existing in InstalledHotkeys
+                .Where(item => managedActions.Contains(item.ActionIndex))
+                .ToList())
+            {
+                existing.Uninstall();
+                InstalledHotkeys.Remove(existing);
+            }
+
+            foreach (HotkeyBindingDefinition definition in SettingsBindingDefinitions)
+            {
+                if (!bindings.TryGetValue(definition.ActionIndex, out Keys? key) || !key.HasValue)
+                    continue;
+
+                Hotkey hotkey = new Hotkey
+                {
+                    ActionIndex = definition.ActionIndex,
+                    Key = key.Value,
+                    Text = key.Value + ": " + definition.DisplayName
+                };
+                hotkey.Install();
+                InstalledHotkeys.Add(hotkey);
+            }
+
+            PersistHotkeys();
+            if (Instance.IsHandleCreated)
+            {
+                Instance.RefreshHotkeyList();
+            }
+        }
+
+        private static void AddValidHotkeys(IEnumerable<Hotkey> hotkeys)
+        {
+            if (hotkeys == null)
+                return;
+
+            HashSet<Keys> assignedKeys = new HashSet<Keys>();
+            foreach (Hotkey hotkey in hotkeys)
+            {
+                if (hotkey == null
+                    || hotkey.ActionIndex < 0
+                    || hotkey.ActionIndex >= Actions.Length
+                    || hotkey.Key == Keys.None
+                    || !assignedKeys.Add(hotkey.Key))
+                {
+                    continue;
+                }
+
+                hotkey.Text = hotkey.Key + ": " + GetActionName(hotkey.ActionIndex);
+                InstalledHotkeys.Add(hotkey);
+            }
+        }
+
+        private static void AddMissingSettingsDefaults()
+        {
+            HashSet<Keys> assignedKeys = new HashSet<Keys>(InstalledHotkeys.Select(item => item.Key));
+            HashSet<int> assignedActions = new HashSet<int>(InstalledHotkeys.Select(item => item.ActionIndex));
+
+            foreach (HotkeyBindingDefinition definition in SettingsBindingDefinitions)
+            {
+                if (assignedActions.Contains(definition.ActionIndex)
+                    || assignedKeys.Contains(definition.DefaultKey))
+                {
+                    continue;
+                }
+
+                InstalledHotkeys.Add(new Hotkey
+                {
+                    ActionIndex = definition.ActionIndex,
+                    Key = definition.DefaultKey,
+                    Text = definition.DefaultKey + ": " + definition.DisplayName
+                });
+                assignedActions.Add(definition.ActionIndex);
+                assignedKeys.Add(definition.DefaultKey);
+            }
+        }
+
+        private static string GetActionName(int actionIndex)
+        {
+            return actionIndex >= 0 && actionIndex < ActionNames.Length
+                ? ActionNames[actionIndex]
+                : "Unknown action";
+        }
+
+        private static void PersistHotkeys()
+        {
+            string json = JsonConvert.SerializeObject(InstalledHotkeys, Formatting.Indented);
+            AtomicFile.WriteAllLines(AppPaths.HotkeysFile, new[] { json });
+        }
+
+        private void RefreshHotkeyList()
+        {
+            lstKeys.Items.Clear();
+            foreach (Hotkey hotkey in InstalledHotkeys)
+            {
+                lstKeys.Items.Add(hotkey.Text);
+            }
+        }
+
         public void OnKeyDown(Keys key)
         {
-            Hotkey hotkey = InstalledHotkeys.First((Hotkey h) => h.Key == key);
-            if (ApplicationContainsFocus() || (string)cbActions.Items[hotkey.ActionIndex] == "Minimize to tray")
+            Hotkey hotkey = InstalledHotkeys.FirstOrDefault((Hotkey h) => h.Key == key);
+            if (hotkey == null || hotkey.ActionIndex < 0 || hotkey.ActionIndex >= Actions.Length)
+                return;
+
+            if (ApplicationContainsFocus() || hotkey.ActionIndex == 6)
             {
                 Actions[hotkey.ActionIndex]();
             }
@@ -551,27 +784,7 @@ namespace Grimoire.UI
             // 
             this.cbActions.Dock = System.Windows.Forms.DockStyle.Fill;
             this.cbActions.FormattingEnabled = true;
-            this.cbActions.Items.AddRange(new object[] {
-            "Show Bot Manager",
-            "Show Hotkeys",
-            "Show Loaders/Grabbers",
-            "Show Packet Logger",
-            "Show Packet Spammer",
-            "Show Fast Travels",
-            "Minimize to Tray",
-            "Show Bank",
-            "Show Cosmetics Form",
-            "Show Logs",
-            "Show Notepad",
-            "Load Hair Shop",
-            "Load Armor Customizer",
-            "Yulgar Suite 42",
-            "Relog",
-            "Start/Stop Bot",
-            "Toggle Options",
-            "Immediate Login",
-            "Show Ping Monitor",
-            "Hide Client Menu Bar"});
+            this.cbActions.Items.AddRange(ActionNames.Cast<object>().ToArray());
             this.cbActions.Location = new System.Drawing.Point(122, 3);
             this.cbActions.Name = "cbActions";
             this.cbActions.Size = new System.Drawing.Size(150, 21);

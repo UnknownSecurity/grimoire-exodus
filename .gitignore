@@ -37,4 +37,7 @@ graphify-out/cache/
 graphify-out/cost.json
 graphify-out/memory/
 graphify-out/reflections/
+graphify-out/.graphify_labels.json.sig
+graphify-out/.graphify_labels.pending.json
+graphify-out/????-??-??/
 

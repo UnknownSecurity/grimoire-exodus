@@ -187,6 +187,19 @@ namespace Grimoire.Utils
             }
         }
 
+        public static void PrepareForFullReset()
+        {
+            lock (SyncRoot)
+            {
+                cleanShutdown = true;
+                TryDelete(currentSessionFile);
+                currentSession = null;
+                currentSessionFile = null;
+                startupLogFile = null;
+                sessionStarted = true;
+            }
+        }
+
         private static void EnsureStartedUnsafe()
         {
             if (!sessionStarted)

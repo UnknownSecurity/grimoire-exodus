@@ -11,7 +11,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public class LogForm : DarkForm
+    public class LogForm : GrimoireForm
     {
         public class DebugLogger : TraceListener
         {

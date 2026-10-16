@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public partial class BankForm : DarkForm
+    public partial class BankForm : GrimoireForm
     {
         public BankForm()
         {

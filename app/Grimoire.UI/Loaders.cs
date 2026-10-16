@@ -14,7 +14,7 @@ using System.Xml;
 
 namespace Grimoire.UI
 {
-    public class Loaders : DarkForm
+    public class Loaders : GrimoireForm
     {
         public enum Type
         {

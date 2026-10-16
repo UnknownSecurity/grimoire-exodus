@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public partial class Notepad : DarkForm
+    public partial class Notepad : GrimoireForm
     {
         public Notepad()
         {

@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public partial class EyeDropper : DarkForm
+    public partial class EyeDropper : GrimoireForm
     {
         public EyeDropper()
         {

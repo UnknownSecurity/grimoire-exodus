@@ -17,6 +17,8 @@ $script:RootDirectory = $PSScriptRoot
 $script:SolutionPath = Join-Path $script:RootDirectory "app\Grimoire Exodus.sln"
 $script:AssemblyInfoPath = Join-Path $script:RootDirectory "app\Properties\AssemblyInfo.cs"
 $script:UpdaterAssemblyInfoPath = Join-Path $script:RootDirectory "app\Grimoire.Updater\Properties\AssemblyInfo.cs"
+$script:ProjectPath = Join-Path $script:RootDirectory "app\Grimoire.csproj"
+$script:ManifestPath = Join-Path $script:RootDirectory "app\Grimoire.manifest"
 $script:ProgramPath = Join-Path $script:RootDirectory "app\Grimoire\Program.cs"
 $script:FlashRuntimeUrl = "https://github.com/darktohka/clean-flash-builds/releases/download/v1.54/ChineseFlash-Patched-Win-34.0.0.376.7z"
 $script:FlashArchiveHash = "19A8D1036110AF024DC877CA96A9184835C3E944FB14CA8D509662F00BF1BD31"
@@ -125,7 +127,7 @@ function Invoke-VerifiedDownload([string]$Uri, [string]$Destination, [string]$Ex
     Write-Host "Downloading $Description..." -ForegroundColor Cyan
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $client = New-Object Net.WebClient
-    $client.Headers["User-Agent"] = "Grimoire-Exodus-Build/1.2.0"
+    $client.Headers["User-Agent"] = "Grimoire-Exodus-Build/1.3.0"
     try {
         $client.DownloadFile($Uri, $partial)
     }
@@ -473,17 +475,38 @@ function Update-ExodusVersion([string]$VersionPart) {
 
     $assemblyInfo = [regex]::Replace($assemblyInfo, 'AssemblyVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyVersion(`"$newVersion`")")
     $assemblyInfo = [regex]::Replace($assemblyInfo, 'AssemblyFileVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyFileVersion(`"$newVersion`")")
-    Set-Content -LiteralPath $script:AssemblyInfoPath -Value $assemblyInfo -Encoding UTF8
+    Set-Content -LiteralPath $script:AssemblyInfoPath -Value $assemblyInfo -Encoding UTF8 -NoNewline
 
     $updaterAssemblyInfo = Get-Content -LiteralPath $script:UpdaterAssemblyInfoPath -Raw
     $updaterAssemblyInfo = [regex]::Replace($updaterAssemblyInfo, 'AssemblyVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyVersion(`"$newVersion`")")
     $updaterAssemblyInfo = [regex]::Replace($updaterAssemblyInfo, 'AssemblyFileVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyFileVersion(`"$newVersion`")")
-    Set-Content -LiteralPath $script:UpdaterAssemblyInfoPath -Value $updaterAssemblyInfo -Encoding UTF8
+    Set-Content -LiteralPath $script:UpdaterAssemblyInfoPath -Value $updaterAssemblyInfo -Encoding UTF8 -NoNewline
+
+    $project = Get-Content -LiteralPath $script:ProjectPath -Raw
+    if ($project -notmatch '<ApplicationVersion>\d+\.\d+\.\d+\.\d+</ApplicationVersion>') {
+        throw "Could not find a four-part ApplicationVersion in $($script:ProjectPath)."
+    }
+    $project = [regex]::Replace(
+        $project,
+        '<ApplicationVersion>\d+\.\d+\.\d+\.\d+</ApplicationVersion>',
+        "<ApplicationVersion>$newVersion</ApplicationVersion>")
+    Set-Content -LiteralPath $script:ProjectPath -Value $project -Encoding UTF8 -NoNewline
+
+    $manifest = Get-Content -LiteralPath $script:ManifestPath -Raw
+    if ($manifest -notmatch 'version="\d+\.\d+\.\d+\.\d+"') {
+        throw "Could not find a four-part assembly version in $($script:ManifestPath)."
+    }
+    $manifest = [regex]::Replace(
+        $manifest,
+        'version="\d+\.\d+\.\d+\.\d+"',
+        "version=`"$newVersion`"",
+        1)
+    Set-Content -LiteralPath $script:ManifestPath -Value $manifest -Encoding UTF8 -NoNewline
 
     $program = Get-Content -LiteralPath $script:ProgramPath -Raw
     $today = Get-Date -Format "yyyy-MM-dd"
     $program = [regex]::Replace($program, 'versionDate\s*=\s*"[^"]+"', "versionDate = `"$today`"")
-    Set-Content -LiteralPath $script:ProgramPath -Value $program -Encoding UTF8
+    Set-Content -LiteralPath $script:ProgramPath -Value $program -Encoding UTF8 -NoNewline
     Write-Host "Version updated to $newVersion ($today)." -ForegroundColor Green
 }
 

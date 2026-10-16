@@ -15,7 +15,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public class UserFriendlyCommandEditor : DarkForm
+    public class UserFriendlyCommandEditor : GrimoireForm
     {
         private IContainer components;
         private DarkButton btnOK;

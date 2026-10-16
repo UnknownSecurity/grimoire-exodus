@@ -13,7 +13,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public class Travel : DarkForm
+    public class Travel : GrimoireForm
     {
         private IContainer components;
         private DarkButton btnDage;

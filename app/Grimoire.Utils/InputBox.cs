@@ -27,7 +27,7 @@ namespace Grimoire.Utils
             //Specify the size of the window using the parameters passed
             Size size = new Size(width, height);
             //Create a new form using a System.Windows Form
-            DarkForm inputBox = new DarkForm();
+            GrimoireForm inputBox = new GrimoireForm();
 
             inputBox.MaximizeBox = false;
             inputBox.MinimizeBox = false;

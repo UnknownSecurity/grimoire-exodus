@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public partial class NodeEditor : Form
+    public partial class NodeEditor : GrimoireForm
     {
         public class TypedCommand
         {

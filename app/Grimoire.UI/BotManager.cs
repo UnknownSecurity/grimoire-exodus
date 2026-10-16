@@ -33,7 +33,7 @@ using Extensions = Grimoire.Botting.Extensions;
 
 namespace Grimoire.UI
 {
-    public class BotManager : DarkForm
+    public class BotManager : GrimoireForm
     {
         private IBotEngine _activeBotEngine = Bot.Instance;
 

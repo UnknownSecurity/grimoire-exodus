@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using Grimoire.Utils;
 
 namespace Grimoire.Tools
 {
@@ -36,9 +37,7 @@ namespace Grimoire.Tools
         private static readonly object SyncRoot = new object();
         private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("Grimoire Exodus account vault v1");
 
-        private static string VaultDirectory => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Grimoire Exodus");
+        private static string VaultDirectory => AppPaths.DataDirectory;
 
         private static string VaultPath => Path.Combine(VaultDirectory, "account-vault.json");
 
@@ -160,6 +159,18 @@ namespace Grimoire.Tools
                 }
 
                 return removed > 0;
+            }
+        }
+
+        public static void DeleteAllAccounts()
+        {
+            lock (SyncRoot)
+            {
+                if (File.Exists(LegacyVaultPath))
+                {
+                    File.Delete(LegacyVaultPath);
+                }
+                SaveVault(new AccountVaultFile());
             }
         }
 

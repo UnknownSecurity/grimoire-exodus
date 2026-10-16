@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public class PluginManager : DarkForm
+    public class PluginManager : GrimoireForm
     {
         private IContainer components;
         public DarkGroupBox gbLoaded;

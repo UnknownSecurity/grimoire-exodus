@@ -12,7 +12,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public partial class Set : DarkForm
+    public partial class Set : GrimoireForm
     {
         private readonly JsonSerializerSettings _serializerSettings =
             BotJson.CreateSettings(DefaultValueHandling.Include);

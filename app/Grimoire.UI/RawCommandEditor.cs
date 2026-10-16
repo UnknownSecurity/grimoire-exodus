@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public class RawCommandEditor : DarkForm
+    public class RawCommandEditor : GrimoireForm
     {
         private IContainer components;
         private DarkButton btnOK;

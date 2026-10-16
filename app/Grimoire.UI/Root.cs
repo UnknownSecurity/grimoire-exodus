@@ -25,22 +25,10 @@ using System.Text;
 
 namespace Grimoire.UI
 {
-    public class Root : DarkForm
+    public class Root : GrimoireForm
     {
-        private const int DwmUseImmersiveDarkModeBefore20H1 = 19;
-        private const int DwmUseImmersiveDarkMode = 20;
-        private const int DwmCaptionColor = 35;
-        private const int DwmTextColor = 36;
-        private const int DwmColorDefault = -1;
         private static readonly Color ToolboxBackgroundColor = Color.FromArgb(28, 32, 40);
         private static readonly Color QuickBotHoverColor = Color.FromArgb(57, 48, 68);
-
-        [DllImport("dwmapi.dll", PreserveSig = true)]
-        private static extern int DwmSetWindowAttribute(
-            IntPtr windowHandle,
-            int attribute,
-            ref int attributeValue,
-            int attributeSize);
 
         private IContainer components;
 
@@ -51,6 +39,7 @@ namespace Grimoire.UI
         private bool shutdownInProgress;
         private bool recoveryPromptShown;
         private bool updateShutdownRequested;
+        private bool fullResetShutdownRequested;
         private bool updateOperationRunning;
         private string lastQuickBotPath;
 
@@ -75,6 +64,7 @@ namespace Grimoire.UI
         private Label lblUptimeMetric;
         private Label lblNetworkMetric;
         private DarkButton btnToggleHeader;
+        private DarkButton btnSettings;
         private ToolTip headerVisibilityToolTip;
         private System.Windows.Forms.Timer metricsTimer;
         private Process metricsProcess;
@@ -90,6 +80,7 @@ namespace Grimoire.UI
         private Bitmap networkMetricIcon;
         private Bitmap headerVisibleIcon;
         private Bitmap headerHiddenIcon;
+        private Bitmap settingsIcon;
         private Bitmap updateAvailableIcon;
         private ToolStripMenuItem updateToolStripMenuItem;
         private ToolStripDropDownButton quickBotsMenuItem;
@@ -153,6 +144,7 @@ namespace Grimoire.UI
         private ToolStripMenuItem walkSpeedToolStripMenuItem;
         private System.Threading.CancellationTokenSource _cts;
         private DarkPanel GamePanel;
+        private SettingsForm settingsForm;
 
         public static Root Instance
         {
@@ -189,11 +181,11 @@ namespace Grimoire.UI
                 {
                     if (root.InvokeRequired)
                     {
-                        root.BeginInvoke(new Action(root.ApplyNativeTitleBarTheme));
+                        root.BeginInvoke(new Action(GrimoireForm.ApplyNativeTitleBarThemeToOpenForms));
                     }
                     else
                     {
-                        root.ApplyNativeTitleBarTheme();
+                        GrimoireForm.ApplyNativeTitleBarThemeToOpenForms();
                     }
                 }
                 catch (InvalidOperationException)
@@ -229,60 +221,6 @@ namespace Grimoire.UI
             MenuStrip1.Renderer = new PurpleMenuRenderer();
             MenuStrip1.ForeColor = accentPurple;
             ApplyMenuColor(MenuStrip1.Items, accentPurple);
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            ApplyNativeTitleBarTheme();
-        }
-
-        private void ApplyNativeTitleBarTheme()
-        {
-            if (!IsHandleCreated || Environment.OSVersion.Platform != PlatformID.Win32NT)
-                return;
-
-            try
-            {
-                int useDarkMode = LightMode ? 0 : 1;
-                int result = DwmSetWindowAttribute(
-                    Handle,
-                    DwmUseImmersiveDarkMode,
-                    ref useDarkMode,
-                    sizeof(int));
-                if (result != 0)
-                {
-                    DwmSetWindowAttribute(
-                        Handle,
-                        DwmUseImmersiveDarkModeBefore20H1,
-                        ref useDarkMode,
-                        sizeof(int));
-                }
-
-                // Windows 11 supports explicit caption and text colors. Older
-                // Windows versions safely ignore these unsupported attributes.
-                int captionColor = LightMode
-                    ? DwmColorDefault
-                    : ToNativeColor(Color.FromArgb(28, 32, 40));
-                int textColor = LightMode
-                    ? DwmColorDefault
-                    : ToNativeColor(Color.Gainsboro);
-                DwmSetWindowAttribute(Handle, DwmCaptionColor, ref captionColor, sizeof(int));
-                DwmSetWindowAttribute(Handle, DwmTextColor, ref textColor, sizeof(int));
-            }
-            catch (DllNotFoundException)
-            {
-                // Pre-DWM Windows keeps its system title-bar appearance.
-            }
-            catch (EntryPointNotFoundException)
-            {
-                // Older DWM versions do not expose this API.
-            }
-        }
-
-        private static int ToNativeColor(Color color)
-        {
-            return color.R | (color.G << 8) | (color.B << 16);
         }
 
         private static void ApplyMenuColor(ToolStripItemCollection items, Color color)
@@ -689,6 +627,7 @@ namespace Grimoire.UI
             Network,
             EyeOpen,
             EyeClosed,
+            Settings,
             UpdateAvailable
         }
 
@@ -759,6 +698,20 @@ namespace Grimoire.UI
                         graphics.DrawLine(pen, 10.5f, 7.5f, 8f, 10f);
                         graphics.DrawLine(pen, 5.5f, 12f, 10.5f, 12f);
                         break;
+
+                    case StatusIcon.Settings:
+                        graphics.DrawEllipse(pen, 5.25f, 5.25f, 5.5f, 5.5f);
+                        graphics.DrawEllipse(pen, 2.5f, 2.5f, 11f, 11f);
+                        for (int angle = 0; angle < 360; angle += 45)
+                        {
+                            double radians = angle * Math.PI / 180d;
+                            float innerX = 8f + (float)Math.Cos(radians) * 5.5f;
+                            float innerY = 8f + (float)Math.Sin(radians) * 5.5f;
+                            float outerX = 8f + (float)Math.Cos(radians) * 7f;
+                            float outerY = 8f + (float)Math.Sin(radians) * 7f;
+                            graphics.DrawLine(pen, innerX, innerY, outerX, outerY);
+                        }
+                        break;
                 }
             }
             return bitmap;
@@ -767,6 +720,34 @@ namespace Grimoire.UI
         private void InitializeMetrics()
         {
             metricsProcess = Process.GetCurrentProcess();
+            ApplyPreferences();
+        }
+
+        public void ApplyPreferences()
+        {
+            AppPreferenceSnapshot preferences = AppPreferences.Load();
+            SetDeviceStatsVisible(!preferences.HideDeviceStats);
+        }
+
+        private void SetDeviceStatsVisible(bool visible)
+        {
+            picCpuMetric.Visible = visible;
+            lblCpuMetric.Visible = visible;
+            picUptimeMetric.Visible = visible;
+            lblUptimeMetric.Visible = visible;
+            picNetworkMetric.Visible = visible;
+            lblNetworkMetric.Visible = visible;
+
+            if (!visible)
+            {
+                metricsTimer.Stop();
+                return;
+            }
+
+            if (metricsProcess == null)
+            {
+                metricsProcess = Process.GetCurrentProcess();
+            }
             lastMetricsSampleUtc = DateTime.UtcNow;
             lastProcessorTime = metricsProcess.TotalProcessorTime;
             GetNetworkTotals(out lastNetworkReceived, out lastNetworkSent);
@@ -871,6 +852,23 @@ namespace Grimoire.UI
         private void btnToggleHeader_Click(object sender, EventArgs e)
         {
             SetHeaderVisible(!panel1.Visible);
+        }
+
+        private void btnSettings_Click(object sender, EventArgs e)
+        {
+            if (settingsForm == null || settingsForm.IsDisposed)
+            {
+                settingsForm = new SettingsForm(this);
+                settingsForm.FormClosed += delegate { settingsForm = null; };
+                settingsForm.Show(this);
+            }
+            else
+            {
+                if (settingsForm.WindowState == FormWindowState.Minimized)
+                    settingsForm.WindowState = FormWindowState.Normal;
+                settingsForm.BringToFront();
+                settingsForm.Activate();
+            }
         }
 
         private void SetHeaderVisible(bool visible)
@@ -991,6 +989,11 @@ namespace Grimoire.UI
         {
             startupComplete = false;
             List<string> failures = new List<string>();
+            AppPreferenceSnapshot startupPreferences = AppPreferences.Load();
+            if (startupPreferences.SkipHomePage)
+            {
+                homeBrowser.Visible = false;
+            }
 
             RunStartupStage("Window", delegate
             {
@@ -1011,7 +1014,18 @@ namespace Grimoire.UI
                     }
                 }
             }, failures);
-            RunStartupStage("Home", ShowHome, failures);
+            RunStartupStage("Home", delegate
+            {
+                if (startupPreferences.SkipHomePage)
+                {
+                    homeBrowser.Visible = false;
+                    RequestGameOpen(null);
+                }
+                else
+                {
+                    ShowHome();
+                }
+            }, failures);
             RunStartupStage("Flash", InitializeGame, failures);
             bool proxyReady = RunStartupStage("Proxy handlers", Proxy.InitializeProxyHandlers, failures);
             if (proxyReady)
@@ -1072,13 +1086,13 @@ namespace Grimoire.UI
             await CheckForApplicationUpdateAsync();
         }
 
-        private async Task CheckForApplicationUpdateAsync()
+        public async Task<UpdateRelease> CheckForApplicationUpdateAsync(bool suppressErrors = true)
         {
             try
             {
                 UpdateRelease release = await UpdateService.CheckForUpdateAsync(updateCancellation.Token);
                 if (release == null || IsDisposed || Disposing)
-                    return;
+                    return null;
 
                 availableUpdate = release;
                 updateToolStripMenuItem.ToolTipText = "Grimoire Exodus "
@@ -1086,14 +1100,21 @@ namespace Grimoire.UI
                     + " is available";
                 updateToolStripMenuItem.AccessibleName = "Update to Grimoire Exodus " + release.Version.ToString(3);
                 updateToolStripMenuItem.Visible = true;
+                return release;
             }
             catch (OperationCanceledException)
             {
+                if (!suppressErrors)
+                    throw;
             }
             catch (Exception exception)
             {
                 Debug.WriteLine("Update check failed: " + exception);
+                if (!suppressErrors)
+                    throw;
             }
+
+            return null;
         }
 
         private async void updateToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1494,6 +1515,11 @@ namespace Grimoire.UI
             }
         }
 
+        public void RefreshHomeAccounts()
+        {
+            RefreshHomeState();
+        }
+
         private void fastTravelsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             ShowForm(Travel.Instance);
@@ -1632,7 +1658,10 @@ namespace Grimoire.UI
 
         private void Root_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (e.CloseReason == CloseReason.UserClosing && !updateShutdownRequested)
+            if (e.CloseReason == CloseReason.UserClosing
+                && !updateShutdownRequested
+                && !fullResetShutdownRequested
+                && AppPreferences.Load().ConfirmOnClose)
             {
                 bool botIsRunning = false;
                 bool gameSessionIsActive = clientRunning;
@@ -1723,6 +1752,7 @@ namespace Grimoire.UI
                 networkMetricIcon?.Dispose();
                 headerVisibleIcon?.Dispose();
                 headerHiddenIcon?.Dispose();
+                settingsIcon?.Dispose();
                 updateAvailableIcon?.Dispose();
                 updateCancellation.Cancel();
                 updateCancellation.Dispose();
@@ -1757,6 +1787,7 @@ namespace Grimoire.UI
             this.lblUptimeMetric = new System.Windows.Forms.Label();
             this.lblNetworkMetric = new System.Windows.Forms.Label();
             this.btnToggleHeader = new DarkUI.Controls.DarkButton();
+            this.btnSettings = new DarkUI.Controls.DarkButton();
             this.headerVisibilityToolTip = new System.Windows.Forms.ToolTip(this.components);
             this.metricsTimer = new System.Windows.Forms.Timer(this.components);
             this.rtbPing = new System.Windows.Forms.RichTextBox();
@@ -1878,6 +1909,7 @@ namespace Grimoire.UI
             this.metricsPanel.Controls.Add(this.picNetworkMetric);
             this.metricsPanel.Controls.Add(this.lblNetworkMetric);
             this.metricsPanel.Controls.Add(this.btnToggleHeader);
+            this.metricsPanel.Controls.Add(this.btnSettings);
             this.metricsPanel.Controls.Add(this.cbCells);
             this.metricsPanel.Controls.Add(this.cbPads);
             this.metricsPanel.Controls.Add(this.btnGetCurrentCell);
@@ -1895,7 +1927,7 @@ namespace Grimoire.UI
             this.cpuMetricIcon = CreateStatusIcon(StatusIcon.Cpu, System.Drawing.Color.MediumPurple);
             this.picCpuMetric.BackColor = System.Drawing.Color.Transparent;
             this.picCpuMetric.Image = this.cpuMetricIcon;
-            this.picCpuMetric.Location = new System.Drawing.Point(44, 4);
+            this.picCpuMetric.Location = new System.Drawing.Point(78, 4);
             this.picCpuMetric.Name = "picCpuMetric";
             this.picCpuMetric.Size = new System.Drawing.Size(16, 16);
             this.picCpuMetric.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
@@ -1906,7 +1938,7 @@ namespace Grimoire.UI
             this.lblCpuMetric.BackColor = System.Drawing.Color.Transparent;
             this.lblCpuMetric.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblCpuMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
-            this.lblCpuMetric.Location = new System.Drawing.Point(63, 2);
+            this.lblCpuMetric.Location = new System.Drawing.Point(97, 2);
             this.lblCpuMetric.Name = "lblCpuMetric";
             this.lblCpuMetric.Size = new System.Drawing.Size(72, 20);
             this.lblCpuMetric.TabIndex = 0;
@@ -1918,7 +1950,7 @@ namespace Grimoire.UI
             this.uptimeMetricIcon = CreateStatusIcon(StatusIcon.Uptime, System.Drawing.Color.MediumPurple);
             this.picUptimeMetric.BackColor = System.Drawing.Color.Transparent;
             this.picUptimeMetric.Image = this.uptimeMetricIcon;
-            this.picUptimeMetric.Location = new System.Drawing.Point(144, 4);
+            this.picUptimeMetric.Location = new System.Drawing.Point(178, 4);
             this.picUptimeMetric.Name = "picUptimeMetric";
             this.picUptimeMetric.Size = new System.Drawing.Size(16, 16);
             this.picUptimeMetric.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
@@ -1929,7 +1961,7 @@ namespace Grimoire.UI
             this.lblUptimeMetric.BackColor = System.Drawing.Color.Transparent;
             this.lblUptimeMetric.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblUptimeMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
-            this.lblUptimeMetric.Location = new System.Drawing.Point(163, 2);
+            this.lblUptimeMetric.Location = new System.Drawing.Point(197, 2);
             this.lblUptimeMetric.Name = "lblUptimeMetric";
             this.lblUptimeMetric.Size = new System.Drawing.Size(130, 20);
             this.lblUptimeMetric.TabIndex = 1;
@@ -1941,7 +1973,7 @@ namespace Grimoire.UI
             this.networkMetricIcon = CreateStatusIcon(StatusIcon.Network, System.Drawing.Color.MediumPurple);
             this.picNetworkMetric.BackColor = System.Drawing.Color.Transparent;
             this.picNetworkMetric.Image = this.networkMetricIcon;
-            this.picNetworkMetric.Location = new System.Drawing.Point(302, 4);
+            this.picNetworkMetric.Location = new System.Drawing.Point(336, 4);
             this.picNetworkMetric.Name = "picNetworkMetric";
             this.picNetworkMetric.Size = new System.Drawing.Size(16, 16);
             this.picNetworkMetric.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
@@ -1952,7 +1984,7 @@ namespace Grimoire.UI
             this.lblNetworkMetric.BackColor = System.Drawing.Color.Transparent;
             this.lblNetworkMetric.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblNetworkMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
-            this.lblNetworkMetric.Location = new System.Drawing.Point(321, 2);
+            this.lblNetworkMetric.Location = new System.Drawing.Point(355, 2);
             this.lblNetworkMetric.Name = "lblNetworkMetric";
             this.lblNetworkMetric.Size = new System.Drawing.Size(275, 20);
             this.lblNetworkMetric.TabIndex = 2;
@@ -1979,6 +2011,26 @@ namespace Grimoire.UI
             this.btnToggleHeader.Text = "";
             this.btnToggleHeader.Click += new System.EventHandler(this.btnToggleHeader_Click);
             this.headerVisibilityToolTip.SetToolTip(this.btnToggleHeader, "Hide upper toolbar");
+            //
+            // btnSettings
+            //
+            this.settingsIcon = CreateStatusIcon(StatusIcon.Settings, System.Drawing.Color.MediumPurple);
+            this.btnSettings.AccessibleDescription = "Opens global Grimoire settings.";
+            this.btnSettings.AccessibleName = "Settings";
+            this.btnSettings.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)));
+            this.btnSettings.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(36)))), ((int)(((byte)(40)))), ((int)(((byte)(50)))));
+            this.btnSettings.BackColorUseGeneric = false;
+            this.btnSettings.Checked = false;
+            this.btnSettings.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
+            this.btnSettings.Image = this.settingsIcon;
+            this.btnSettings.Location = new System.Drawing.Point(38, 2);
+            this.btnSettings.Name = "btnSettings";
+            this.btnSettings.Padding = new System.Windows.Forms.Padding(0);
+            this.btnSettings.Size = new System.Drawing.Size(30, 18);
+            this.btnSettings.TabIndex = 4;
+            this.btnSettings.Text = "";
+            this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
+            this.headerVisibilityToolTip.SetToolTip(this.btnSettings, "Open settings");
             //
             // metricsTimer
             //
@@ -2668,7 +2720,9 @@ namespace Grimoire.UI
 
         private void Root_Resize(object sender, EventArgs e)
         {
-            if (startupComplete && WindowState == FormWindowState.Minimized)
+            if (startupComplete
+                && WindowState == FormWindowState.Minimized
+                && AppPreferences.Load().MinimizeToTray)
             {
                 BeginInvoke(new Action(delegate { HideToTray(true); }));
             }
@@ -2904,6 +2958,14 @@ namespace Grimoire.UI
             }
         }
 
+        public void StartBotFromShortcut()
+        {
+            if (!BotManager.Instance.ActiveBotEngine.IsRunning)
+            {
+                startToolStripMenuItem_Click(this, EventArgs.Empty);
+            }
+        }
+
         private async void stopToolStripMenuItem_Click(object sender, EventArgs e)
         {
             BotManager.Instance.btnBotStart.Enabled = false;
@@ -2915,6 +2977,30 @@ namespace Grimoire.UI
             await Task.Delay(2000);
             this.BotStateChanged(IsRunning: false);
             BotManager.Instance.btnBotStart.Enabled = true;
+        }
+
+        public void StopBotFromShortcut()
+        {
+            if (BotManager.Instance.ActiveBotEngine.IsRunning)
+            {
+                stopToolStripMenuItem_Click(this, EventArgs.Empty);
+            }
+        }
+
+        public void ToggleLagKillerFromShortcut()
+        {
+            lagKillerToolStripMenuItem.Checked = !lagKillerToolStripMenuItem.Checked;
+        }
+
+        public void ToggleHidePlayersFromShortcut()
+        {
+            hidePlayersToolStripMenuItem.Checked = !hidePlayersToolStripMenuItem.Checked;
+        }
+
+        public void RestartAfterFullReset()
+        {
+            fullResetShutdownRequested = true;
+            Application.Restart();
         }
 
         protected override CreateParams CreateParams

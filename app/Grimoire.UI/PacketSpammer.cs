@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace Grimoire.UI
 {
-    public class PacketSpammer : DarkForm
+    public class PacketSpammer : GrimoireForm
     {
         private IContainer components;
         public DarkListBox lstPackets;

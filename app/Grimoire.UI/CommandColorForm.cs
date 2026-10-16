@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
-    public partial class CommandColorForm : DarkForm
+    public partial class CommandColorForm : GrimoireForm
     {
         public CommandColorForm()
         {
