@@ -21,6 +21,7 @@ namespace Grimoire.UI
         private readonly DarkCheckBox chkHideDeviceStats = new DarkCheckBox();
         private readonly DarkCheckBox chkConfirmOnClose = new DarkCheckBox();
         private readonly DarkCheckBox chkMinimizeToTray = new DarkCheckBox();
+        private readonly DarkCheckBox chkUnlimitedClients = new DarkCheckBox();
         private readonly Dictionary<int, DarkComboBox> bindingSelectors = new Dictionary<int, DarkComboBox>();
         private readonly DarkButton btnSave = new DarkButton();
         private readonly DarkButton btnClose = new DarkButton();
@@ -189,32 +190,42 @@ namespace Grimoire.UI
                 ColumnCount = 2,
                 Dock = DockStyle.Fill,
                 Padding = new Padding(18),
-                RowCount = 4
+                RowCount = 5
             };
             content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70F));
             content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
             content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
+            ConfigurePreferenceCheckBox(
+                chkUnlimitedClients,
+                "Remove the six-client safety limit",
+                "Allows more than six live clients. Each extra Flash client increases CPU, memory, and handle use in the 32-bit process.");
+            chkUnlimitedClients.Dock = DockStyle.Fill;
+            chkUnlimitedClients.Margin = new Padding(0, 4, 0, 10);
+            content.Controls.Add(chkUnlimitedClients, 0, 0);
+            content.SetColumnSpan(chkUnlimitedClients, 2);
+
             AddAdvancedAction(
                 content,
-                0,
+                1,
                 "Delete character information",
                 "Permanently removes every saved account and encrypted password from the Account Locker.",
                 "Delete credentials",
                 DeleteCredentials_Click);
             AddAdvancedAction(
                 content,
-                1,
+                2,
                 "Full reset",
                 "Removes Grimoire settings, saved characters, logs, recovery data, cache, and downloaded updates. Bot folders are preserved.",
                 "Full reset",
                 FullReset_Click);
             AddAdvancedAction(
                 content,
-                2,
+                3,
                 "Check for an update",
                 "Checks the latest public GitHub release and shows the update icon when a newer version is available.",
                 "Check now",
@@ -265,6 +276,7 @@ namespace Grimoire.UI
             chkHideDeviceStats.Checked = preferences.HideDeviceStats;
             chkConfirmOnClose.Checked = preferences.ConfirmOnClose;
             chkMinimizeToTray.Checked = preferences.MinimizeToTray;
+            chkUnlimitedClients.Checked = preferences.AllowUnlimitedClients;
 
             foreach (HotkeyBindingDefinition definition in Hotkeys.SettingsBindingDefinitions)
             {
@@ -278,6 +290,20 @@ namespace Grimoire.UI
         {
             try
             {
+                AppPreferenceSnapshot previousPreferences = AppPreferences.Load();
+                if (chkUnlimitedClients.Checked && !previousPreferences.AllowUnlimitedClients)
+                {
+                    DialogResult confirmation = DarkMessageBox.Show(
+                        this,
+                        "Remove the six-client safety limit?\r\n\r\nEvery AQW client runs another Flash control inside the same 32-bit process. Creating too many clients can cause severe slowdown or make Grimoire run out of memory and close.\r\n\r\nOnly enable this if you understand the resource risk.",
+                        "Enable unlimited clients?",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2);
+                    if (confirmation != DialogResult.Yes)
+                        return;
+                }
+
                 Dictionary<int, Keys?> bindings = bindingSelectors.ToDictionary(
                     item => item.Key,
                     item => ReadSelectedKey(item.Value));
@@ -287,7 +313,8 @@ namespace Grimoire.UI
                     SkipHomePage = chkSkipHome.Checked,
                     HideDeviceStats = chkHideDeviceStats.Checked,
                     ConfirmOnClose = chkConfirmOnClose.Checked,
-                    MinimizeToTray = chkMinimizeToTray.Checked
+                    MinimizeToTray = chkMinimizeToTray.Checked,
+                    AllowUnlimitedClients = chkUnlimitedClients.Checked
                 });
                 root.ApplyPreferences();
                 DarkMessageBox.Show(this, "Your settings were saved.", "Settings", MessageBoxIcon.Information);

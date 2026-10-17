@@ -1,5 +1,6 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
+using Grimoire.Clients;
 using Grimoire.Networking;
 using Grimoire.Utils;
 using System;
@@ -23,6 +24,8 @@ namespace Grimoire.UI
         private DarkButton btnClear;
         private BoundedTextBuffer packetBuffer;
 
+        internal override bool SupportsClientSessionBinding => true;
+
         public static PacketLogger Instance
         {
             get;
@@ -34,9 +37,31 @@ namespace Grimoire.UI
             packetBuffer = new BoundedTextBuffer(txtPackets, 2000000);
         }
 
+        public void AppendPacket(ClientSession source, string packet)
+        {
+            ClientSession target = BoundClientSession
+                ?? ClientSessionManager.Default?.ActiveSession;
+            if (!ReferenceEquals(source, target))
+                return;
+            packetBuffer.Append(packet);
+        }
+
         public void AppendPacket(string packet)
         {
-            packetBuffer.Append(packet);
+            AppendPacket(ClientSessionContext.Resolve(), packet);
+        }
+
+        protected override void OnClientSessionBindingChanged(
+            ClientSession previous,
+            ClientSession current)
+        {
+            if (previous?.PacketDispatcher != null)
+                previous.PacketDispatcher._catchXtPackets = false;
+            packetBuffer.Clear();
+            bool capturing = current?.PacketDispatcher != null
+                && current.PacketDispatcher._catchXtPackets;
+            btnStart.Enabled = !capturing;
+            btnStop.Enabled = capturing;
         }
 
         private void btnClear_Click(object sender, EventArgs e)
@@ -54,14 +79,22 @@ namespace Grimoire.UI
 
         private void btnStop_Click(object sender, EventArgs e)
         {
-            Proxy.Instance._catchXtPackets = false;
+            ClientSession session = CaptureBoundClientSession();
+            if (session?.PacketDispatcher == null)
+                return;
+            session.PacketDispatcher._catchXtPackets = false;
             btnStart.Enabled = true;
+            btnStop.Enabled = false;
         }
 
         private void btnStart_Click(object sender, EventArgs e)
         {
-            Proxy.Instance._catchXtPackets = true;
+            ClientSession session = CaptureBoundClientSession();
+            if (session?.PacketDispatcher == null)
+                return;
+            session.PacketDispatcher._catchXtPackets = true;
             btnStart.Enabled = false;
+            btnStop.Enabled = true;
         }
 
         private void PacketLogger_Shown(object sender, EventArgs e)

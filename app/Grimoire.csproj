@@ -26,7 +26,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.3.0.0</ApplicationVersion>
+    <ApplicationVersion>1.4.0.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
@@ -315,6 +315,8 @@
     <Compile Include="Grimoire.Botting\Bot.cs" />
     <Compile Include="Grimoire.Botting\BotJson.cs" />
     <Compile Include="Grimoire.Botting\BotUtilities.cs" />
+    <Compile Include="Grimoire.Botting\BotDocumentState.cs" />
+    <Compile Include="Grimoire.Botting\ClientOptionState.cs" />
     <Compile Include="Grimoire.Botting\BotClientConfig.cs" />
     <Compile Include="Grimoire.Botting\Config.cs" />
     <Compile Include="Grimoire.Botting\Configuration.cs" />
@@ -324,6 +326,13 @@
     <Compile Include="Grimoire.Botting\IBotCommand.cs" />
     <Compile Include="Grimoire.Botting\IBotEngine.cs" />
     <Compile Include="Grimoire.Botting\OptionsManager.cs" />
+    <Compile Include="Grimoire.Clients\ActiveXFlashBridge.cs" />
+    <Compile Include="Grimoire.Clients\ClientLoginState.cs" />
+    <Compile Include="Grimoire.Clients\ClientSession.cs" />
+    <Compile Include="Grimoire.Clients\ClientSessionContext.cs" />
+    <Compile Include="Grimoire.Clients\ClientSessionManager.cs" />
+    <Compile Include="Grimoire.Clients\ClientSessionState.cs" />
+    <Compile Include="Grimoire.Clients\IFlashBridge.cs" />
     <Compile Include="Grimoire.Game.Data\ExtendedAvatar.cs" />
     <Compile Include="Grimoire.Game.Data\Bank.cs" />
     <Compile Include="Grimoire.Game.Data\CompletedQuest.cs" />
@@ -350,6 +359,7 @@
     <Compile Include="Grimoire.Game.Data\TempItem.cs" />
     <Compile Include="Grimoire.Game\BotData.cs" />
     <Compile Include="Grimoire.Game\DropStack.cs" />
+    <Compile Include="Grimoire.Game\GameSessionState.cs" />
     <Compile Include="Grimoire.Game\LockActions.cs" />
     <Compile Include="Grimoire.Game\Player.cs" />
     <Compile Include="Grimoire.Game\PlayerInfo.cs" />
@@ -408,6 +418,7 @@
     <Compile Include="Grimoire.Utils\AtomicFile.cs" />
     <Compile Include="Grimoire.Utils\BoundedTextBuffer.cs" />
     <Compile Include="Grimoire.Utils\StartupDiagnostics.cs" />
+    <Compile Include="Grimoire.Utils\SingleInstanceBroker.cs" />
     <Compile Include="Grimoire.Utils\UpdateService.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -496,6 +507,9 @@
     </Compile>
     <Compile Include="Grimoire.UI\Root.cs">
       <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Grimoire.UI\Root.MultiClient.cs">
+      <DependentUpon>Root.cs</DependentUpon>
     </Compile>
     <Compile Include="Grimoire.UI\SettingsForm.cs">
       <SubType>Form</SubType>
@@ -613,7 +627,7 @@
     </Content>
     <Content Include="..\game-client\grimoire-exodus.swf">
       <Link>grimoire-exodus.swf</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="Runtime\Flash\Flash.ocx" Condition="Exists('Runtime\Flash\Flash.ocx')">
       <Link>Flash.ocx</Link>

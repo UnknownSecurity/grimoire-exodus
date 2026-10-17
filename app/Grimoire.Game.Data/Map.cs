@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Grimoire.Game;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -14,8 +15,8 @@ namespace Grimoire.Game.Data
         [JsonProperty("areaId")]
         public static int ID
         {
-            get;
-            set;
+            get { return GameSessionState.Current.MapId; }
+            set { GameSessionState.Current.MapId = value; }
         }
 
         /// <summary>
@@ -34,8 +35,8 @@ namespace Grimoire.Game.Data
         [JsonProperty("areaName")]
         public static string Area
         {
-            get;
-            set;
+            get { return GameSessionState.Current.MapArea; }
+            set { GameSessionState.Current.MapArea = value; }
         }
 
         /// <summary>

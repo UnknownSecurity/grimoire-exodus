@@ -14,31 +14,67 @@ namespace Grimoire.Game
     public static class World
     {
 
-        public static List<Map> Maps = new List<Map>();
+        public static List<Map> Maps
+        {
+            get { return GameSessionState.Current.Maps; }
+            set { GameSessionState.Current.Maps = value; }
+        }
 
-        public static Map CurrentMap = new Map();
+        public static Map CurrentMap
+        {
+            get { return GameSessionState.Current.CurrentMap; }
+            set { GameSessionState.Current.CurrentMap = value; }
+        }
 
-        public static List<ShopInfo> Shops = new List<ShopInfo>();
+        public static List<ShopInfo> Shops
+        {
+            get { return GameSessionState.Current.Shops; }
+            set { GameSessionState.Current.Shops = value; }
+        }
 
-        public static ShopInfo CurrentShop = new ShopInfo();
+        public static ShopInfo CurrentShop
+        {
+            get { return GameSessionState.Current.CurrentShop; }
+            set { GameSessionState.Current.CurrentShop = value; }
+        }
 
-        public static List<InventoryItem> Drops = new List<InventoryItem>();
+        public static List<InventoryItem> Drops
+        {
+            get { return GameSessionState.Current.Drops; }
+            set { GameSessionState.Current.Drops = value; }
+        }
 
-        public static Server CurrentServer = new Server();
+        public static Server CurrentServer
+        {
+            get { return GameSessionState.Current.CurrentServer; }
+            set { GameSessionState.Current.CurrentServer = value; }
+        }
 
-        public static List<Quest> Quests = new List<Quest>();
+        public static List<Quest> Quests
+        {
+            get { return GameSessionState.Current.WorldQuests; }
+            set { GameSessionState.Current.WorldQuests = value; }
+        }
 
         public static void RefreshDictionary() => _players = JsonConvert.DeserializeObject<Dictionary<string, PlayerInfo>>(Flash.Call("Players", new object[0]));
 
-        public static Dictionary<string, PlayerInfo> _players;
+        public static Dictionary<string, PlayerInfo> _players
+        {
+            get { return GameSessionState.Current.Players; }
+            set { GameSessionState.Current.Players = value; }
+        }
         /// <summary>
         /// Gets a list of all players in the current map.
         /// </summary>
         public static List<PlayerInfo> Players => _players.Values.ToList();
 
-        public static List<ShopInfo> LoadedShops;
+        public static List<ShopInfo> LoadedShops
+        {
+            get { return GameSessionState.Current.LoadedShops; }
+            set { GameSessionState.Current.LoadedShops = value; }
+        }
 
-        public static DropStack DropStack;
+        public static DropStack DropStack => GameSessionState.Current.DropStack;
 
         private static readonly Dictionary<LockActions, string> LockedActions;
 
@@ -65,14 +101,22 @@ namespace Grimoire.Game
         //public static int RoomNumber => Flash.Call<int>("RoomNumber", new string[0]);
         public static int RoomNumber => int.Parse(Map.Instance);
 
-        public static event Action<InventoryItem> ItemDropped;
+        public static event Action<InventoryItem> ItemDropped
+        {
+            add { GameSessionState.Current.ItemDropped += value; }
+            remove { GameSessionState.Current.ItemDropped -= value; }
+        }
 
-        public static event Action<ShopInfo> ShopLoaded;
+        public static event Action<ShopInfo> ShopLoaded
+        {
+            add { GameSessionState.Current.ShopLoaded += value; }
+            remove { GameSessionState.Current.ShopLoaded -= value; }
+        }
 
         public static void OnItemDropped(InventoryItem drop)
         {
-            Action<InventoryItem> itemDropped = ItemDropped;
-            itemDropped(drop);
+            Action<InventoryItem> itemDropped = GameSessionState.Current.ItemDropped;
+            itemDropped?.Invoke(drop);
             if (Drops.Find(d => d.Id == drop.Id) == null)
             {
                 Drops.Add(drop);
@@ -84,7 +128,7 @@ namespace Grimoire.Game
 
         public static void OnShopLoaded(ShopInfo shopInfo)
         {
-            ShopLoaded?.Invoke(shopInfo);
+            GameSessionState.Current.ShopLoaded?.Invoke(shopInfo);
             LoadedShops.Add(shopInfo);
         }
 
@@ -153,15 +197,27 @@ namespace Grimoire.Game
 
         public static void GamePopup(string text, bool red = false) => Flash.Call("GamePopup", text, red);
 
-        public static List<Aura> PlayerAuras { get; set; } = new List<Aura>();
+        public static List<Aura> PlayerAuras
+        {
+            get { return GameSessionState.Current.PlayerAuras; }
+            set { GameSessionState.Current.PlayerAuras = value; }
+        }
 
-        public static List<Aura> EnemyAuras { get; set; } = new List<Aura>();
+        public static List<Aura> EnemyAuras
+        {
+            get { return GameSessionState.Current.EnemyAuras; }
+            set { GameSessionState.Current.EnemyAuras = value; }
+        }
 
-        internal static object AuraSyncRoot { get; } = new object();
+        internal static object AuraSyncRoot => GameSessionState.Current.AuraSyncRoot;
 
-        public static event Action<Aura> auraCountdown;
+        public static event Action<Aura> auraCountdown
+        {
+            add { GameSessionState.Current.AuraCountdown += value; }
+            remove { GameSessionState.Current.AuraCountdown -= value; }
+        }
 
-        internal static void OnAuraExpired(Aura aura) => auraCountdown?.Invoke(aura);
+        internal static void OnAuraExpired(Aura aura) => GameSessionState.Current.AuraCountdown?.Invoke(aura);
 
         public static bool FPSBox
         {
@@ -181,8 +237,6 @@ namespace Grimoire.Game
 
         static World()
         {
-            LoadedShops = new List<ShopInfo>();
-            DropStack = new DropStack();
             LockedActions = new Dictionary<LockActions, string>(14)
             {
                 {

@@ -87,7 +87,7 @@ namespace Grimoire.Game
                 InventoryItem drop = _drops.FirstOrDefault((InventoryItem d) => d.Id == itemId);
                 InProcess = true;
                 Player.AcceptDrop(itemId);
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !World.DropStack.Contains(drop.Name), null, 6, 500);
+                await Bot.Instance.WaitUntil(() => !World.DropStack.Contains(drop.Name), null, 6, 500);
                 InProcess = false;
                 return true;
             }
@@ -131,7 +131,7 @@ namespace Grimoire.Game
 
         public Task RejectDrops()
         {
-            Configuration configuration = BotManager.Instance.ActiveBotEngine.Configuration;
+            Configuration configuration = Bot.Instance.Configuration;
             return configuration == null
                 ? Task.CompletedTask
                 : RejectDrops(configuration, CancellationToken.None);

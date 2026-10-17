@@ -2,6 +2,7 @@ using DarkUI.Controls;
 using DarkUI.Forms;
 using Grimoire.Botting;
 using Grimoire.Botting.Commands.Map;
+using Grimoire.Clients;
 using Grimoire.Game;
 using Grimoire.Game.Data;
 using Grimoire.Tools;
@@ -645,7 +646,15 @@ namespace Grimoire.UI
 
             if (ApplicationContainsFocus() || hotkey.ActionIndex == 6)
             {
-                Actions[hotkey.ActionIndex]();
+                ClientSession session = Root.Instance?.ClientSessions?.ActiveSession;
+                if (session == null || session.IsDisposed)
+                {
+                    Actions[hotkey.ActionIndex]();
+                    return;
+                }
+
+                using (ClientSessionContext.Push(session))
+                    Actions[hotkey.ActionIndex]();
             }
         }
 

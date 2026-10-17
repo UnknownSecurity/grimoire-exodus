@@ -1,4 +1,5 @@
 ﻿using Grimoire.Botting;
+using Grimoire.Clients;
 using Grimoire.Game;
 using Grimoire.Game.Data;
 using Grimoire.Tools;
@@ -22,7 +23,7 @@ namespace Grimoire.Networking.Handlers
             "bankFromInv"
         };
 
-        private static CancellationTokenSource _cts = new CancellationTokenSource();
+        private readonly CancellationToken sessionToken;
 
         private List<string> eventModifiers = new List<string>
         {
@@ -34,6 +35,12 @@ namespace Grimoire.Networking.Handlers
             "OnMenuBtnItemEvents"
         };
 
+        public HandlerLogin()
+        {
+            ClientSession session = ClientSessionContext.Resolve();
+            sessionToken = session == null ? CancellationToken.None : session.LifetimeToken;
+        }
+
         public void Handle(XtMessage message)
         {
             HandlerTask.Observe(HandleAsync(message), nameof(HandlerLogin));
@@ -44,9 +51,9 @@ namespace Grimoire.Networking.Handlers
             if (message.Command == "loginResponse")
             {
                 LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss}] Logged in to {World.ServerName()} server.\r\n");
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => AutoRelogin.GameLabel, () => !_cts.IsCancellationRequested, 10, 1000);
+                await Bot.Instance.WaitUntil(() => AutoRelogin.GameLabel, () => !sessionToken.IsCancellationRequested, 10, 1000);
                 Player.Quests.LoadedQuests.Clear();
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !World.uiLock, () => !_cts.IsCancellationRequested, -1, 500);
+                await Bot.Instance.WaitUntil(() => !World.uiLock, () => !sessionToken.IsCancellationRequested, -1, 500);
                 Player.Bank.Load();
                 World.SendClientPacket("%xt%server%-1%Type \"/help\" without the quotation marks to bring information about Chat Commands into the chat.%");
                 InstallSettings();
@@ -54,7 +61,7 @@ namespace Grimoire.Networking.Handlers
                 Player.EnableChat();
                 OptionsManager.DisableDeathAds();
                 BotUtilities.ShouldUseSkill = true;
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => Player.Bank.IsBankLoaded, () => !_cts.IsCancellationRequested, 20, 500);
+                await Bot.Instance.WaitUntil(() => Player.Bank.IsBankLoaded, () => !sessionToken.IsCancellationRequested, 20, 500);
             }
             Player.Bank.SavedItems = Flash.Call<List<InventoryItem>>("GetBankItems", new string[0]);
         }

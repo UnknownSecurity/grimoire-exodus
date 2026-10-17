@@ -1,6 +1,7 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
 using Grimoire.Botting;
+using Grimoire.Clients;
 using Grimoire.Botting.Commands;
 using Grimoire.Botting.Commands.Combat;
 using Grimoire.Botting.Commands.Item;
@@ -36,6 +37,30 @@ namespace Grimoire.UI
     public class BotManager : GrimoireForm
     {
         private IBotEngine _activeBotEngine = Bot.Instance;
+
+        private ClientSessionManager _sessionManager;
+
+        private ClientSession _boundSession;
+
+        private IBotEngine _subscribedBotEngine;
+
+        private Action<bool> _boundRunningChanged;
+
+        private Action<int> _boundIndexChanged;
+
+        private EventHandler<BotDocumentChangedEventArgs> _boundDocumentChanged;
+
+        private Action<bool> _boundOptionStateChanged;
+
+        private bool _isBindingDocument;
+
+        private bool _isCommittingDocument;
+
+        private string _legacyCurrentBotName = "Untitled Bot";
+
+        private string _legacyCurrentBotPath;
+
+        private Configuration _defaultDocumentConfiguration;
 
         private List<StatementCommand> _statementCommands;
 
@@ -423,17 +448,214 @@ namespace Grimoire.UI
         {
             get
             {
-                return _activeBotEngine;
+                return ClientSessionContext.Current?.BotEngine
+                    ?? _boundSession?.BotEngine
+                    ?? ClientSessionManager.Default?.ActiveSession?.BotEngine
+                    ?? _activeBotEngine;
             }
             set
             {
-                if (_activeBotEngine.IsRunning)
+                if (_activeBotEngine != null && _activeBotEngine.IsRunning)
                 {
                     throw new InvalidOperationException("Cannot set a new bot engine while the current one is running");
                 }
 
                 _activeBotEngine = value ?? throw new ArgumentNullException("value");
             }
+        }
+
+        public ClientSession BoundSession => _boundSession;
+
+        public void BindSessions(ClientSessionManager sessionManager)
+        {
+            if (ReferenceEquals(_sessionManager, sessionManager))
+                return;
+
+            if (_sessionManager != null)
+                _sessionManager.ActiveSessionChanged -= SessionManager_ActiveSessionChanged;
+
+            BindToSession(null);
+            _sessionManager = sessionManager;
+            if (_sessionManager != null)
+            {
+                _sessionManager.ActiveSessionChanged += SessionManager_ActiveSessionChanged;
+                BindToSession(_sessionManager.ActiveSession);
+            }
+        }
+
+        private void SessionManager_ActiveSessionChanged(object sender, ActiveClientSessionChangedEventArgs e)
+        {
+            BindToSession(e.Current);
+        }
+
+        private void BindToSession(ClientSession session)
+        {
+            if (ReferenceEquals(_boundSession, session))
+                return;
+
+            if (_boundSession != null && !_boundSession.IsDisposed)
+                CommitBoundDocument();
+
+            DetachBoundSession();
+            _boundSession = session;
+            if (session == null)
+            {
+                BotStateChanged(false);
+                return;
+            }
+
+            if (!session.BotDocument.HasSnapshot)
+                session.BotDocument.Replace(CloneConfiguration(_defaultDocumentConfiguration), null);
+
+            _subscribedBotEngine = session.BotEngine;
+            if (_subscribedBotEngine != null)
+            {
+                IBotEngine capturedEngine = _subscribedBotEngine;
+                _boundRunningChanged = isRunning => OnBoundRunningChanged(session, capturedEngine, isRunning);
+                _boundIndexChanged = index => OnBoundIndexChanged(session, capturedEngine, index);
+                capturedEngine.IsRunningChanged += _boundRunningChanged;
+                capturedEngine.IndexChanged += _boundIndexChanged;
+            }
+
+            _boundDocumentChanged = (sender, args) => OnBoundDocumentChanged(session, args);
+            session.BotDocument.Changed += _boundDocumentChanged;
+            _boundOptionStateChanged = state => OnBoundOptionStateChanged(session, state);
+            session.OptionState.StateChanged += _boundOptionStateChanged;
+            ApplyBoundDocument(session);
+            BotStateChanged(session.BotEngine != null && session.BotEngine.IsRunning);
+        }
+
+        private Configuration CloneConfiguration(Configuration configuration)
+        {
+            if (configuration == null)
+                return new Configuration();
+
+            string json = JsonConvert.SerializeObject(configuration, Formatting.None, _saveSerializerSettings);
+            return JsonConvert.DeserializeObject<Configuration>(json, _saveSerializerSettings)
+                ?? new Configuration();
+        }
+
+        private void DetachBoundSession()
+        {
+            if (_subscribedBotEngine != null)
+            {
+                if (_boundRunningChanged != null)
+                    _subscribedBotEngine.IsRunningChanged -= _boundRunningChanged;
+                if (_boundIndexChanged != null)
+                    _subscribedBotEngine.IndexChanged -= _boundIndexChanged;
+            }
+
+            if (_boundSession != null)
+            {
+                if (_boundDocumentChanged != null)
+                    _boundSession.BotDocument.Changed -= _boundDocumentChanged;
+                if (_boundOptionStateChanged != null)
+                    _boundSession.OptionState.StateChanged -= _boundOptionStateChanged;
+            }
+
+            _subscribedBotEngine = null;
+            _boundRunningChanged = null;
+            _boundIndexChanged = null;
+            _boundDocumentChanged = null;
+            _boundOptionStateChanged = null;
+        }
+
+        private void CommitBoundDocument()
+        {
+            if (_boundSession == null || _isBindingDocument || _boundSession.IsDisposed)
+                return;
+
+            _isCommittingDocument = true;
+            try
+            {
+                _boundSession.BotDocument.Commit(GenerateConfiguration());
+            }
+            finally
+            {
+                _isCommittingDocument = false;
+            }
+        }
+
+        private void ApplyBoundDocument(ClientSession session)
+        {
+            if (session == null || session.IsDisposed)
+                return;
+
+            _isBindingDocument = true;
+            try
+            {
+                cbServers.Items.Clear();
+                if (session.GameState.Servers != null && session.GameState.Servers.Count > 0)
+                    cbServers.Items.AddRange(session.GameState.Servers.ToArray());
+                ApplyConfiguration(session.BotDocument.Configuration, false);
+                chkEnableSettings.Checked = session.OptionState.IsRunning;
+            }
+            finally
+            {
+                _isBindingDocument = false;
+            }
+
+            Root.Instance?.UpdateQuickBotSelection(session.BotDocument.SourcePath);
+            if (Root.Instance != null && session.BotEngine != null)
+                Root.Instance.UpdateBotTitle(session.BotEngine.IsRunning, session.BotDocument.DisplayName);
+        }
+
+        private void OnBoundDocumentChanged(ClientSession session, BotDocumentChangedEventArgs e)
+        {
+            if (_isCommittingDocument || !ReferenceEquals(_boundSession, session))
+                return;
+
+            Action update = delegate
+            {
+                if (!ReferenceEquals(_boundSession, session) || session.IsDisposed)
+                    return;
+
+                if (e.ConfigurationChanged)
+                    ApplyBoundDocument(session);
+                else if (e.MetadataChanged)
+                {
+                    Root.Instance?.UpdateQuickBotSelection(session.BotDocument.SourcePath);
+                    Root.Instance?.UpdateBotTitle(
+                        session.BotEngine != null && session.BotEngine.IsRunning,
+                        session.BotDocument.DisplayName);
+                }
+            };
+            if (InvokeRequired)
+                BeginInvoke(update);
+            else
+                update();
+        }
+
+        private void OnBoundRunningChanged(ClientSession session, IBotEngine engine, bool isRunning)
+        {
+            Action update = delegate
+            {
+                if (!ReferenceEquals(_boundSession, session)
+                    || !ReferenceEquals(session.BotEngine, engine)
+                    || session.IsDisposed)
+                    return;
+
+                BotStateChanged(isRunning);
+                Root.Instance?.BotStateChanged(isRunning);
+            };
+            if (InvokeRequired)
+                BeginInvoke(update);
+            else
+                update();
+        }
+
+        private void OnBoundIndexChanged(ClientSession session, IBotEngine engine, int index)
+        {
+            if (!ReferenceEquals(_boundSession, session) || !ReferenceEquals(session.BotEngine, engine))
+                return;
+            OnIndexChanged(index);
+        }
+
+        private void OnBoundOptionStateChanged(ClientSession session, bool state)
+        {
+            if (!ReferenceEquals(_boundSession, session))
+                return;
+            OnOptionsStateChanged(state);
         }
 
         private ListBox SelectedList
@@ -465,30 +687,46 @@ namespace Grimoire.UI
 
         public string CustomName
         {
-            get => _customName;
+            get => ClientSessionContext.Resolve()?.GameState.CustomCharacterName ?? _customName;
 
             set
             {
                 _customName = value;
-                Flash.Call("ChangeName", _customName);
+                ClientSession session = ClientSessionContext.Resolve();
+                if (session != null)
+                    session.GameState.CustomCharacterName = value;
+                Flash.Call("ChangeName", value);
             }
         }
 
-        public string CurrentBotName { get; private set; } = "Untitled Bot";
+        public string CurrentBotName => ResolveDocument()?.DisplayName ?? _legacyCurrentBotName;
 
-        public string CurrentBotPath { get; private set; }
+        public string CurrentBotPath => ResolveDocument()?.SourcePath ?? _legacyCurrentBotPath;
+
+        private BotDocumentState ResolveDocument()
+        {
+            return ClientSessionContext.Current?.BotDocument ?? _boundSession?.BotDocument;
+        }
 
         public void SetCurrentBotName(string path)
         {
-            string name = string.IsNullOrWhiteSpace(path) ? null : Path.GetFileNameWithoutExtension(path);
-            CurrentBotName = string.IsNullOrWhiteSpace(name) ? "Untitled Bot" : name;
-            try
+            BotDocumentState document = ResolveDocument();
+            if (document != null)
             {
-                CurrentBotPath = string.IsNullOrWhiteSpace(path) ? null : Path.GetFullPath(path);
+                document.SetSourcePath(path);
             }
-            catch
+            else
             {
-                CurrentBotPath = path;
+                string name = string.IsNullOrWhiteSpace(path) ? null : Path.GetFileNameWithoutExtension(path);
+                _legacyCurrentBotName = string.IsNullOrWhiteSpace(name) ? "Untitled Bot" : name;
+                try
+                {
+                    _legacyCurrentBotPath = string.IsNullOrWhiteSpace(path) ? null : Path.GetFullPath(path);
+                }
+                catch
+                {
+                    _legacyCurrentBotPath = path;
+                }
             }
 
             bool isRunning = false;
@@ -499,36 +737,44 @@ namespace Grimoire.UI
             catch
             {
             }
-            StartupDiagnostics.UpdateActivity(
-                CurrentBotPath,
-                isRunning,
-                Root.Instance != null && !Root.Instance.Visible);
-            Root.Instance?.UpdateQuickBotSelection(CurrentBotPath);
-
-            if (Root.Instance != null && ActiveBotEngine.IsRunning)
+            bool isBoundDocument = document == null || ReferenceEquals(document, _boundSession?.BotDocument);
+            if (isBoundDocument)
             {
-                Root.Instance.UpdateBotTitle(true, CurrentBotName);
+                StartupDiagnostics.UpdateActivity(
+                    CurrentBotPath,
+                    isRunning,
+                    Root.Instance != null && !Root.Instance.Visible);
+                Root.Instance?.UpdateQuickBotSelection(CurrentBotPath);
+
+                if (Root.Instance != null && isRunning)
+                    Root.Instance.UpdateBotTitle(true, CurrentBotName);
             }
         }
 
         public string CustomGuild
         {
-            get => _customGuild;
+            get => ClientSessionContext.Resolve()?.GameState.CustomGuildName ?? _customGuild;
             set
             {
                 _customGuild = value;
-                Flash.Call("ChangeGuild", txtGuild.Text);
+                ClientSession session = ClientSessionContext.Resolve();
+                if (session != null)
+                    session.GameState.CustomGuildName = value;
+                Flash.Call("ChangeGuild", value);
             }
         }
 
         public string CustomClassName
         {
-            get => _customClassName;
+            get => ClientSessionContext.Resolve()?.GameState.CustomClassName ?? _customClassName;
 
             set
             {
                 _customClassName = value;
-                Flash.Call("ChangeClassName", _customClassName);
+                ClientSession session = ClientSessionContext.Resolve();
+                if (session != null)
+                    session.GameState.CustomClassName = value;
+                Flash.Call("ChangeClassName", value);
             }
         }
 
@@ -540,6 +786,8 @@ namespace Grimoire.UI
             chkChangeRoomTag.Checked = BotClientConfig.Instance.GetValue<bool>("anonymousRoom");
             chkChangeChat.Checked = BotClientConfig.Instance.GetValue<bool>("anonymousUser");
             chkExitCombatUponStop.Checked = BotClientConfig.Instance.GetValue<bool>("exitCombatUponStop");
+            _defaultDocumentConfiguration = GenerateConfiguration();
+            BindSessions(ClientSessionManager.Default);
         }
 
         public void BotManager_Load(object sender, EventArgs e)
@@ -554,7 +802,7 @@ namespace Grimoire.UI
             cbLists.SelectedIndex = 0;
             _statementCommands = JsonConvert.DeserializeObject<List<StatementCommand>>(Resources.statementcmds, _serializerSettings);
             _defaultControlText = JsonConvert.DeserializeObject<Dictionary<string, string>>(Resources.defaulttext, _serializerSettings);
-            OptionsManager.StateChanged += OnOptionsStateChanged;
+            BindSessions(ClientSessionManager.Default ?? Root.Instance?.ClientSessions);
             string font = Config.Instance.GetValue<string>("font");
             lstCommands.ItemHeight = int.Parse(Config.Instance.GetValue<string>("CommandsSize") ?? "60");
             lstCommands.Font = new Font(font, lstCommands.ItemHeight / 4 - (float)6.5, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -587,13 +835,19 @@ namespace Grimoire.UI
 
         public void OnServersLoaded(Server[] servers)
         {
-            if (servers != null && servers.Length != 0 && cbServers.Items.Count <= 1)
+            if (servers == null || servers.Length == 0)
+                return;
+
+            Server.List = servers.ToList();
+            ClientSession session = ClientSessionContext.Current;
+            if (session != null && !ReferenceEquals(session, _boundSession))
+                return;
+
+            if (cbServers.Items.Count <= 1)
             {
-                Server.List = servers.ToList();
                 cbServers.Items.AddRange(servers);
                 cbServers.SelectedIndex = 0;
-                Root.Instance.toolStripComboBoxLoginServer.Items.AddRange(servers);
-                Root.Instance.toolStripComboBoxLoginServer.SelectedIndex = BotClientConfig.Instance.GetValue<int>("serverIndex");
+                Root.Instance?.BindServersForSession(session ?? _boundSession);
             }
         }
 
@@ -612,6 +866,7 @@ namespace Grimoire.UI
                 SkillDelay = (int)numSkillD.Value,
                 ExitCombatBeforeRest = chkExitRest.Checked,
                 ExitCombatBeforeQuest = chkExistQuest.Checked,
+                ExitCombatBeforeStop = chkExitCombatUponStop.Checked,
                 Server = (Server)cbServers.SelectedItem,
                 AutoRelogin = chkRelog.Checked,
                 RelogDelay = (int)numRelogDelay.Value,
@@ -668,6 +923,7 @@ namespace Grimoire.UI
                 SkillDelay = (int)numSkillD.Value,
                 ExitCombatBeforeRest = chkExitRest.Checked,
                 ExitCombatBeforeQuest = chkExistQuest.Checked,
+                ExitCombatBeforeStop = chkExitCombatUponStop.Checked,
                 Server = (Server)cbServers.SelectedItem,
                 AutoRelogin = chkRelog.Checked,
                 RelogDelay = (int)numRelogDelay.Value,
@@ -709,9 +965,14 @@ namespace Grimoire.UI
 
         public void ApplyConfiguration(Configuration config)
         {
+            ApplyConfiguration(config, true);
+        }
+
+        private void ApplyConfiguration(Configuration config, bool honorMerge)
+        {
             if (config != null)
             {
-                if (!chkMerge.Checked || ActiveBotEngine.IsRunning)
+                if (!honorMerge || !chkMerge.Checked || ActiveBotEngine.IsRunning)
                 {
                     lstCommands.Items.Clear();
                     lstBoosts.Items.Clear();
@@ -768,6 +1029,7 @@ namespace Grimoire.UI
                 numSkillD.Value = config.SkillDelay;
                 chkExitRest.Checked = config.ExitCombatBeforeRest;
                 chkExistQuest.Checked = config.ExitCombatBeforeQuest;
+                chkExitCombatUponStop.Checked = config.ExitCombatBeforeStop;
                 if (config.Server != null)
                 {
                     cbServers.SelectedIndex = cbServers.Items.Cast<Server>().ToList().FindIndex((Server s) => s.Name == config.Server.Name);
@@ -823,17 +1085,11 @@ namespace Grimoire.UI
 
         public void OnConfigurationChanged(Configuration config)
         {
-            if (InvokeRequired)
-            {
-                BeginInvoke((Action)delegate
-                {
-                    ApplyConfiguration(config);
-                });
-            }
-            else
-            {
+            ClientSession session = ClientSessionContext.Current ?? _boundSession;
+            if (session != null && config != null)
+                session.BotDocument.UpdateRuntimeConfiguration(config);
+            else if (config != null)
                 ApplyConfiguration(config);
-            }
         }
 
         public void OnIndexChanged(int index)
@@ -856,6 +1112,10 @@ namespace Grimoire.UI
 
         public void OnSkillIndexChanged(int index)
         {
+            ClientSession session = ClientSessionContext.Current;
+            if (session != null && !ReferenceEquals(session, _boundSession))
+                return;
+
             if (index > -1 && index < lstSkills.Items.Count)
             {
                 Action update = delegate
@@ -871,21 +1131,12 @@ namespace Grimoire.UI
 
         public void OnIsRunningChanged(bool IsRunning)
         {
-            Action update = delegate
-            {
-                if (!IsRunning)
-                {
-                    ActiveBotEngine.IsRunningChanged -= OnIsRunningChanged;
-                    ActiveBotEngine.IndexChanged -= OnIndexChanged;
-                    ActiveBotEngine.ConfigurationChanged -= OnConfigurationChanged;
-                }
-                BotStateChanged(IsRunning);
-                Root.Instance?.BotStateChanged(IsRunning);
-            };
-            if (InvokeRequired)
-                BeginInvoke(update);
+            ClientSession session = ClientSessionContext.Current ?? _boundSession;
+            IBotEngine engine = session?.BotEngine ?? _activeBotEngine;
+            if (session != null)
+                OnBoundRunningChanged(session, engine, IsRunning);
             else
-                update();
+                BotStateChanged(IsRunning);
         }
 
         private void lstCommands_DoubleClick(object sender, EventArgs e)
@@ -1497,6 +1748,7 @@ namespace Grimoire.UI
         {
             try
             {
+                BindSessions(ClientSessionManager.Default ?? Root.Instance?.ClientSessions);
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 {
                     throw new FileNotFoundException("The selected GBot file could not be found.", path);
@@ -1518,7 +1770,20 @@ namespace Grimoire.UI
                 }
 
                 ApplyConfiguration(config);
-                SetCurrentBotName(path);
+                if (_boundSession != null)
+                {
+                    _isCommittingDocument = true;
+                    try
+                    {
+                        _boundSession.BotDocument.Replace(GenerateConfiguration(), path);
+                    }
+                    finally
+                    {
+                        _isCommittingDocument = false;
+                    }
+                }
+                else
+                    SetCurrentBotName(path);
                 GetAllCommands<CmdLabel>(lbLabels);
 
                 string directory = Path.GetDirectoryName(Path.GetFullPath(path));
@@ -1588,6 +1853,21 @@ namespace Grimoire.UI
                     try
                     {
                         File.WriteAllText(saveFileDialog.FileName, JsonConvert.SerializeObject(value, Formatting.Indented, _saveSerializerSettings));
+                        if (_boundSession != null)
+                        {
+                            _isCommittingDocument = true;
+                            try
+                            {
+                                _boundSession.BotDocument.MarkSaved(saveFileDialog.FileName, value);
+                            }
+                            finally
+                            {
+                                _isCommittingDocument = false;
+                            }
+                            SetCurrentBotName(saveFileDialog.FileName);
+                        }
+                        else
+                            SetCurrentBotName(saveFileDialog.FileName);
                     }
                     catch (Exception ex)
                     {
@@ -1823,6 +2103,8 @@ namespace Grimoire.UI
 
         private void chkInfiniteRange_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.InfiniteRange = chkInfiniteRange.Checked;
             Root.Instance.infRangeToolStripMenuItem.Checked = chkInfiniteRange.Checked;
         }
@@ -1837,12 +2119,16 @@ namespace Grimoire.UI
 
         private void chkProvoke_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.ProvokeMonsters = chkProvoke.Checked;
             Root.Instance.provokeToolStripMenuItem1.Checked = chkProvoke.Checked;
         }
 
         private void chkProvokeAllMon_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.ProvokeAllMonster = chkProvokeAllMon.Checked;
             Root.Instance.provokeAllMonsterInMapToolStripMenuItem.Checked = chkProvokeAllMon.Checked;
             if (!chkProvokeAllMon.Checked && (Player.CurrentState == Player.State.InCombat))
@@ -1853,35 +2139,47 @@ namespace Grimoire.UI
 
         private void chkMagnet_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.EnemyMagnet = chkMagnet.Checked;
             Root.Instance.enemyMagnetToolStripMenuItem.Checked = chkMagnet.Checked;
         }
 
         private void chkLag_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.LagKiller = chkLag.Checked;
             Root.Instance.lagKillerToolStripMenuItem.Checked = chkLag.Checked;
         }
 
         private void chkHidePlayers_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.HidePlayers = chkHidePlayers.Checked;
             Root.Instance.hidePlayersToolStripMenuItem.Checked = chkHidePlayers.Checked;
         }
 
         private void chkSkipCutscenes_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.SkipCutscenes = chkSkipCutscenes.Checked;
             Root.Instance.skipCutscenesToolStripMenuItem.Checked = chkSkipCutscenes.Checked;
         }
 
         private void numWalkSpeed_ValueChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.WalkSpeed = (int)numWalkSpeed.Value;
         }
 
         private void chkDisableAnims_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.DisableAnimations = chkDisableAnims.Checked;
             Root.Instance.disableAnimationsToolStripMenuItem.Checked = chkDisableAnims.Checked;
         }
@@ -1903,6 +2201,8 @@ namespace Grimoire.UI
 
         private void chkEnableSettings_Click(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             if (chkEnableSettings.Checked)
                 OptionsManager.Start();
             else
@@ -2077,7 +2377,7 @@ namespace Grimoire.UI
                 lstQuests.Items.Add(quest);
                 if (toConfig)
                 {
-                    BotManager.Instance.ActiveBotEngine.Configuration.Quests.Add(quest);
+                    Bot.Instance.Configuration.Quests.Add(quest);
                 }
             }
         }
@@ -2089,7 +2389,7 @@ namespace Grimoire.UI
                 lstDrops.Items.Add(Name);
                 if (toConfig)
                 {
-                    BotManager.Instance.ActiveBotEngine.Configuration.Drops.Add(Name);
+                    Bot.Instance.Configuration.Drops.Add(Name);
                 }
             }
         }
@@ -2102,7 +2402,7 @@ namespace Grimoire.UI
                 lstQuests.Items.Remove(quest);
                 if (toConfig)
                 {
-                    BotManager.Instance.ActiveBotEngine.Configuration.Quests.Remove(quest);
+                    Bot.Instance.Configuration.Quests.Remove(quest);
                 }
             }
         }
@@ -2115,38 +2415,58 @@ namespace Grimoire.UI
                 lstDrops.Items.Remove(item);
                 if (toConfig)
                 {
-                    BotManager.Instance.ActiveBotEngine.Configuration.Drops.Remove(item);
+                    Bot.Instance.Configuration.Drops.Remove(item);
                 }
             }
         }
 
         public async void btnBotStart_ClickAsync(object sender, EventArgs e)
         {
-            if (Player.IsAlive && Player.IsLoggedIn && lstCommands.Items.Count > 0)
+            ClientSession session = _boundSession ?? ClientSessionManager.Default?.ActiveSession;
+            if (session == null || session.IsDisposed)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                btnBotStop.Enabled = false;
-                btnBotPause.Enabled = false;
-                CustomCommandToggle(false);
-                SelectionModeToggle(false);
-                OnBotExecute(true);
-                BotStateChanged(IsRunning: true);
-                await Task.Delay(2000);
-                Root.Instance.BotStateChanged(IsRunning: true);
-                btnBotPause.Enabled = true;
-                btnBotStop.Enabled = true;
+                if (Player.IsAlive && Player.IsLoggedIn && lstCommands.Items.Count > 0)
+                {
+                    btnBotStop.Enabled = false;
+                    btnBotPause.Enabled = false;
+                    CustomCommandToggle(false);
+                    SelectionModeToggle(false);
+                    OnBotExecute(true);
+                    BotStateChanged(IsRunning: true);
+                    await Task.Delay(2000);
+                    if (ReferenceEquals(_boundSession, session))
+                    {
+                        Root.Instance.BotStateChanged(IsRunning: true);
+                        btnBotPause.Enabled = true;
+                        btnBotStop.Enabled = true;
+                    }
+                }
             }
         }
 
         public async void btnBotStop_Click(object sender, EventArgs e)
         {
+            ClientSession session = _boundSession ?? ClientSessionManager.Default?.ActiveSession;
+            IBotEngine engine = session?.BotEngine ?? ActiveBotEngine;
             btnBotStart.Enabled = false;
             CustomCommandToggle(true);
-            ActiveBotEngine.Stop();
+            if (session == null)
+                engine.Stop();
+            else
+            {
+                using (ClientSessionContext.Push(session))
+                    engine.Stop();
+            }
             SelectionModeToggle(true);
             BotStateChanged(IsRunning: false);
             await Task.Delay(2000);
-            Root.Instance.BotStateChanged(IsRunning: false);
-            btnBotStart.Enabled = true;
+            if (session == null || ReferenceEquals(_boundSession, session))
+            {
+                Root.Instance.BotStateChanged(IsRunning: false);
+                btnBotStart.Enabled = true;
+            }
         }
 
         public void BotStateChanged(bool IsRunning)
@@ -2248,9 +2568,11 @@ namespace Grimoire.UI
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && components != null)
+            if (disposing)
             {
-                components.Dispose();
+                BindSessions(null);
+                if (components != null)
+                    components.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -7758,6 +8080,8 @@ namespace Grimoire.UI
 
         private void numOptionsTimer_ValueChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.Timer = (int)numOptionsTimer.Value;
         }
 
@@ -7808,6 +8132,8 @@ namespace Grimoire.UI
 
         private void chkUntarget_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.Untarget = chkUntarget.Checked;
             Root.Instance.untargetSelfToolStripMenuItem.Checked = chkUntarget.Checked;
         }
@@ -7855,6 +8181,8 @@ namespace Grimoire.UI
 
         private void chkAFK_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager.AFK = chkAFK.Checked;
         }
 
@@ -8741,34 +9069,52 @@ namespace Grimoire.UI
 
         private async void btnBotPause_Click(object sender, EventArgs e)
         {
+            ClientSession session = _boundSession ?? ClientSessionManager.Default?.ActiveSession;
+            IBotEngine engine = session?.BotEngine ?? ActiveBotEngine;
             btnBotPause.Enabled = false;
             btnBotResume.Enabled = false;
             btnBotPause.Visible = false;
             btnBotResume.Visible = true;
             CustomCommandToggle(true);
-            ActiveBotEngine.Pause();
+            if (session == null)
+                engine.Pause();
+            else
+            {
+                using (ClientSessionContext.Push(session))
+                    engine.Pause();
+            }
             ButtonToggle(true);
             SelectionModeToggle(true);
             await Task.Delay(2000);
-            btnBotResume.Enabled = true;
+            if (session == null || ReferenceEquals(_boundSession, session))
+                btnBotResume.Enabled = true;
         }
 
         private async void btnBotResume_Click(object sender, EventArgs e)
         {
-            if (Player.IsAlive && Player.IsLoggedIn && lstCommands.Items.Count > 0)
+            ClientSession session = _boundSession ?? ClientSessionManager.Default?.ActiveSession;
+            if (session == null || session.IsDisposed)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                btnBotResume.Enabled = false;
-                btnBotPause.Enabled = false;
-                btnBotStop.Enabled = false;
-                btnBotPause.Visible = true;
-                btnBotResume.Visible = false;
-                CustomCommandToggle(false);
-                ButtonToggle(false);
-                SelectionModeToggle(false);
-                OnBotExecute(false);
-                await Task.Delay(2000);
-                btnBotPause.Enabled = true;
-                btnBotStop.Enabled = true;
+                if (Player.IsAlive && Player.IsLoggedIn && lstCommands.Items.Count > 0)
+                {
+                    btnBotResume.Enabled = false;
+                    btnBotPause.Enabled = false;
+                    btnBotStop.Enabled = false;
+                    btnBotPause.Visible = true;
+                    btnBotResume.Visible = false;
+                    CustomCommandToggle(false);
+                    ButtonToggle(false);
+                    SelectionModeToggle(false);
+                    OnBotExecute(false);
+                    await Task.Delay(2000);
+                    if (ReferenceEquals(_boundSession, session))
+                    {
+                        btnBotPause.Enabled = true;
+                        btnBotStop.Enabled = true;
+                    }
+                }
             }
         }
 
@@ -8819,19 +9165,41 @@ namespace Grimoire.UI
 
         public void OnBotExecute(bool Type)
         {
-            ActiveBotEngine.IsRunningChanged -= OnIsRunningChanged;
-            ActiveBotEngine.IndexChanged -= OnIndexChanged;
-            ActiveBotEngine.ConfigurationChanged -= OnConfigurationChanged;
-            ActiveBotEngine.IsRunningChanged += OnIsRunningChanged;
-            ActiveBotEngine.IndexChanged += OnIndexChanged;
-            ActiveBotEngine.ConfigurationChanged += OnConfigurationChanged;
-            if (Type)
+            ClientSession session = ClientSessionContext.Current
+                ?? _boundSession
+                ?? ClientSessionManager.Default?.ActiveSession;
+            if (session != null && !ReferenceEquals(_boundSession, session))
+                throw new InvalidOperationException("The Bot Manager is not bound to the requested client.");
+            IBotEngine engine = session?.BotEngine ?? ActiveBotEngine;
+            Configuration configuration = GenerateConfiguration();
+            if (session != null)
             {
-                ActiveBotEngine.Start(GenerateConfiguration());
+                _isCommittingDocument = true;
+                try
+                {
+                    session.BotDocument.Commit(configuration);
+                }
+                finally
+                {
+                    _isCommittingDocument = false;
+                }
             }
-            else
+
+            if (session == null)
             {
-                ActiveBotEngine.Resume(GenerateConfiguration());
+                if (Type)
+                    engine.Start(configuration);
+                else
+                    engine.Resume(configuration);
+                return;
+            }
+
+            using (ClientSessionContext.Push(session))
+            {
+                if (Type)
+                    engine.Start(configuration);
+                else
+                    engine.Resume(configuration);
             }
         }
 
@@ -8851,6 +9219,8 @@ namespace Grimoire.UI
 
         public void chkExitCombatUponStop_Click(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             BotClientConfig.Instance.SetValue("exitCombatUponStop", chkExitCombatUponStop.Checked.ToString());
         }
 
@@ -8861,6 +9231,8 @@ namespace Grimoire.UI
 
         public void chkSaveState_CheckedChanged(object sender, EventArgs e)
         {
+            if (_isBindingDocument)
+                return;
             OptionsManager._saveState = chkSaveState.Checked;
             Root.Instance.autosaveStateToolStripMenuItem.Checked = chkSaveState.Checked;
         }

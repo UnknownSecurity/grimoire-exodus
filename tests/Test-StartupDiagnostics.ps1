@@ -1,12 +1,23 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+
+    [string]$OutputDirectory
 )
 
 $ErrorActionPreference = "Stop"
 $rootDirectory = Split-Path -Parent $PSScriptRoot
-$outputDirectory = Join-Path $rootDirectory "app\bin\$Configuration"
+$outputDirectory = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    Join-Path $rootDirectory "app\bin\$Configuration"
+}
+else {
+    [IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+        $OutputDirectory
+    } else {
+        Join-Path $rootDirectory $OutputDirectory
+    }))
+}
 $compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe"
 $testSource = Join-Path $PSScriptRoot "StartupDiagnosticsSmoke.cs"
 $diagnosticsSource = Join-Path $rootDirectory "app\Grimoire.Utils\StartupDiagnostics.cs"

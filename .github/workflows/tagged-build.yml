@@ -106,16 +106,12 @@ jobs:
               gh release edit $tag `
                 --repo "${{ github.repository }}" `
                 --title "Grimoire Exodus $tag" `
-                --notes-file $notes `
-                --prerelease=false `
-                --latest
+                --notes-file $notes
             }
             else {
               gh release edit $tag `
                 --repo "${{ github.repository }}" `
-                --title "Grimoire Exodus $tag" `
-                --prerelease=false `
-                --latest
+                --title "Grimoire Exodus $tag"
             }
           }
           else {

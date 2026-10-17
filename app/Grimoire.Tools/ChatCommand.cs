@@ -1,4 +1,5 @@
 using Grimoire.Botting;
+using Grimoire.Clients;
 using Grimoire.Botting.Commands.Combat;
 using Grimoire.Game;
 using Grimoire.Game.Data;
@@ -112,17 +113,25 @@ namespace Grimoire.Tools
             }
         }
 
-        private static IBotEngine Engine => BotManager.Instance.ActiveBotEngine;
+        private static IBotEngine Engine => Bot.Instance;
 
         private static CmdKill cmdCombat
         {
-            get;
-            set;
+            get { return GameSessionState.Current.ChatCombatCommand as CmdKill; }
+            set { GameSessionState.Current.ChatCombatCommand = value; }
         }
 
-        private static bool ShouldCombat = false;
+        private static bool ShouldCombat
+        {
+            get { return GameSessionState.Current.ChatCombatEnabled; }
+            set { GameSessionState.Current.ChatCombatEnabled = value; }
+        }
 
-        private static bool ShouldProvoke = false;
+        private static bool ShouldProvoke
+        {
+            get { return GameSessionState.Current.ChatProvokeEnabled; }
+            set { GameSessionState.Current.ChatProvokeEnabled = value; }
+        }
 
         public static async void Combat(string target, bool isNull)
         {
@@ -325,11 +334,21 @@ namespace Grimoire.Tools
         {
             Server server = Server.List.Find((Server s) => s.Name.Equals(World.ServerName(), StringComparison.OrdinalIgnoreCase));
             Player.Logout();
-            Root.Instance.login_cts = new CancellationTokenSource();
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => AutoRelogin.LoginLabel, () => !Root.Instance.login_cts.IsCancellationRequested, 10, 1000);
-            AutoRelogin.LoginExecute();
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !Root.Instance.login_cts.IsCancellationRequested, 10, 500);
-            await AutoRelogin.ForceLogin(server, Root.Instance.login_cts);
+            ClientSession session = ClientSessionContext.Resolve();
+            CancellationTokenSource loginCancellation = session == null
+                ? new CancellationTokenSource()
+                : CancellationTokenSource.CreateLinkedTokenSource(session.LifetimeToken);
+            try
+            {
+                await Engine.WaitUntil(() => AutoRelogin.LoginLabel, () => !loginCancellation.IsCancellationRequested, 10, 1000);
+                AutoRelogin.LoginExecute();
+                await Engine.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !loginCancellation.IsCancellationRequested, 10, 500);
+                await AutoRelogin.ForceLogin(server, loginCancellation);
+            }
+            finally
+            {
+                loginCancellation.Dispose();
+            }
         }
 
     }

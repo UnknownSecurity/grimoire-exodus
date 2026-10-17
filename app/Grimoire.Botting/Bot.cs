@@ -1,5 +1,6 @@
 using Grimoire.Game;
 using Grimoire.Game.Data;
+using Grimoire.Clients;
 using Grimoire.Tools;
 using Grimoire.UI;
 using System;
@@ -33,7 +34,15 @@ namespace Grimoire.Botting
             return Configuration.Tempvariable.TryGetValue(key, out string value) ? value : var;
         }
 
-        public static Bot Instance = new Bot();
+        private static readonly Bot LegacyInstance = new Bot();
+
+        public static Bot Instance
+        {
+            get
+            {
+                return ClientSessionContext.Resolve()?.BotEngine as Bot ?? LegacyInstance;
+            }
+        }
 
         private IBotCommand cmd;
 
@@ -42,6 +51,8 @@ namespace Grimoire.Botting
         private Configuration _config;
 
         private bool _isRunning;
+
+        private int _resumeIndex;
 
         private Task _botTask;
 
@@ -53,7 +64,24 @@ namespace Grimoire.Botting
 
         private BotRunContext _currentRun;
 
+        private ClientSession owningSession;
+
+        private CancellationTokenRegistration owningSessionCancellation;
+
         public CancellationTokenSource _ctsBot;
+
+        internal void BindSession(ClientSession session)
+        {
+            if (session == null)
+                throw new ArgumentNullException(nameof(session));
+            if (owningSession != null
+                && !ReferenceEquals(owningSession, session)
+                && !owningSession.IsDisposed)
+                throw new InvalidOperationException("A bot engine cannot be moved to another client session.");
+            owningSessionCancellation.Dispose();
+            owningSession = session;
+            owningSessionCancellation = session.LifetimeToken.Register(CancelCurrentRun);
+        }
 
         private sealed class BotRunContext : IDisposable
         {
@@ -108,9 +136,9 @@ namespace Grimoire.Botting
             }
         }
 
-        public static Dictionary<int, Configuration> Configurations = new Dictionary<int, Configuration>();
+        public static Dictionary<int, Configuration> Configurations => GameSessionState.Current.BotConfigurations;
 
-        public static Dictionary<int, int> OldIndex = new Dictionary<int, int>();
+        public static Dictionary<int, int> OldIndex => GameSessionState.Current.BotOldIndexes;
 
         public static Dictionary<string, string> ProtectedMonsters = new Dictionary<string, string>
         {
@@ -183,14 +211,15 @@ namespace Grimoire.Botting
 
         private async Task ResumeLifecycleAsync(Configuration config)
         {
-            selectedIndex = BotManager.Instance.lstCommands.SelectedIndex;
-            await StartRunAsync(config, selectedIndex);
+            selectedIndex = _resumeIndex;
+            await StartRunAsync(config, _resumeIndex);
             LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss}] The bot has been resumed.\r\n");
         }
 
         public void Pause()
         {
             LogForm.Instance.AppendBot($"[{DateTime.Now:hh:mm:ss}] Pausing the bot.\r\n");
+            _resumeIndex = Index;
             CancelCurrentRun();
             ScheduleLifecycle(PauseLifecycleAsync);
         }
@@ -201,14 +230,16 @@ namespace Grimoire.Botting
             LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss}] The bot has been paused.\r\n");
         }
 
-        private static void ScheduleLifecycle(Func<Task> operation)
+        private void ScheduleLifecycle(Func<Task> operation)
         {
+            ClientSession capturedSession = owningSession ?? ClientSessionContext.Resolve();
+            Func<Task> scopedOperation = () => RunInSessionAsync(capturedSession, operation);
             Root root = Root.Instance;
             if (root != null && !root.IsDisposed && root.IsHandleCreated && root.InvokeRequired)
             {
                 try
                 {
-                    root.BeginInvoke((Action)(() => ObserveLifecycle(operation())));
+                    root.BeginInvoke((Action)(() => ObserveLifecycle(scopedOperation())));
                     return;
                 }
                 catch (InvalidOperationException)
@@ -217,7 +248,21 @@ namespace Grimoire.Botting
                 }
             }
 
-            ObserveLifecycle(operation());
+            ObserveLifecycle(scopedOperation());
+        }
+
+        private static async Task RunInSessionAsync(ClientSession session, Func<Task> operation)
+        {
+            if (session == null)
+            {
+                await operation();
+                return;
+            }
+
+            using (ClientSessionContext.Push(session))
+            {
+                await operation();
+            }
         }
 
         private static void ObserveLifecycle(Task task)
@@ -264,6 +309,7 @@ namespace Grimoire.Botting
                 BotUtilities.HasLoadedQuests = false;
                 Configuration = config;
                 Index = initialIndex;
+                _resumeIndex = Index;
             //_questDelayCounter = new Stopwatch();
             //_boostDelayCounter = new Stopwatch();
                 World.ItemDropped -= OnItemDropped;
@@ -298,7 +344,7 @@ namespace Grimoire.Botting
                 run.Cancellation.Token.ThrowIfCancellationRequested();
                 run.QuestTask = CheckQuests(run);
                 run.DropTask = World.DropStack.RejectDrops(config, run.Cancellation.Token);
-                OptionsManager.Start();
+                OptionsManager.Start(config);
                 run.BotTask = Task.Run(() => Activate(run), run.Cancellation.Token);
                 _questTask = run.QuestTask;
                 _dropTask = run.DropTask;
@@ -348,7 +394,7 @@ namespace Grimoire.Botting
             }
 
             Player.CancelTarget();
-            if (BotManager.Instance.chkExitCombatUponStop.Checked)
+            if (run.Configuration.ExitCombatBeforeStop)
             {
                 await BotUtilities.MoveOutOfCombat();
             }
@@ -357,7 +403,7 @@ namespace Grimoire.Botting
             World.ItemDropped -= OnItemDropped;
             Player.Quests.QuestsLoaded -= OnQuestsLoaded;
             Player.Quests.QuestCompleted -= OnQuestCompleted;
-            OptionsManager.Stop();
+            OptionsManager.Stop(run.Configuration);
             BotData.BotState = BotData.State.Others;
 
             Task[] tasks = new[] { run.BotTask, run.QuestTask, run.DropTask }
@@ -378,11 +424,11 @@ namespace Grimoire.Botting
                 }
             }
 
-            if (bankItems && BotManager.Instance.lstItems.Items.Count > 0 && BotManager.Instance.chkBankOnStop.Checked)
+            if (bankItems && run.Configuration.Items.Count > 0 && run.Configuration.BankOnStop)
             {
                 foreach (InventoryItem item in Player.Inventory.Items.ToList())
                 {
-                    if (!item.IsEquipped && item.Category != "Class" && item.Name != "Treasure Potion" && BotManager.Instance.lstItems.Items.Contains(item.Name))
+                    if (!item.IsEquipped && item.Category != "Class" && item.Name != "Treasure Potion" && run.Configuration.Items.Contains(item.Name))
                     {
                         await Player.Bank.TransferToBank(item.Name);
                         await Task.Delay(70);
@@ -416,11 +462,11 @@ namespace Grimoire.Botting
                         {
                             break;
                         }
-                        OptionsManager.Stop();
+                        OptionsManager.Stop(config);
                         await AutoRelogin.Login(config.Server, config.RelogDelay, run.Cancellation, config.RelogRetryUponFailure);
                         BotUtilities.HasLoadedQuests = false;
                         Index = 0;
-                        OptionsManager.Start();
+                        OptionsManager.Start(config);
                         await this.LoadBotQuests();
                     }
                     if (Player.IsLoggedIn && !Player.IsAlive)
@@ -626,7 +672,7 @@ namespace Grimoire.Botting
             configQuest.Accept();
         }
 
-        public static List<string> DropsInInventory { get; set; } = new List<string>();
+        public static List<string> DropsInInventory => GameSessionState.Current.BotDropsInInventory;
 
         public bool HasDropInInventory(string item)
         {
@@ -650,13 +696,20 @@ namespace Grimoire.Botting
                 questCompletionFailure = 0;
                 Server server = Server.List.Find((Server s) => s.Name.Equals(World.ServerName(), StringComparison.OrdinalIgnoreCase));
                 Player.Logout();
-                if (!BotManager.Instance.chkRelog.Checked)
+                if (Configuration != null && !Configuration.AutoRelogin)
                 {
-                    Root.Instance.login_cts = new CancellationTokenSource();
-                    await BotManager.Instance.ActiveBotEngine.WaitUntil(() => AutoRelogin.LoginLabel, () => !Root.Instance.login_cts.IsCancellationRequested, 5, 1500);
-                    AutoRelogin.LoginExecute();
-                    await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !Root.Instance.login_cts.IsCancellationRequested, 10, 500);
-                    await AutoRelogin.ForceLogin(server, Root.Instance.login_cts);
+                    CancellationTokenSource loginCancellation = CreateSessionLinkedCancellation();
+                    try
+                    {
+                        await this.WaitUntil(() => AutoRelogin.LoginLabel, () => !loginCancellation.IsCancellationRequested, 5, 1500);
+                        AutoRelogin.LoginExecute();
+                        await this.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !loginCancellation.IsCancellationRequested, 10, 500);
+                        await AutoRelogin.ForceLogin(server, loginCancellation);
+                    }
+                    finally
+                    {
+                        loginCancellation.Dispose();
+                    }
                 }
             }
         }
@@ -673,15 +726,30 @@ namespace Grimoire.Botting
                 itemBuyFailure = 0;
                 Server server = Server.List.Find((Server s) => s.Name.Equals(World.ServerName(), StringComparison.OrdinalIgnoreCase));
                 Player.Logout();
-                if (!BotManager.Instance.chkRelog.Checked)
+                if (Configuration != null && !Configuration.AutoRelogin)
                 {
-                    Root.Instance.login_cts = new CancellationTokenSource();
-                    await BotManager.Instance.ActiveBotEngine.WaitUntil(() => AutoRelogin.LoginLabel, () => !Root.Instance.login_cts.IsCancellationRequested, 5, 1500);
-                    AutoRelogin.LoginExecute();
-                    await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !Root.Instance.login_cts.IsCancellationRequested, 10, 500);
-                    await AutoRelogin.ForceLogin(server, Root.Instance.login_cts);
+                    CancellationTokenSource loginCancellation = CreateSessionLinkedCancellation();
+                    try
+                    {
+                        await this.WaitUntil(() => AutoRelogin.LoginLabel, () => !loginCancellation.IsCancellationRequested, 5, 1500);
+                        AutoRelogin.LoginExecute();
+                        await this.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !loginCancellation.IsCancellationRequested, 10, 500);
+                        await AutoRelogin.ForceLogin(server, loginCancellation);
+                    }
+                    finally
+                    {
+                        loginCancellation.Dispose();
+                    }
                 }
             }
+        }
+
+        private CancellationTokenSource CreateSessionLinkedCancellation()
+        {
+            ClientSession session = owningSession ?? ClientSessionContext.Resolve();
+            return session == null
+                ? new CancellationTokenSource()
+                : CancellationTokenSource.CreateLinkedTokenSource(session.LifetimeToken);
         }
 
     }

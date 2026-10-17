@@ -1,4 +1,5 @@
 using Grimoire.Tools;
+using Grimoire.Game;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
@@ -74,8 +75,8 @@ namespace Grimoire.Game.Data
 
         public static List<Server> List
         {
-            get;
-            set;
+            get { return GameSessionState.Current.Servers; }
+            set { GameSessionState.Current.Servers = value; }
         }
 
         public override string ToString()

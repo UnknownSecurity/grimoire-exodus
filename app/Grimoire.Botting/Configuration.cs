@@ -1,12 +1,12 @@
 using Grimoire.Game.Data;
+using Grimoire.Game;
 using System.Collections.Generic;
 
 namespace Grimoire.Botting
 {
     public class Configuration
     {
-        private static Configuration _instance;
-        public static Configuration Instance => _instance ?? (_instance = new Configuration());
+        public static Configuration Instance => GameSessionState.Current.DefaultConfiguration;
 
         public List<IBotCommand> Commands
         {
@@ -73,6 +73,12 @@ namespace Grimoire.Botting
             get;
             set;
         }
+
+        public bool ExitCombatBeforeStop
+        {
+            get;
+            set;
+        } = true;
 
         public bool EnablePickup
         {
@@ -296,8 +302,8 @@ namespace Grimoire.Botting
             set;
         }
 
-        public static Dictionary<string, int> Tempvalues = new Dictionary<string, int>();
-        public static Dictionary<string, string> Tempvariable = new Dictionary<string, string>();
+        public static Dictionary<string, int> Tempvalues => GameSessionState.Current.TempValues;
+        public static Dictionary<string, string> Tempvariable => GameSessionState.Current.TempVariables;
 
         public Configuration()
         {

@@ -14,7 +14,7 @@ namespace Grimoire.Botting.Commands.Misc.Statements
             Text = "Cell is";
         }
 
-        private string _cell => (BotManager.Instance.ActiveBotEngine.Value(Value1) != "Blank" && BotManager.Instance.ActiveBotEngine.Value(Value1) != "Wait") ? BotManager.Instance.ActiveBotEngine.Value(Value1) : "Enter";
+        private string _cell => (Bot.Instance.Value(Value1) != "Blank" && Bot.Instance.Value(Value1) != "Wait") ? Bot.Instance.Value(Value1) : "Enter";
 
         public Task Execute(IBotEngine instance)
         {

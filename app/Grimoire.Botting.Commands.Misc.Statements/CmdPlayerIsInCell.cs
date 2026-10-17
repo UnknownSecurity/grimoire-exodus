@@ -14,7 +14,7 @@ namespace Grimoire.Botting.Commands.Misc.Statements
             Text = "Player is in cell";
         }
 
-        private string _cell => BotManager.Instance.ActiveBotEngine.Value(Value2);
+        private string _cell => Bot.Instance.Value(Value2);
 
         public Task Execute(IBotEngine instance)
         {

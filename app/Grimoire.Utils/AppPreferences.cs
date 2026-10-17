@@ -14,6 +14,8 @@ namespace Grimoire.Utils
         public bool ConfirmOnClose { get; set; }
 
         public bool MinimizeToTray { get; set; }
+
+        public bool AllowUnlimitedClients { get; set; }
     }
 
     /// <summary>
@@ -27,6 +29,7 @@ namespace Grimoire.Utils
         private const string HideDeviceStatsKey = "settings.hideDeviceStats";
         private const string ConfirmOnCloseKey = "settings.confirmOnClose";
         private const string MinimizeToTrayKey = "settings.minimizeToTray";
+        private const string AllowUnlimitedClientsKey = "settings.allowUnlimitedClients";
 
         public static AppPreferenceSnapshot Load()
         {
@@ -35,7 +38,8 @@ namespace Grimoire.Utils
                 SkipHomePage = GetBoolean(SkipHomePageKey, false),
                 HideDeviceStats = GetBoolean(HideDeviceStatsKey, false),
                 ConfirmOnClose = GetBoolean(ConfirmOnCloseKey, true),
-                MinimizeToTray = GetBoolean(MinimizeToTrayKey, true)
+                MinimizeToTray = GetBoolean(MinimizeToTrayKey, true),
+                AllowUnlimitedClients = GetBoolean(AllowUnlimitedClientsKey, false)
             };
         }
 
@@ -48,6 +52,7 @@ namespace Grimoire.Utils
             Config.Instance.Set(HideDeviceStatsKey, preferences.HideDeviceStats.ToString());
             Config.Instance.Set(ConfirmOnCloseKey, preferences.ConfirmOnClose.ToString());
             Config.Instance.Set(MinimizeToTrayKey, preferences.MinimizeToTray.ToString());
+            Config.Instance.Set(AllowUnlimitedClientsKey, preferences.AllowUnlimitedClients.ToString());
             Config.Instance.Save();
         }
 

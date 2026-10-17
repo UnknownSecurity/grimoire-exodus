@@ -2,12 +2,22 @@
 param(
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Debug",
-    [string]$BotDirectory
+    [string]$BotDirectory,
+    [string]$OutputDirectory
 )
 
 $ErrorActionPreference = "Stop"
 $rootDirectory = Split-Path -Parent $PSScriptRoot
-$outputDirectory = Join-Path $rootDirectory "app\bin\$Configuration"
+$outputDirectory = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    Join-Path $rootDirectory "app\bin\$Configuration"
+}
+else {
+    [IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+        $OutputDirectory
+    } else {
+        Join-Path $rootDirectory $OutputDirectory
+    }))
+}
 $compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe"
 $source = Join-Path $PSScriptRoot "LegacyGbotCompatibilitySmoke.cs"
 $sharedFixtureDirectory = Join-Path $rootDirectory "shared\fixtures\gbot"

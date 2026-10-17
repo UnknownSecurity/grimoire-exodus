@@ -1,5 +1,6 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
+using Grimoire.Clients;
 using Grimoire.Game;
 using Grimoire.Networking;
 using Grimoire.Utils;
@@ -26,6 +27,9 @@ namespace Grimoire.UI
         private DarkButton btnClearCaptured;
         private TableLayoutPanel tableLayoutPanel1;
         private BoundedTextBuffer receiveBuffer;
+        private bool bindingSession;
+
+        internal override bool SupportsClientSessionBinding => true;
 
         public static PacketTamperer Instance
         {
@@ -38,9 +42,38 @@ namespace Grimoire.UI
             receiveBuffer = new BoundedTextBuffer(txtReceive, 2000000);
         }
 
+        public void AppendCapturedPacket(ClientSession source, string packet)
+        {
+            ClientSession target = BoundClientSession
+                ?? ClientSessionManager.Default?.ActiveSession;
+            if (!ReferenceEquals(source, target))
+                return;
+            receiveBuffer.Append(packet);
+        }
+
         public void AppendCapturedPacket(string packet)
         {
-            receiveBuffer.Append(packet);
+            AppendCapturedPacket(ClientSessionContext.Resolve(), packet);
+        }
+
+        protected override void OnClientSessionBindingChanged(
+            ClientSession previous,
+            ClientSession current)
+        {
+            if (previous?.PacketDispatcher != null)
+                previous.PacketDispatcher._catchAllPackets = false;
+
+            receiveBuffer.Clear();
+            bindingSession = true;
+            try
+            {
+                chkCapturePackets.Checked = current?.PacketDispatcher != null
+                    && current.PacketDispatcher._catchAllPackets;
+            }
+            finally
+            {
+                bindingSession = false;
+            }
         }
 
         private void PacketTamperer_Shown(object sender, EventArgs e)
@@ -61,35 +94,38 @@ namespace Grimoire.UI
 
         private void chkCapturePackets_CheckedChanged(object sender, EventArgs e)
         {
-            if (chkCapturePackets.Checked)
-            {
-                Proxy.Instance._catchAllPackets = true;
-            }
-            else
-            {
-                Proxy.Instance._catchAllPackets = false;
-            }
+            if (bindingSession)
+                return;
+            ClientSession session = CaptureBoundClientSession();
+            if (session?.PacketDispatcher != null)
+                session.PacketDispatcher._catchAllPackets = chkCapturePackets.Checked;
         }
 
         private async void btnToClient_Click(object sender, EventArgs e)
         {
-            if (!string.IsNullOrEmpty(txtSend.Text))
+            using (PushBoundClientSession())
             {
-                btnToClient.Enabled = false;
-                bool json = txtSend.Text.StartsWith("{");
-                World.SendClientPacket(txtSend.Text, json ? "json" : "str");
-                btnToClient.Enabled = true;
+                if (!string.IsNullOrEmpty(txtSend.Text))
+                {
+                    btnToClient.Enabled = false;
+                    bool json = txtSend.Text.StartsWith("{");
+                    World.SendClientPacket(txtSend.Text, json ? "json" : "str");
+                    btnToClient.Enabled = true;
+                }
             }
         }
 
         private async void btnToServer_Click(object sender, EventArgs e)
         {
-            if (!string.IsNullOrEmpty(txtSend.Text))
+            using (PushBoundClientSession())
             {
-                btnToServer.Enabled = false;
-                bool json = txtSend.Text.StartsWith("{");
-                World.SendPacket(txtSend.Text, json ? "Json" : "String");
-                btnToServer.Enabled = true;
+                if (!string.IsNullOrEmpty(txtSend.Text))
+                {
+                    btnToServer.Enabled = false;
+                    bool json = txtSend.Text.StartsWith("{");
+                    World.SendPacket(txtSend.Text, json ? "Json" : "String");
+                    btnToServer.Enabled = true;
+                }
             }
         }
 

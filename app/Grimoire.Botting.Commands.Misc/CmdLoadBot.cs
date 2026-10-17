@@ -1,4 +1,5 @@
 using Grimoire.UI;
+using Grimoire.Clients;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -22,7 +23,7 @@ namespace Grimoire.Botting.Commands.Misc
             set;
         }
 
-        private string _path => BotManager.Instance.ActiveBotEngine.Value(BotFilePath);
+        private string _path => Bot.Instance.Value(BotFilePath);
 
         public async Task Execute(IBotEngine instance)
         {
@@ -46,11 +47,13 @@ namespace Grimoire.Botting.Commands.Misc
                         if (!Bot.OldIndex.ContainsKey(i))
                             Bot.OldIndex.Add(i, instance.Index);
                         else Bot.OldIndex[i] = instance.Index;
+                        ClientSession session = ClientSessionContext.Resolve();
+                        session?.BotDocument.Replace(newConfiguration, _path);
                         instance.Configuration = newConfiguration;
                         instance.Index = -1;
                         instance.CurrentConfiguration++;
-                        BotManager.Instance.LastIndexedSearch = 0;
-                        BotManager.Instance.SetCurrentBotName(_path);
+                        if (session == null || ReferenceEquals(session, BotManager.Instance.BoundSession))
+                            BotManager.Instance.LastIndexedSearch = 0;
                         await instance.LoadBotQuests();
                     }
                 }

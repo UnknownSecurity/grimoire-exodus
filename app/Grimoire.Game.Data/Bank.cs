@@ -27,7 +27,7 @@ namespace Grimoire.Game.Data
             {
                 await BotUtilities.MoveOutOfCombat();
                 Flash.Call("Transfer", "Bank", itemName);
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => Player.Bank.ContainsItem(itemName), null, 6, 500);
+                await Bot.Instance.WaitUntil(() => Player.Bank.ContainsItem(itemName), null, 6, 500);
             }
         }
 
@@ -37,7 +37,7 @@ namespace Grimoire.Game.Data
             {
                 await BotUtilities.MoveOutOfCombat();
                 Flash.Call("Transfer", "Inventory", itemName);
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !Player.Bank.ContainsItem(itemName), null, 6, 500);
+                await Bot.Instance.WaitUntil(() => !Player.Bank.ContainsItem(itemName), null, 6, 500);
             }
         }
 
@@ -47,7 +47,7 @@ namespace Grimoire.Game.Data
             {
                 await BotUtilities.MoveOutOfCombat();
                 Flash.Call("BankSwap", invItemName, bankItemName);
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !ContainsItem(bankItemName) && !Player.Inventory.ContainsItem(invItemName, "*"), null, 6, 500);
+                await Bot.Instance.WaitUntil(() => !ContainsItem(bankItemName) && !Player.Inventory.ContainsItem(invItemName, "*"), null, 6, 500);
             }
         }
 

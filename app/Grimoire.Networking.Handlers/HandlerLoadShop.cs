@@ -46,7 +46,9 @@ namespace Grimoire.Networking.Handlers
                     Bot.Instance.buyFailureCounter.Stop();
                 }
             }
-            else if (BotManager.Instance.chkRelogUponFailBuy.Checked && BotManager.Instance.ActiveBotEngine.IsRunning)
+            else if (Bot.Instance.Configuration != null
+                && Bot.Instance.Configuration.RelogUponItemBuyFailure
+                && Bot.Instance.IsRunning)
             {
                 if (!Bot.Instance.buyFailureCounter.IsRunning)
                 {

@@ -1,6 +1,7 @@
 ﻿using Grimoire.Botting;
 using Grimoire.Game;
 using Grimoire.Game.Data;
+using Grimoire.Clients;
 using Grimoire.Networking.Handlers;
 using Grimoire.Tools;
 using Grimoire.UI;
@@ -17,7 +18,7 @@ using System.Diagnostics;
 
 namespace Grimoire.Networking
 {
-    public class Proxy
+    public class Proxy : IDisposable
     {
         public delegate void Receive(Message message);
 
@@ -40,6 +41,18 @@ namespace Grimoire.Networking
 
         public static CancellationTokenSource AppClosingToken;
 
+        private static Proxy fallbackInstance;
+
+        private static Receive pendingReceivedFromGame;
+
+        private event Receive receivedFromGame;
+
+        private readonly CancellationTokenSource lifetimeCancellation;
+
+        private readonly ClientSession ownerSession;
+
+        private bool disposed;
+
         public bool _catchXtPackets { get; set; } = false;
 
         public bool _catchAllPackets { get; set; } = false;
@@ -48,21 +61,58 @@ namespace Grimoire.Networking
 
         public static Proxy Instance
         {
-            get;
-            set;
+            get
+            {
+                return ClientSessionContext.Resolve()?.PacketDispatcher ?? fallbackInstance;
+            }
+            set
+            {
+                fallbackInstance = value;
+            }
         }
 
-        public static event Receive ReceivedFromGame;
-
-        private Proxy()
+        public static event Receive ReceivedFromGame
         {
+            add
+            {
+                Proxy proxy = Instance;
+                if (proxy == null)
+                    pendingReceivedFromGame += value;
+                else
+                    proxy.receivedFromGame += value;
+            }
+            remove
+            {
+                pendingReceivedFromGame -= value;
+                Proxy proxy = Instance;
+                if (proxy != null)
+                    proxy.receivedFromGame -= value;
+            }
+        }
+
+        private Proxy(ClientSession ownerSession, CancellationToken sessionToken)
+        {
+            this.ownerSession = ownerSession;
+            lifetimeCancellation = AppClosingToken == null
+                ? CancellationTokenSource.CreateLinkedTokenSource(sessionToken)
+                : CancellationTokenSource.CreateLinkedTokenSource(AppClosingToken.Token, sessionToken);
         }
 
         internal protected static void InitializeProxyHandlers()
         {
-            Instance = new Proxy();
-            AppClosingToken = new CancellationTokenSource();
-            Instance._handlersJson = new List<IJsonMessageHandler>
+            if (AppClosingToken == null)
+                AppClosingToken = new CancellationTokenSource();
+
+            ClientSession session = ClientSessionContext.Resolve();
+            Proxy proxy = new Proxy(session, session?.LifetimeToken ?? CancellationToken.None);
+            fallbackInstance = proxy;
+            session?.AttachPacketDispatcher(proxy);
+            if (pendingReceivedFromGame != null)
+            {
+                proxy.receivedFromGame += pendingReceivedFromGame;
+                pendingReceivedFromGame = null;
+            }
+            proxy._handlersJson = new List<IJsonMessageHandler>
             {
                 new HandlerDrops(),
                 new HandlerGetQuests(),
@@ -73,7 +123,7 @@ namespace Grimoire.Networking
                 new HandlerArea(),
                 new HandlerBotSkills()
             };
-            Instance._handlersXt = new List<IXtMessageHandler>
+            proxy._handlersXt = new List<IXtMessageHandler>
             {
                 new HandlerAFK(),
                 new HandlerWarningsXt(),
@@ -83,11 +133,10 @@ namespace Grimoire.Networking
                 new HandlerXtCellJoin(),
                 new HandlerConnection()
             };
-            Instance._handlersXml = new List<IXmlMessageHandler>
+            proxy._handlersXml = new List<IXmlMessageHandler>
             {
             };
-            Instance.RebuildHandlerIndexes();
-            ReceivedFromGame += Instance.ProcessMessage;
+            proxy.RebuildHandlerIndexes();
         }
 
         public void RegisterHandler(IJsonMessageHandler handler)
@@ -297,44 +346,48 @@ namespace Grimoire.Networking
 
         public static void OnPingLatency(int latency)
         {
-            if (Root.Instance.rtbPing.Visible)
+            Instance?.UpdatePingDisplay(latency);
+        }
+
+        private void UpdatePingDisplay(int? latency)
+        {
+            ownerSession?.ReportPingLatency(latency);
+            if (ownerSession != null
+                && !ReferenceEquals(ClientSessionManager.Default?.ActiveSession, ownerSession))
             {
-                if (latency >= 0 && latency <= 100)
-                {
-                    Root.Instance.rtbPing.ForeColor = System.Drawing.Color.LimeGreen;
-                }
-                else if (latency >= 101 && latency <= 200)
-                {
-                    Root.Instance.rtbPing.ForeColor = System.Drawing.Color.Orange;
-                }
-                else if (latency >= 201)
-                {
-                    Root.Instance.rtbPing.ForeColor = System.Drawing.Color.Red;
-                }
-                Root.Instance.rtbPing.Clear();
-                Root.Instance.rtbPing.AppendText($"⬤  {latency} ms");
+                return;
             }
+
+            Root root = Root.Instance;
+            if (root == null || root.IsDisposed || !root.IsHandleCreated)
+                return;
+            root.UpdatePingDisplay(ownerSession, latency);
         }
 
         public async Task ClientExecute()
         {
             try
             {
-                while (!AppClosingToken.IsCancellationRequested)
+                while (!lifetimeCancellation.IsCancellationRequested)
                 {
+                    IBotEngine botEngine = ownerSession?.BotEngine ?? Bot.Instance;
                     if (Player.IsLoggedIn)
                     {
-                        if (BotManager.Instance.ActiveBotEngine.IsRunning && BotManager.Instance.ActiveBotEngine.Configuration.EnableRejection && !World.VisibleDropUI)
+                        if (botEngine != null
+                            && botEngine.IsRunning
+                            && botEngine.Configuration != null
+                            && botEngine.Configuration.EnableRejection
+                            && !World.VisibleDropUI)
                         {
                             Flash.Call("dropUIOpt", false);
                         }
                     }
-                    else if (Root.Instance.rtbPing.Text != "")
-                        Root.Instance.rtbPing.Clear();
-                    await Task.Delay(Player.IsLoggedIn ? 250 : 1000, AppClosingToken.Token);
+                    else
+                        UpdatePingDisplay(null);
+                    await Task.Delay(Player.IsLoggedIn ? 250 : 1000, lifetimeCancellation.Token);
                 }
             }
-            catch (OperationCanceledException) when (AppClosingToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (lifetimeCancellation.IsCancellationRequested)
             {
             }
         }
@@ -361,7 +414,7 @@ namespace Grimoire.Networking
                     break;
                 case "ping":
                     if (int.TryParse(text2, out int latency))
-                        OnPingLatency(latency);
+                        UpdatePingDisplay(latency);
                     break;
                 case "chatCommand":
                     ChatCommand.ExecuteCommand(text2);
@@ -387,9 +440,11 @@ namespace Grimoire.Networking
                 return;
 
             if (_catchXtPackets)
-                PacketLogger.Instance.AppendPacket(packet + Environment.NewLine);
+                PacketLogger.Instance.AppendPacket(ownerSession, packet + Environment.NewLine);
             if (_catchAllPackets)
-                PacketTamperer.Instance.AppendCapturedPacket("From client: " + packet + Environment.NewLine);
+                PacketTamperer.Instance.AppendCapturedPacket(
+                    ownerSession,
+                    "From client: " + packet + Environment.NewLine);
         }
 
         private void PublishServerPacket(string packet)
@@ -399,9 +454,14 @@ namespace Grimoire.Networking
 
             Message message = CreateMessage(packet);
             if (message != null)
-                ReceivedFromGame?.Invoke(message);
+            {
+                ProcessMessage(message);
+                receivedFromGame?.Invoke(message);
+            }
             if (_catchAllPackets)
-                PacketTamperer.Instance.AppendCapturedPacket("From server: " + packet + Environment.NewLine + Environment.NewLine);
+                PacketTamperer.Instance.AppendCapturedPacket(
+                    ownerSession,
+                    "From server: " + packet + Environment.NewLine + Environment.NewLine);
         }
 
         private void PublishExtensionResponse(string response)
@@ -444,6 +504,19 @@ namespace Grimoire.Networking
             {
                 Debug.WriteLine($"Unable to parse SmartFox extension response: {ex.Message}");
             }
+        }
+
+        public void Dispose()
+        {
+            if (disposed)
+                return;
+
+            disposed = true;
+            if (!lifetimeCancellation.IsCancellationRequested)
+                lifetimeCancellation.Cancel(false);
+            lifetimeCancellation.Dispose();
+            if (ReferenceEquals(fallbackInstance, this))
+                fallbackInstance = null;
         }
 
     }

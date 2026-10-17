@@ -1,4 +1,5 @@
 using DarkUI.Forms;
+using Grimoire.Clients;
 using System;
 using System.Drawing;
 using Microsoft.Win32.SafeHandles;
@@ -37,6 +38,59 @@ namespace Grimoire.UI
         private static readonly WinEventDelegate TitleBarWindowEventHandler = HandleWindowEvent;
         private static SafeWinEventHookHandle titleBarWindowEventHook;
         private static uint currentProcessId;
+        private ClientSession boundClientSession;
+        private string unboundTitle;
+
+        internal virtual bool SupportsClientSessionBinding => false;
+
+        protected ClientSession BoundClientSession
+        {
+            get
+            {
+                return boundClientSession != null && !boundClientSession.IsDisposed
+                    ? boundClientSession
+                    : null;
+            }
+        }
+
+        protected virtual bool CanChangeClientSessionBinding => true;
+
+        internal void BindClientSession(ClientSession session)
+        {
+            if (!SupportsClientSessionBinding || !CanChangeClientSessionBinding)
+                return;
+
+            if (session != null && session.IsDisposed)
+                session = null;
+            if (ReferenceEquals(boundClientSession, session))
+                return;
+
+            ClientSession previous = boundClientSession;
+            boundClientSession = session;
+            if (unboundTitle == null)
+                unboundTitle = Text;
+            Text = session == null
+                ? unboundTitle
+                : unboundTitle + " — " + session.DisplayName;
+            OnClientSessionBindingChanged(previous, session);
+        }
+
+        protected virtual void OnClientSessionBindingChanged(
+            ClientSession previous,
+            ClientSession current)
+        {
+        }
+
+        protected ClientSession CaptureBoundClientSession()
+        {
+            return BoundClientSession ?? ClientSessionContext.Resolve();
+        }
+
+        protected IDisposable PushBoundClientSession()
+        {
+            ClientSession session = CaptureBoundClientSession();
+            return session == null ? null : ClientSessionContext.Push(session);
+        }
 
         [DllImport("dwmapi.dll", CallingConvention = CallingConvention.Winapi, PreserveSig = true)]
         private static extern int DwmSetWindowAttribute(

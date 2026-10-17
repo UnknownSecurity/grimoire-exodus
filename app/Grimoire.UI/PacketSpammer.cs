@@ -1,5 +1,6 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
+using Grimoire.Clients;
 using Grimoire.Game;
 using Grimoire.Networking;
 using Grimoire.Tools;
@@ -36,6 +37,13 @@ namespace Grimoire.UI
         private DarkButton btnSend;
 
         private TableLayoutPanel tableLayoutPanel1;
+
+        private Spammer activeSpammer;
+
+        internal override bool SupportsClientSessionBinding => true;
+
+        protected override bool CanChangeClientSessionBinding => activeSpammer == null
+            || !activeSpammer.IsRunning;
 
         public DarkButton btnRemove;
 
@@ -79,38 +87,48 @@ namespace Grimoire.UI
 
         public async void btnStartAndStop_Click(object sender, EventArgs e)
         {
-            if (btnStartAndStop.Text == "Start" && lstPackets.Items.Count > 0 && Player.IsLoggedIn && Player.IsAlive)
+            using (PushBoundClientSession())
             {
-                btnStartAndStop.Text = "Stop";
-                btnStartAndStop.Enabled = false;
-                SetButtonsEnabled(enabled: false);
-                List<string> packets = lstPackets.Items.Cast<string>().ToList();
-                int delay = (int)numDelay.Value;
-                Spammer.Instance.IndexChanged += IndexChanged;
-                Spammer.Instance.Start(packets, delay);
-                await Task.Delay(2000);
-                btnStartAndStop.Enabled = true;
+                if (btnStartAndStop.Text == "Start" && lstPackets.Items.Count > 0 && Player.IsLoggedIn && Player.IsAlive)
+                {
+                    btnStartAndStop.Text = "Stop";
+                    btnStartAndStop.Enabled = false;
+                    SetButtonsEnabled(enabled: false);
+                    List<string> packets = lstPackets.Items.Cast<string>().ToList();
+                    int delay = (int)numDelay.Value;
+                    Spammer spammer = Spammer.Instance;
+                    activeSpammer = spammer;
+                    spammer.IndexChanged += IndexChanged;
+                    spammer.Start(packets, delay);
+                    await Task.Delay(2000);
+                    btnStartAndStop.Enabled = true;
 
-            }
-            else if (btnStartAndStop.Text == "Stop" && lstPackets.Items.Count > 0)
-            {
-                btnStartAndStop.Text = "Start";
-                btnStartAndStop.Enabled = false;
-                Spammer.Instance.Stop();
-                Spammer.Instance.IndexChanged -= IndexChanged;
-                SetButtonsEnabled(enabled: true);
-                await Task.Delay(2000);
-                btnStartAndStop.Enabled = true;
+                }
+                else if (btnStartAndStop.Text == "Stop" && lstPackets.Items.Count > 0)
+                {
+                    btnStartAndStop.Text = "Start";
+                    btnStartAndStop.Enabled = false;
+                    Spammer spammer = activeSpammer ?? Spammer.Instance;
+                    spammer.Stop();
+                    spammer.IndexChanged -= IndexChanged;
+                    activeSpammer = null;
+                    SetButtonsEnabled(enabled: true);
+                    await Task.Delay(2000);
+                    btnStartAndStop.Enabled = true;
+                }
             }
         }
 
         public async void btnSend_Click(object sender, EventArgs e)
         {
-            if (txtPacket.TextLength > 0 && Player.IsLoggedIn && Player.IsAlive)
+            using (PushBoundClientSession())
             {
-                btnSend.Enabled = false;
-                await Proxy.Instance.SendToServer(txtPacket.Text);
-                btnSend.Enabled = true;
+                if (txtPacket.TextLength > 0 && Player.IsLoggedIn && Player.IsAlive)
+                {
+                    btnSend.Enabled = false;
+                    await Proxy.Instance.SendToServer(txtPacket.Text);
+                    btnSend.Enabled = true;
+                }
             }
         }
 

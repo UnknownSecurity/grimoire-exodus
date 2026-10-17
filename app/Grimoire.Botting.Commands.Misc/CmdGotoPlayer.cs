@@ -15,7 +15,7 @@ namespace Grimoire.Botting.Commands.Misc
             set;
         }
 
-        private string _playerName => BotManager.Instance.ActiveBotEngine.Value(PlayerName);
+        private string _playerName => Bot.Instance.Value(PlayerName);
 
         private string _map;
 

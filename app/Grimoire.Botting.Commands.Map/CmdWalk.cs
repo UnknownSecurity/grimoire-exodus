@@ -25,9 +25,9 @@ namespace Grimoire.Botting.Commands.Map
             set;
         }
 
-        private string _x => (Type == "Random") ? new Random().Next(150, 700).ToString() : BotManager.Instance.ActiveBotEngine.Value(X);
+        private string _x => (Type == "Random") ? new Random().Next(150, 700).ToString() : Bot.Instance.Value(X);
 
-        private string _y => (Type == "Random") ? new Random().Next(320, 450).ToString() : BotManager.Instance.ActiveBotEngine.Value(Y);
+        private string _y => (Type == "Random") ? new Random().Next(320, 450).ToString() : Bot.Instance.Value(Y);
 
         public async Task Execute(IBotEngine instance)
         {

@@ -16,45 +16,45 @@ namespace Grimoire.Game
 
         public static State BotState
         {
-            get;
-            set;
-        } = State.Others;
+            get { return GameSessionState.Current.BotState; }
+            set { GameSessionState.Current.BotState = value; }
+        }
 
         public static string BotMap
         {
-            get;
-            set;
-        } = null;
+            get { return GameSessionState.Current.BotMap; }
+            set { GameSessionState.Current.BotMap = value; }
+        }
 
         public static string BotCell
         {
-            get;
-            set;
-        } = null;
+            get { return GameSessionState.Current.BotCell; }
+            set { GameSessionState.Current.BotCell = value; }
+        }
 
         public static string BotPad
         {
-            get;
-            set;
-        } = null;
+            get { return GameSessionState.Current.BotPad; }
+            set { GameSessionState.Current.BotPad = value; }
+        }
 
         public static string BotSkill
         {
-            get;
-            set;
-        } = null;
+            get { return GameSessionState.Current.BotSkill; }
+            set { GameSessionState.Current.BotSkill = value; }
+        }
 
         public static Dictionary<string, int> SkillSet
         {
-            get;
-            set;
-        } = new Dictionary<string, int>();
+            get { return GameSessionState.Current.SkillSet; }
+            set { GameSessionState.Current.SkillSet = value; }
+        }
 
         public static List<int> BotQuests
         {
-            get;
-            set;
-        } = new List<int>();
+            get { return GameSessionState.Current.BotQuests; }
+            set { GameSessionState.Current.BotQuests = value; }
+        }
 
     }
 }

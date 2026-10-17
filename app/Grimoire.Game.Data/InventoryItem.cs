@@ -231,7 +231,7 @@ namespace Grimoire.Game.Data
             {
                 return;
             }
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => World.IsActionAvailable(LockActions.EquipItem), null, 10, 500);
+            await Bot.Instance.WaitUntil(() => World.IsActionAvailable(LockActions.EquipItem), null, 10, 500);
             if (Category == "Item")
             {
                 if (Player.Inventory.Items.FirstOrDefault((InventoryItem i) => i.Category == "Item" && i.IsEquipped) != null)
@@ -244,7 +244,7 @@ namespace Grimoire.Game.Data
             {
                 Player.Equip(Id);
             }
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => IsEquipped, null, 10, 500);
+            await Bot.Instance.WaitUntil(() => IsEquipped, null, 10, 500);
         }
 
         #region bools

@@ -1,12 +1,24 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+
+    [string]$OutputDirectory
 )
 
 $ErrorActionPreference = "Stop"
 $rootDirectory = Split-Path -Parent $PSScriptRoot
-$updater = Join-Path $rootDirectory "app\bin\$Configuration\Grimoire.Updater.exe"
+$outputDirectory = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    Join-Path $rootDirectory "app\bin\$Configuration"
+}
+else {
+    [IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+        $OutputDirectory
+    } else {
+        Join-Path $rootDirectory $OutputDirectory
+    }))
+}
+$updater = Join-Path $outputDirectory "Grimoire.Updater.exe"
 $testDirectory = Join-Path $PSScriptRoot (".updater-test-" + [Guid]::NewGuid().ToString("N"))
 
 if (-not (Test-Path -LiteralPath $updater)) {

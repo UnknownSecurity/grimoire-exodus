@@ -1,5 +1,6 @@
 using Grimoire.Game;
 using Grimoire.Game.Data;
+using Grimoire.Clients;
 using Grimoire.Networking;
 using Grimoire.Networking.Handlers;
 using Grimoire.Tools;
@@ -13,225 +14,212 @@ namespace Grimoire.Botting
 {
     public class OptionsManager
     {
-        private static bool _isRunning;
+        private static readonly ClientOptionState LegacyState = new ClientOptionState();
 
-        private static bool _disableAnimation;
-
-        private static bool _lagKiller;
-
-        private static bool _hidePlayers;
-
-        private static bool _infRange;
-
-        private static bool _hideYulgar;
-
-        private static bool _hideRoom;
-
-        private static bool _afk;
-
-        private static bool _afk2;
-
-        private static bool saveState;
-
-        private static CancellationTokenSource _settingsCts;
-
-        private static Task _settingsTask;
-
-        private static readonly object SettingsSync = new object();
-
-        private static Task _saveStateTask;
-
-        private static CancellationTokenSource _saveStateCts;
-
-        private static Task _antiAfkTask;
-
-        private static CancellationTokenSource _antiAfkCts;
-
-        private static bool antiAfkEnabled;
+        private static ClientOptionState State
+        {
+            get { return ClientSessionContext.Resolve()?.OptionState ?? LegacyState; }
+        }
 
         public static bool IsRunning
         {
             get
             {
-                return _isRunning;
+                return State.IsRunning;
             }
             private set
             {
-                _isRunning = value;
-                StateChanged?.Invoke(value);
+                SetIsRunning(State, value);
             }
+        }
+
+        private static void SetIsRunning(ClientOptionState state, bool value)
+        {
+            state.IsRunning = value;
+            state.StateChanged?.Invoke(value);
+        }
+
+        private static CancellationTokenSource CreateSessionCancellation()
+        {
+            ClientSession session = ClientSessionContext.Resolve();
+            return session == null
+                ? new CancellationTokenSource()
+                : CancellationTokenSource.CreateLinkedTokenSource(session.LifetimeToken);
         }
 
         public static bool ProvokeMonsters
         {
-            get;
-            set;
+            get { return State.ProvokeMonsters; }
+            set { State.ProvokeMonsters = value; }
         }
 
         public static bool ProvokeAllMonster
         {
-            get;
-            set;
+            get { return State.ProvokeAllMonsters; }
+            set { State.ProvokeAllMonsters = value; }
         }
 
         public static bool PacketSpam
         {
-            get;
-            set;
+            get { return State.PacketSpam; }
+            set { State.PacketSpam = value; }
         }
 
         public static string ProvokePacket
         {
-            get;
-            set;
-        } = "%xt%zm%aggroMon%1%MonMapID%";
+            get { return State.ProvokePacket; }
+            set { State.ProvokePacket = value; }
+        }
 
         public static string SpamPacket
         {
-            get;
-            set;
+            get { return State.SpamPacket; }
+            set { State.SpamPacket = value; }
         }
 
         public static bool EnemyMagnet
         {
-            get;
-            set;
+            get { return State.EnemyMagnet; }
+            set { State.EnemyMagnet = value; }
         }
 
         public static bool LagKiller
         {
-            get => _lagKiller;
+            get => State.LagKiller;
             set
             {
-                _lagKiller = value;
+                State.LagKiller = value;
                 SetLagKiller();
             }
         }
 
         public static bool SkipCutscenes
         {
-            get;
-            set;
+            get { return State.SkipCutscenes; }
+            set { State.SkipCutscenes = value; }
         }
 
         public static bool DisableAnimations
         {
-            get => _disableAnimation;
+            get => State.DisableAnimations;
             set
             {
-                _disableAnimation = value;
+                State.DisableAnimations = value;
                 RunDisableAnimations(value);
             }
         }
 
         public static bool HidePlayers
         {
-            get => _hidePlayers;
+            get => State.HidePlayers;
             set
             {
-                _hidePlayers = value;
+                State.HidePlayers = value;
                 DestroyPlayers(value);
             }
         }
 
         public static bool InfiniteRange
         {
-            get => _infRange;
+            get => State.InfiniteRange;
             set
             {
-                _infRange = value;
+                State.InfiniteRange = value;
                 SetInfiniteRange(value);
             }
         }
 
         public static int WalkSpeed
         {
-            get;
-            set;
+            get { return State.WalkSpeed; }
+            set { State.WalkSpeed = value; }
         }
 
         public static int Timer
         {
-            get;
-            set;
-        } = 250;
+            get { return State.Timer; }
+            set { State.Timer = value; }
+        }
 
         public static int PacketDelay
         {
-            get;
-            set;
+            get { return State.PacketDelay; }
+            set { State.PacketDelay = value; }
         }
 
         public static int RoomNumber
         {
-            get;
-            set;
+            get { return State.RoomNumber; }
+            set { State.RoomNumber = value; }
         }
 
         public static bool Untarget
         {
-            get;
-            set;
+            get { return State.Untarget; }
+            set { State.Untarget = value; }
         }
 
         public static bool AFK
         {
-            get => _afk;
+            get => State.Afk;
             set
             {
-                _afk = value;
+                ClientOptionState state = State;
+                state.Afk = value;
                 if (value)
-                    Proxy.Instance.RegisterHandler(HandlerAFK1);
+                    Proxy.Instance.RegisterHandler(state.HandlerAfk);
                 else
-                    Proxy.Instance.UnregisterHandler(HandlerAFK1);
+                    Proxy.Instance.UnregisterHandler(state.HandlerAfk);
             }
         }
 
         public static bool HideRoom
         {
-            get => _hideRoom;
+            get => State.HideRoom;
             set
             {
-                _hideRoom = value;
+                ClientOptionState state = State;
+                state.HideRoom = value;
                 if (value)
-                    Proxy.Instance.RegisterHandler(HandlerHideRoom);
+                    Proxy.Instance.RegisterHandler(state.HandlerHideRoom);
                 else
-                    Proxy.Instance.UnregisterHandler(HandlerHideRoom);
+                    Proxy.Instance.UnregisterHandler(state.HandlerHideRoom);
             }
         }
 
         public static bool ChangeChat
         {
-            get;
-            set;
+            get { return State.ChangeChat; }
+            set { State.ChangeChat = value; }
         }
 
         public static bool WarningMsgFilter
         {
-            get;
-            set;
+            get { return State.WarningMessageFilter; }
+            set { State.WarningMessageFilter = value; }
         }
 
         public static bool _saveState
         {
-            get => saveState;
+            get => State.SaveStateEnabled;
             set
             {
-                lock (SettingsSync)
+                ClientOptionState state = State;
+                lock (state.SyncRoot)
                 {
-                    saveState = value;
+                    state.SaveStateEnabled = value;
                     if (!value)
                     {
-                        _saveStateCts?.Cancel(false);
+                        state.SaveStateCancellation?.Cancel(false);
                         return;
                     }
 
-                    if (_saveStateTask == null || _saveStateTask.IsCompleted)
+                    if (state.SaveStateTask == null || state.SaveStateTask.IsCompleted)
                     {
-                        _saveStateCts?.Dispose();
-                        _saveStateCts = new CancellationTokenSource();
-                        _saveStateTask = RunSaveState(_saveStateCts.Token);
-                        ObserveBackgroundTask(_saveStateTask, "Save-state loop");
+                        state.SaveStateCancellation?.Dispose();
+                        state.SaveStateCancellation = CreateSessionCancellation();
+                        state.SaveStateTask = RunSaveState(state, state.SaveStateCancellation.Token);
+                        ObserveBackgroundTask(state.SaveStateTask, "Save-state loop");
                     }
                 }
             }
@@ -239,15 +227,16 @@ namespace Grimoire.Botting
 
         public static bool _antiAfk
         {
-            get => antiAfkEnabled;
+            get => State.AntiAfkEnabled;
             set
             {
-                lock (SettingsSync)
+                ClientOptionState state = State;
+                lock (state.SyncRoot)
                 {
-                    antiAfkEnabled = value;
+                    state.AntiAfkEnabled = value;
                     if (!value)
                     {
-                        _antiAfkCts?.Cancel(false);
+                        state.AntiAfkCancellation?.Cancel(false);
                     }
                 }
             }
@@ -255,10 +244,10 @@ namespace Grimoire.Botting
 
         public static bool HideYulgar
         {
-            get => _hideYulgar;
+            get => State.HideYulgar;
             set
             {
-                _hideYulgar = value;
+                State.HideYulgar = value;
                 if (value)
                 {
                     if (Player.IsLoggedIn && Player.Map.ToLower() == "yulgar")
@@ -269,7 +258,11 @@ namespace Grimoire.Botting
 
         private static readonly string[] empty = new string[0];
 
-        public static event Action<bool> StateChanged;
+        public static event Action<bool> StateChanged
+        {
+            add { State.StateChanged += value; }
+            remove { State.StateChanged -= value; }
+        }
 
         public static void SetInfiniteRange(bool Toggle) => Flash.Call("SetInfiniteRange", Toggle);
 
@@ -291,19 +284,30 @@ namespace Grimoire.Botting
 
         public static void Start()
         {
-            if (BotManager.Instance.chkLag.Checked)
+            Start(Bot.Instance.Configuration);
+        }
+
+        internal static void Start(Configuration configuration)
+        {
+            if (configuration == null)
+            {
+                ObserveBackgroundTask(ApplySettings(), "Settings loop");
+                return;
+            }
+
+            if (configuration.LagKiller)
             {
                 LagKiller = true;
             }
-            if (BotManager.Instance.chkProvoke.Checked)
+            if (configuration.ProvokeMonsters)
             {
                 ProvokeMonsters = true;
             }
-            if (BotManager.Instance.chkProvokeAllMon.Checked)
+            if (configuration.ProvokeAllMonster)
             {
                 ProvokeAllMonster = true;
             }
-            if (BotManager.Instance.chkSaveState.Checked)
+            if (configuration.AutoSaveState)
             {
                 _saveState = true;
             }
@@ -312,29 +316,37 @@ namespace Grimoire.Botting
 
         public static void Stop()
         {
-            lock (SettingsSync)
+            Stop(Bot.Instance.Configuration);
+        }
+
+        internal static void Stop(Configuration configuration)
+        {
+            ClientOptionState state = State;
+            lock (state.SyncRoot)
             {
-                IsRunning = false;
-                _settingsCts?.Cancel(false);
+                SetIsRunning(state, false);
+                state.SettingsCancellation?.Cancel(false);
             }
-            if (BotManager.Instance.chkLag.Checked)
+            if (state.LagKiller || (configuration != null && configuration.LagKiller))
             {
                 LagKiller = false;
             }
-            if (BotManager.Instance.chkProvoke.Checked)
+            bool shouldMoveOutOfCombat = state.ProvokeMonsters
+                || state.ProvokeAllMonsters
+                || (configuration != null && (configuration.ProvokeMonsters || configuration.ProvokeAllMonster));
+            if (state.ProvokeMonsters)
             {
                 ProvokeMonsters = false;
             }
-            if (BotManager.Instance.chkProvokeAllMon.Checked)
+            if (state.ProvokeAllMonsters)
             {
                 ProvokeAllMonster = false;
             }
-            Configuration config = BotManager.Instance.ActiveBotEngine.Configuration;
-            if (BotManager.Instance.chkProvoke.Checked || BotManager.Instance.chkProvokeAllMon.Checked || (config != null && (config.ProvokeMonsters || config.ProvokeAllMonster)) || ProvokeMonsters || ProvokeAllMonster)
+            if (shouldMoveOutOfCombat)
             {
                 BotUtilities.MoveToSelfCell();
             }
-            if (BotManager.Instance.chkSaveState.Checked)
+            if (state.SaveStateEnabled || (configuration != null && configuration.AutoSaveState))
             {
                 _saveState = false;
             }
@@ -370,29 +382,30 @@ namespace Grimoire.Botting
 
         public static Task SaveState()
         {
-            lock (SettingsSync)
+            ClientOptionState state = State;
+            lock (state.SyncRoot)
             {
-                if (!saveState)
+                if (!state.SaveStateEnabled)
                 {
                     return Task.CompletedTask;
                 }
 
-                if (_saveStateTask == null || _saveStateTask.IsCompleted)
+                if (state.SaveStateTask == null || state.SaveStateTask.IsCompleted)
                 {
-                    _saveStateCts?.Dispose();
-                    _saveStateCts = new CancellationTokenSource();
-                    _saveStateTask = RunSaveState(_saveStateCts.Token);
-                    ObserveBackgroundTask(_saveStateTask, "Save-state loop");
+                    state.SaveStateCancellation?.Dispose();
+                    state.SaveStateCancellation = CreateSessionCancellation();
+                    state.SaveStateTask = RunSaveState(state, state.SaveStateCancellation.Token);
+                    ObserveBackgroundTask(state.SaveStateTask, "Save-state loop");
                 }
-                return _saveStateTask;
+                return state.SaveStateTask;
             }
         }
 
-        private static async Task RunSaveState(CancellationToken token)
+        private static async Task RunSaveState(ClientOptionState state, CancellationToken token)
         {
             try
             {
-                while (Player.IsLoggedIn && saveState && !token.IsCancellationRequested)
+                while (Player.IsLoggedIn && state.SaveStateEnabled && !token.IsCancellationRequested)
                 {
                     await Proxy.Instance.SendToServer($"%xt%zm%whisper%1%Save State: Ensures any gold, experience, reputation, and class points gained are saved. Triggers after every 5 minutes passed.%{Player.Username}%");
                     LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss tt}] Save state has been triggered.");
@@ -406,25 +419,26 @@ namespace Grimoire.Botting
 
         public static void AntiAfk()
         {
-            lock (SettingsSync)
+            ClientOptionState state = State;
+            lock (state.SyncRoot)
             {
-                if (!antiAfkEnabled || (_antiAfkTask != null && !_antiAfkTask.IsCompleted))
+                if (!state.AntiAfkEnabled || (state.AntiAfkTask != null && !state.AntiAfkTask.IsCompleted))
                 {
                     return;
                 }
 
-                _antiAfkCts?.Dispose();
-                _antiAfkCts = new CancellationTokenSource();
-                _antiAfkTask = RunAntiAfk(_antiAfkCts.Token);
-                ObserveBackgroundTask(_antiAfkTask, "Anti-AFK loop");
+                state.AntiAfkCancellation?.Dispose();
+                state.AntiAfkCancellation = CreateSessionCancellation();
+                state.AntiAfkTask = RunAntiAfk(state, state.AntiAfkCancellation.Token);
+                ObserveBackgroundTask(state.AntiAfkTask, "Anti-AFK loop");
             }
         }
 
-        private static async Task RunAntiAfk(CancellationToken token)
+        private static async Task RunAntiAfk(ClientOptionState state, CancellationToken token)
         {
             try
             {
-                while (Player.IsLoggedIn && antiAfkEnabled && !token.IsCancellationRequested)
+                while (Player.IsLoggedIn && state.AntiAfkEnabled && !token.IsCancellationRequested)
                 {
                     Player.cancelAfk();
                     await Task.Delay(60000, token);
@@ -464,15 +478,16 @@ namespace Grimoire.Botting
 
         public static Task ApplySettings()
         {
-            lock (SettingsSync)
+            ClientOptionState state = State;
+            lock (state.SyncRoot)
             {
-                CancellationTokenSource previous = _settingsCts;
-                Task previousTask = _settingsTask;
+                CancellationTokenSource previous = state.SettingsCancellation;
+                Task previousTask = state.SettingsTask;
                 previous?.Cancel(false);
 
-                _settingsCts = new CancellationTokenSource();
-                IsRunning = true;
-                _settingsTask = RunSettings(_settingsCts);
+                state.SettingsCancellation = CreateSessionCancellation();
+                SetIsRunning(state, true);
+                state.SettingsTask = RunSettings(state, state.SettingsCancellation);
                 if (previous != null)
                 {
                     if (previousTask == null)
@@ -488,11 +503,11 @@ namespace Grimoire.Botting
                             TaskScheduler.Default);
                     }
                 }
-                return _settingsTask;
+                return state.SettingsTask;
             }
         }
 
-        private static async Task RunSettings(CancellationTokenSource owner)
+        private static async Task RunSettings(ClientOptionState state, CancellationTokenSource owner)
         {
             CancellationToken token = owner.Token;
             try
@@ -518,33 +533,16 @@ namespace Grimoire.Botting
             }
             finally
             {
-                lock (SettingsSync)
+                lock (state.SyncRoot)
                 {
-                    if (ReferenceEquals(_settingsCts, owner))
+                    if (ReferenceEquals(state.SettingsCancellation, owner))
                     {
-                        _settingsCts = null;
-                        IsRunning = false;
+                        state.SettingsCancellation = null;
+                        SetIsRunning(state, false);
                         owner.Dispose();
                     }
                 }
             }
-        }
-
-        private static IJsonMessageHandler HandlerHideRoom
-        {
-            get;
-        }
-
-        private static IXtMessageHandler HandlerAFK1
-        {
-            get;
-        }
-
-        static OptionsManager()
-        {
-            HandlerHideRoom = new HandlerMapJoin();
-            HandlerAFK1 = new HandlerAFK();
-            WalkSpeed = 8;
         }
     }
 }

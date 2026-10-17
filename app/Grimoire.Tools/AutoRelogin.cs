@@ -68,14 +68,14 @@ namespace Grimoire.Tools
         {
             CancellationToken token = cts.Token;
             OptionsCheck(false);
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !IsTemporarilyKicked, () => !cts.IsCancellationRequested, 65);
+            await Bot.Instance.WaitUntil(() => !IsTemporarilyKicked, () => !cts.IsCancellationRequested, 65);
             ResetServers();
             await Task.Delay(1000, token);
             Login();
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !IsClientLoading("Account"), () => !cts.IsCancellationRequested, 10);
+            await Bot.Instance.WaitUntil(() => !IsClientLoading("Account"), () => !cts.IsCancellationRequested, 10);
             Connect(server);
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => Player.IsLoggedIn, () => !cts.IsCancellationRequested, 10);
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !World.IsMapLoading, () => !cts.IsCancellationRequested, 10);
+            await Bot.Instance.WaitUntil(() => Player.IsLoggedIn, () => !cts.IsCancellationRequested, 10);
+            await Bot.Instance.WaitUntil(() => !World.IsMapLoading, () => !cts.IsCancellationRequested, 10);
             if ((AutoRelogin.IsClientLoading("MapLoadingStuck")) || (AutoRelogin.IsClientLoading("MapLoadingError")))
             {
                 World.ReloadCurrentMap();
@@ -121,8 +121,8 @@ namespace Grimoire.Tools
         {
             OptionsCheck(false);
             Connect(server);
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => World.IsMapLoading, () => !cts.IsCancellationRequested, 10, 500);
-            await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !World.IsMapLoading, () => !cts.IsCancellationRequested, 10, 500);
+            await Bot.Instance.WaitUntil(() => World.IsMapLoading, () => !cts.IsCancellationRequested, 10, 500);
+            await Bot.Instance.WaitUntil(() => !World.IsMapLoading, () => !cts.IsCancellationRequested, 10, 500);
             if (IsClientLoading("MapLoadingStuck") || IsClientLoading("MapLoadingError"))
             {
                 World.ReloadCurrentMap();
@@ -153,15 +153,16 @@ namespace Grimoire.Tools
 
         public static void OptionsCheck(bool check)
         {
-            if (BotManager.Instance.chkLag.Checked)
+            Configuration configuration = Bot.Instance.Configuration;
+            if ((configuration != null && configuration.LagKiller) || (configuration == null && OptionsManager.LagKiller))
             {
                 OptionsManager.LagKiller = check;
             }
-            if (BotManager.Instance.chkDisableAnims.Checked)
+            if ((configuration != null && configuration.DisableAnimations) || (configuration == null && OptionsManager.DisableAnimations))
             {
                 OptionsManager.DisableAnimations = check;
             }
-            if (BotManager.Instance.chkHidePlayers.Checked)
+            if ((configuration != null && configuration.HidePlayers) || (configuration == null && OptionsManager.HidePlayers))
             {
                 OptionsManager.HidePlayers = check;
             }

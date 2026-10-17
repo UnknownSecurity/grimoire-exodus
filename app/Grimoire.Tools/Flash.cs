@@ -1,10 +1,10 @@
 using AxShockwaveFlashObjects;
+using Grimoire.Clients;
 using Grimoire.Game;
 using Grimoire.Game.Data;
 using Grimoire.Networking;
 using Grimoire.UI;
 using Grimoire.Utils;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -12,7 +12,6 @@ using System.Dynamic;
 using System.Linq;
 using System.Security;
 using System.Text;
-using System.Web;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -37,50 +36,62 @@ namespace Grimoire.Tools
 
         public static void ProcessFlashCall(object sender, _IShockwaveFlashEvents_FlashCallEvent e)
         {
+            AxShockwaveFlash source = sender as AxShockwaveFlash ?? flash;
+            ClientSession session = ClientSessionManager.Default?.FindByControl(source);
+            ActiveXFlashBridge bridge = session?.FlashBridge as ActiveXFlashBridge;
+            if (bridge != null)
+            {
+                bridge.ProcessFlashCall(sender, e);
+                return;
+            }
+
+            // Compatibility path for plugin-hosted controls that have not yet
+            // been registered as a ClientSession. Responses still go back to
+            // the callback sender instead of the root window's active client.
             try
             {
-                XElement xElement = XElement.Parse(e.request);
-                string text = xElement.Attribute("name")?.Value;
-                string text2 = xElement.Element("arguments")?.Value ?? string.Empty;
-                if (text == null)
+                XElement request = XElement.Parse(e.request);
+                string function = request.Attribute("name")?.Value;
+                string argument = request.Element("arguments")?.Value ?? string.Empty;
+                if (function == null)
+                    return;
+
+                if (function == "progress")
                 {
+                    if (int.TryParse(argument, out int progress))
+                        NotifySwfLoadProgress(progress);
                     return;
                 }
-                if (text != "progress")
+
+                if (function == "modifyServers" && source != null)
                 {
-                    if (text == "modifyServers")
-                    {
-                        string serverList = SecurityElement.Escape(ModifyServerList(text2.Trim()));
-                        Root.Instance.Client.SetReturnValue("<string>" + serverList + "</string>");
-                    }
-                    Proxy.Instance.LogPackets(text, text2);
+                    string serverList = SecurityElement.Escape(ModifyServerList(argument.Trim()));
+                    source.SetReturnValue("<string>" + serverList + "</string>");
                 }
-                else if (int.TryParse(text2, out int progress))
-                {
-                    SwfLoadProgress?.Invoke(progress);
-                }
+                Proxy.Instance?.LogPackets(function, argument);
             }
             catch (Exception ex)
             {
-                FlashError?.Invoke(flash, ex, "FlashCall", e.request);
+                NotifyFlashError(source, ex, "FlashCall", e.request);
             }
         }
 
         public string GetGameObject(string path)
         {
-            return Call<string>("getGameObject", path);
+            return ResolveBridge()?.GetGameObject(path);
         }
 
         public string GetGameObjectStatic(string path)
         {
-            return Call<string>("getGameObjectS", path);
+            return ResolveBridge()?.GetGameObjectStatic(path);
         }
 
         public T GetGameObject<T>(string path, T def = default)
         {
             try
             {
-                return JsonConvert.DeserializeObject<T>(GetGameObject(path));
+                IFlashBridge bridge = ResolveBridge();
+                return bridge == null ? def : bridge.GetGameObject(path, def);
             }
             catch
             {
@@ -90,12 +101,13 @@ namespace Grimoire.Tools
 
         public static string CallGameFunction(string path, params object[] args)
         {
-            return args.Length > 0 ? Call("callGameFunction", new object[] { path }.Concat(args).ToArray()) : Call<string>("callGameFunction0", path);
+            IFlashBridge bridge = ResolveBridge();
+            return bridge == null ? null : bridge.CallGameFunction(path, args);
         }
 
         public void SetGameObject(string path, object value)
         {
-            Call("setGameObject", path, value);
+            ResolveBridge()?.SetGameObject(path, value);
         }
 
         public static string Call(string function, params object[] args)
@@ -105,93 +117,34 @@ namespace Grimoire.Tools
 
         public static T Call<T>(string function, params object[] args)
         {
-            try
-            {
-                return (T)Call(function, typeof(T), args);
-            }
-            catch
-            {
-                return default;
-            }
+            IFlashBridge bridge = ResolveBridge();
+            return bridge == null ? default(T) : bridge.Call<T>(function, args);
         }
 
         public static object Call(string function, Type type, params object[] args)
         {
-            try
-            {
-                StringBuilder req = new StringBuilder().Append($"<invoke name=\"{function}\" returntype=\"xml\">");
-                if (args.Length > 0)
-                {
-                    req.Append("<arguments>");
-                    args.ForEach(o => req.Append(ToFlashXml(o)));
-                    req.Append("</arguments>");
-                }
-                req.Append("</invoke>");
-                string result = flash.CallFunction(req.ToString());
-                XElement el = XElement.Parse(result);
-                return el == null || el.FirstNode == null ? default : Convert.ChangeType(el.FirstNode.ToString(), type);
-            }
-            catch (Exception e)
-            {
-                FlashError?.Invoke(flash, e, function, args);
-                return default;
-            }
+            return ResolveBridge()?.Call(function, type, args);
         }
 
         public static T Call<T>(string function, params string[] args)
         {
-            return TryDeserialize<T>(GetResponse(BuildRequest(function, args)));
+            IFlashBridge bridge = ResolveBridge();
+            return bridge == null ? default(T) : bridge.CallWithStringArguments<T>(function, args);
         }
 
         public static string CallString(string function, params object[] args)
         {
-            return Call<string>(function, args);
+            return ResolveBridge()?.CallString(function, args);
         }
 
         public static void Call(string function, params string[] args)
         {
-            Call<string>(function, args);
+            ResolveBridge()?.CallWithStringArguments<object>(function, args);
         }
 
-        private static string BuildRequest(string method, params string[] args)
+        private static IFlashBridge ResolveBridge()
         {
-            StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.Append("<invoke name=\"" + method + "\" returntype=\"xml\">");
-            if (args != null && args.Length != 0)
-            {
-                stringBuilder.Append("<arguments>");
-                foreach (string str in args)
-                {
-                    stringBuilder.Append("<string>" + SecurityElement.Escape(str ?? string.Empty) + "</string>");
-                }
-                stringBuilder.Append("</arguments>");
-            }
-            stringBuilder.Append("</invoke>");
-            return stringBuilder.ToString();
-        }
-
-        private static string GetResponse(string request)
-        {
-            try
-            {
-                return HttpUtility.HtmlDecode(XElement.Parse(Root.Instance.Client.CallFunction(request)).FirstNode?.ToString() ?? string.Empty);
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
-
-        private static T TryDeserialize<T>(string str)
-        {
-            try
-            {
-                return JsonConvert.DeserializeObject<T>(str);
-            }
-            catch
-            {
-                return default;
-            }
+            return ClientSessionContext.Resolve()?.FlashBridge;
         }
 
         public static string ToFlashXml(object o)
@@ -229,7 +182,7 @@ namespace Grimoire.Tools
             }
         }
 
-        private static string ModifyServerList(string response)
+        internal static string ModifyServerList(string response)
         {
             if (response.StartsWith("{\"login\"") && response.EndsWith("}"))
             {
@@ -299,10 +252,38 @@ namespace Grimoire.Tools
 
         public static void CallHandler(object sender, _IShockwaveFlashEvents_FlashCallEvent e)
         {
+            AxShockwaveFlash source = sender as AxShockwaveFlash ?? flash;
+            ClientSession session = ClientSessionManager.Default?.FindByControl(source);
+            ActiveXFlashBridge bridge = session?.FlashBridge as ActiveXFlashBridge;
+            if (bridge != null)
+            {
+                bridge.ProcessCallHandler(sender, e);
+                return;
+            }
+
             XElement el = XElement.Parse(e.request);
             string name = el.Attribute("name").Value;
             object[] args = el.Elements().Select(x => FromFlashXml(x)).ToArray();
-            FlashCall?.Invoke(flash, name, args);
+            NotifyFlashCall(source, name, args);
+        }
+
+        internal static void NotifySwfLoadProgress(int progress)
+        {
+            SwfLoadProgress?.Invoke(progress);
+        }
+
+        internal static void NotifyFlashCall(AxShockwaveFlash source, string function, params object[] args)
+        {
+            FlashCall?.Invoke(source, function, args);
+        }
+
+        internal static void NotifyFlashError(
+            AxShockwaveFlash source,
+            Exception exception,
+            string function,
+            params object[] args)
+        {
+            FlashError?.Invoke(source, exception, function, args);
         }
     }
 }

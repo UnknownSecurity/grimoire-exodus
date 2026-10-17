@@ -34,28 +34,28 @@ namespace Grimoire.Game
 
         public static int CharUserID
         {
-            get;
-            set;
+            get { return GameSessionState.Current.CharUserId; }
+            set { GameSessionState.Current.CharUserId = value; }
         }
 
         public static Bank Bank
         {
-            get;
+            get { return GameSessionState.Current.Bank; }
         }
 
         public static Inventory Inventory
         {
-            get;
+            get { return GameSessionState.Current.Inventory; }
         }
 
         public static TempInventory TempInventory
         {
-            get;
+            get { return GameSessionState.Current.TempInventory; }
         }
 
         public static House House
         {
-            get;
+            get { return GameSessionState.Current.House; }
         }
 
         /// <summary>
@@ -66,7 +66,7 @@ namespace Grimoire.Game
 
         public static Quests Quests
         {
-            get;
+            get { return GameSessionState.Current.PlayerQuests; }
         }
 
         /// <summary>
@@ -75,8 +75,8 @@ namespace Grimoire.Game
         //public static string Username => Flash.Call<string>("Username", new string[0]);
         public static string Username
         {
-            get;
-            set;
+            get { return GameSessionState.Current.Username; }
+            set { GameSessionState.Current.Username = value; }
         }
 
         /// <summary>
@@ -89,8 +89,8 @@ namespace Grimoire.Game
         /// </summary>
         public static bool IsLoggedIn
         {
-            get;
-            set;
+            get { return GameSessionState.Current.IsLoggedIn; }
+            set { GameSessionState.Current.IsLoggedIn = value; }
         }
 
         /// <summary>
@@ -352,13 +352,5 @@ namespace Grimoire.Game
 
         public static int levelCap => Flash.Instance.GetGameObject<int>("intLevelCap");
 
-        static Player()
-        {
-            Bank = new Bank();
-            Inventory = new Inventory();
-            TempInventory = new TempInventory();
-            House = new House();
-            Quests = new Quests();
-        }
     }
 }

@@ -56,6 +56,9 @@ if ((Test-Path $stagingRoot) -and (Test-PathWithin $stagingRoot $buildRoot)) {
 }
 New-Item -ItemType Directory -Force -Path $stagingRoot, (Join-Path $stagingRoot "icons"), (Join-Path $stagingRoot "assets"), (Join-Path $stagingRoot "bots\community"), $distRoot | Out-Null
 
+# AIR output is intentionally isolated from game-client/grimoire-exodus.swf.
+# The checked-in desktop SWF is a Flash Player publish artifact and an AIR SWF
+# will appear loaded in ActiveX without executing its ExternalInterface bridge.
 $swfPath = Join-Path $stagingRoot "GrimoireExodus.swf"
 $debugBuild = $Configuration -eq "Debug"
 & $compiler `

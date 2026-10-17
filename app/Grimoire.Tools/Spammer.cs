@@ -1,3 +1,4 @@
+using Grimoire.Clients;
 using Grimoire.Networking;
 using System;
 using System.Collections.Generic;
@@ -6,8 +7,10 @@ using System.Threading.Tasks;
 
 namespace Grimoire.Tools
 {
-    public class Spammer
+    public class Spammer : IDisposable
     {
+        private static readonly Spammer LegacyInstance = new Spammer();
+
         public List<string> _packets;
 
         private int _delay;
@@ -16,10 +19,21 @@ namespace Grimoire.Tools
 
         private Task _spamTask;
 
+        private readonly ClientSession owningSession;
+
+        private bool disposed;
+
+        public Exception LastError { get; private set; }
+
+        public bool IsRunning => _spamTask != null && !_spamTask.IsCompleted;
+
         public static Spammer Instance
         {
-            get;
-        } = new Spammer();
+            get
+            {
+                return ClientSessionContext.Resolve()?.PacketSpammer ?? LegacyInstance;
+            }
+        }
 
         public event Action<int> IndexChanged;
 
@@ -27,20 +41,45 @@ namespace Grimoire.Tools
         {
         }
 
+        internal Spammer(ClientSession session)
+        {
+            owningSession = session ?? throw new ArgumentNullException(nameof(session));
+        }
+
         public void Start(List<string> packets, int delay)
         {
+            if (disposed)
+                throw new ObjectDisposedException(nameof(Spammer));
+
             Stop();
+            LastError = null;
             _packets = packets == null ? new List<string>() : new List<string>(packets);
             _delay = delay;
-            _cancellationTokenSource = new CancellationTokenSource();
-            CancellationToken token = _cancellationTokenSource.Token;
+            CancellationTokenSource operation = owningSession == null
+                ? new CancellationTokenSource()
+                : CancellationTokenSource.CreateLinkedTokenSource(owningSession.LifetimeToken);
+            _cancellationTokenSource = operation;
+            CancellationToken token = operation.Token;
             List<string> packetSnapshot = _packets;
             int delaySnapshot = Math.Max(1, _delay);
-            _spamTask = Task.Run(() => Spam(packetSnapshot, delaySnapshot, token), token);
+            ClientSession capturedSession = owningSession ?? ClientSessionContext.Resolve();
+            _spamTask = Task.Run(
+                () => RunInSessionAsync(capturedSession, packetSnapshot, delaySnapshot, token),
+                token);
             _spamTask.ContinueWith(
-                task => System.Diagnostics.Debug.WriteLine("Packet spammer failed: " + task.Exception?.GetBaseException()),
+                task =>
+                {
+                    if (ReferenceEquals(_cancellationTokenSource, operation))
+                        _cancellationTokenSource = null;
+                    operation.Dispose();
+                    if (task.IsFaulted && ReferenceEquals(_spamTask, task))
+                    {
+                        LastError = task.Exception?.GetBaseException();
+                        System.Diagnostics.Debug.WriteLine("Packet spammer failed: " + task.Exception?.GetBaseException());
+                    }
+                },
                 CancellationToken.None,
-                TaskContinuationOptions.OnlyOnFaulted,
+                TaskContinuationOptions.None,
                 TaskScheduler.Default);
         }
 
@@ -49,7 +88,20 @@ namespace Grimoire.Tools
             _cancellationTokenSource?.Cancel(throwOnFirstException: false);
         }
 
-        private async Task Spam(IReadOnlyList<string> packets, int delay, CancellationToken token)
+        private async Task RunInSessionAsync(
+            ClientSession session,
+            IReadOnlyList<string> packets,
+            int delay,
+            CancellationToken token)
+        {
+            await Spam(session, packets, delay, token);
+        }
+
+        private async Task Spam(
+            ClientSession session,
+            IReadOnlyList<string> packets,
+            int delay,
+            CancellationToken token)
         {
             if (packets == null || packets.Count == 0)
             {
@@ -66,13 +118,30 @@ namespace Grimoire.Tools
                         index = 0;
                     }
                     this.IndexChanged?.Invoke(index);
-                    await Proxy.Instance.SendToServer(packets[index++]);
+                    if (session == null)
+                    {
+                        await Proxy.Instance.SendToServer(packets[index++]);
+                    }
+                    else
+                    {
+                        using (ClientSessionContext.Push(session))
+                            await session.PacketDispatcher.SendToServer(packets[index++]);
+                    }
                     await Task.Delay(delay, token);
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
             }
+        }
+
+        public void Dispose()
+        {
+            if (disposed)
+                return;
+
+            disposed = true;
+            Stop();
         }
     }
 }

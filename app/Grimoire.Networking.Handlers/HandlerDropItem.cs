@@ -71,7 +71,7 @@ namespace Grimoire.Networking.Handlers
                     }
                     int id = content.DataObject["ItemID"].Value<int>();
                     await World.DropStack.RemoveAll(id);
-                    if (BotManager.Instance.ActiveBotEngine.IsRunning)
+                    if (Bot.Instance.IsRunning)
                     {
                         bool inBank = content.DataObject["bBank"].Value<int>() != 0;
                         int dropQty = content.DataObject["iQty"].Value<int>();
@@ -86,7 +86,8 @@ namespace Grimoire.Networking.Handlers
                         if (drop == null)
                             return;
                         LogForm.Instance.AppendBot($"[{DateTime.Now:hh:mm:ss}] Item accepted: {drop.Name} x {dropQty}.\r\n");
-                        if (BotManager.Instance.chkNotifyItemOnPickup.Checked && BotManager.Instance.ActiveBotEngine.Configuration.Items.Any(i => i.Equals(drop.Name, StringComparison.OrdinalIgnoreCase)))
+                        if (Bot.Instance.Configuration.NotifyItemOnPickup
+                            && Bot.Instance.Configuration.Items.Any(i => i.Equals(drop.Name, StringComparison.OrdinalIgnoreCase)))
                         {
                             World.GamePopup($"{(inBank ? "Bank" : "Inventory")}: {drop.Name} {drop.Quantity}/{drop.MaxStack}");
                         }
@@ -107,10 +108,11 @@ namespace Grimoire.Networking.Handlers
                         }
                         string dropQty = item.Value["iQty"].ToString();
                         string dropQtyNow = item.Value["iQtyNow"].ToString();
-                        if (BotManager.Instance.ActiveBotEngine.IsRunning)
+                        if (Bot.Instance.IsRunning)
                         {
                             LogForm.Instance.AppendBot($"[{DateTime.Now:hh:mm:ss}] Item accepted: {drop.Name} x {dropQty}.\r\n");
-                            if (BotManager.Instance.chkNotifyItemOnPickup.Checked && BotManager.Instance.ActiveBotEngine.Configuration.Items.Any(i => i.Equals(drop.Name, StringComparison.OrdinalIgnoreCase)))
+                            if (Bot.Instance.Configuration.NotifyItemOnPickup
+                                && Bot.Instance.Configuration.Items.Any(i => i.Equals(drop.Name, StringComparison.OrdinalIgnoreCase)))
                             {
                                 World.GamePopup($"Inventory: {drop.Name} {dropQtyNow}/{drop.MaxStack}");
                             }

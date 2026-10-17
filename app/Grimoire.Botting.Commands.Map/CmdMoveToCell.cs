@@ -19,9 +19,9 @@ namespace Grimoire.Botting.Commands.Map
             set;
         }
 
-        private string _cell => BotManager.Instance.ActiveBotEngine.Value(Cell);
+        private string _cell => Bot.Instance.Value(Cell);
 
-        private string _pad => BotManager.Instance.ActiveBotEngine.Value(Pad);
+        private string _pad => Bot.Instance.Value(Pad);
 
         public async Task Execute(IBotEngine instance)
         {

@@ -36,7 +36,7 @@ namespace Grimoire.Botting.Commands.Quest
             set;
         }
 
-        private int _questID => int.Parse(BotManager.Instance.ActiveBotEngine.Value(QuestID));
+        private int _questID => int.Parse(Bot.Instance.Value(QuestID));
 
         public async Task Execute(IBotEngine instance)
         {

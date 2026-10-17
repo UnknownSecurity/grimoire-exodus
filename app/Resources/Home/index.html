@@ -218,23 +218,31 @@
       margin-bottom: 10px;
     }
     .selector-head strong { font-size: 13px; }
-    .selector-options { display: -ms-flexbox; display: flex; margin: 0 -4px; }
+    .selector-options {
+      display: -ms-flexbox;
+      display: flex;
+      max-height: 128px;
+      margin: -4px;
+      overflow-y: auto;
+      -ms-flex-wrap: wrap;
+      flex-wrap: wrap;
+    }
     .selector-option {
-      width: 25%;
+      width: calc(50% - 8px);
       min-height: 52px;
-      margin: 0 4px;
+      margin: 4px;
       padding: 8px 5px;
       border: 1px solid #34303a;
       border-radius: 8px;
       color: #74707a;
       background: #222731;
-      cursor: default;
+      cursor: pointer;
       font-size: 10px;
       text-align: center;
     }
     .selector-option.active { border-color: #744cbd; color: #e5d8fa; background: #2a2635; cursor: pointer; }
-    .selector-option.active:hover { border-color: #9d74dd; background: #352d43; }
-    .selector-option.active:focus { outline: 1px solid #aa82e7; outline-offset: 2px; }
+    .selector-option:hover { border-color: #9d74dd; color: #e5d8fa; background: #352d43; }
+    .selector-option:focus { outline: 1px solid #aa82e7; outline-offset: 2px; }
     .selector-option.locked { opacity: .62; cursor: not-allowed; }
     .selector-option span { display: block; margin-top: 4px; color: #5f5967; font-size: 9px; }
     .selector-option.active span { color: #ad91d1; }
@@ -535,20 +543,16 @@
 
           <div class="client-mode">
             <div class="client-intro">
-              <div class="eyebrow">Army Mode Lab</div>
+              <div class="eyebrow">Multi-client workspace</div>
               <h1>Client selector</h1>
-              <p>Your primary AQW client is running. Multi-client switching remains locked while Army Mode is under development.</p>
+              <p>Switch between independent AQW clients. Each client keeps its own bot, login, game state, options, and toolbar effects.</p>
             </div>
             <div class="client-selector">
               <div class="selector-head">
                 <strong>Available clients</strong>
+                <button id="add-client" class="button secondary small" type="button" onclick="addClient()">+ New client</button>
               </div>
-              <div class="selector-options">
-                <button id="primary-client" class="selector-option active" type="button" onclick="openRunningClient()">Client 01<span>Running</span></button>
-                <button class="selector-option locked" type="button" disabled>Client 02<span>Locked</span></button>
-                <button class="selector-option locked" type="button" disabled>Client 03<span>Locked</span></button>
-                <button class="selector-option locked" type="button" disabled>Client 04<span>Locked</span></button>
-              </div>
+              <div id="client-options" class="selector-options"></div>
             </div>
           </div>
           <div id="notice" class="notice">
@@ -640,7 +644,7 @@
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Grimoire Home with an encrypted, one-click Account Locker<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Conventional commit linting with Commitlint and Husky<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Tag-triggered GitHub Actions release builds<span class="status-tag">Done</span></li>
-                    <li class="roadmap-item"><span class="roadmap-dot">•</span>Army Mode with a split-screen multi-client layout<span class="status-tag">Planned</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Six desktop clients by default with per-client state and an advanced unlimited override<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Windows installer with desktop-shortcut and launch-after-setup options<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Bundled native Flash runtime instead of a separate Clean Flash installation<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Verified in-app updates from official GitHub releases<span class="status-tag">Done</span></li>
@@ -713,6 +717,8 @@
         if (method === "OpenAccount") return parseHostResponse(window.external.OpenAccount(first));
         if (method === "OpenGame") return parseHostResponse(window.external.OpenGame());
         if (method === "OpenRunningClient") return parseHostResponse(window.external.OpenRunningClient());
+        if (method === "OpenClient") return parseHostResponse(window.external.OpenClient(first));
+        if (method === "AddClient") return parseHostResponse(window.external.AddClient());
         if (method === "OpenBotFolder") return parseHostResponse(window.external.OpenBotFolder());
         if (method === "OpenWebsite") return parseHostResponse(window.external.OpenWebsite(first));
       } catch (error) {
@@ -848,10 +854,37 @@
       document.getElementById("home-hero").className = running ? "hero client-running" : "hero";
     }
 
+    function renderClients(clients, canAddClient) {
+      var list = document.getElementById("client-options");
+      var add = document.getElementById("add-client");
+      while (list.firstChild) list.removeChild(list.firstChild);
+      add.disabled = !canAddClient;
+      add.title = canAddClient ? "Create another AQW client" : "Six-client safety limit reached";
+
+      for (var index = 0; index < clients.length; index++) {
+        (function (client) {
+          var item = document.createElement("button");
+          item.type = "button";
+          item.className = client.selected ? "selector-option active" : "selector-option";
+          item.onclick = function () { openClient(client.id); };
+          item.innerText = client.name;
+          var status = document.createElement("span");
+          status.innerText = client.botRunning
+            ? "Bot running"
+            : client.state === "Initializing"
+              ? "Loading " + client.loadProgress + "%"
+              : client.state === "Running" ? "Running" : client.state;
+          item.appendChild(status);
+          list.appendChild(item);
+        })(clients[index]);
+      }
+    }
+
     function applyState(state, announce) {
       renderAccounts(state.accounts || []);
       renderQuickBots(state.quickBots || [], !!state.quickBotsLoading);
-      setClientRunning(!!state.clientRunning);
+      renderClients(state.clients || [], !!state.canAddClient);
+      setClientRunning((state.clients || []).length > 0);
       document.getElementById("app-version").innerText = state.version || "Development";
       if (state.gameReady && awaitingGameOpen) {
         awaitingGameOpen = false;
@@ -913,6 +946,16 @@
 
     function openRunningClient() {
       var state = invokeHost("OpenRunningClient");
+      if (!state.success) applyState(state, true);
+    }
+
+    function openClient(id) {
+      var state = invokeHost("OpenClient", id);
+      if (!state.success) applyState(state, true);
+    }
+
+    function addClient() {
+      var state = invokeHost("AddClient");
       if (!state.success) applyState(state, true);
     }
 

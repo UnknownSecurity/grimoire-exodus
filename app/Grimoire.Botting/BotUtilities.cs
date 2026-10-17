@@ -22,25 +22,25 @@ namespace Grimoire.Botting
 
         public static bool ActiveBot
         {
-            get;
-            set;
-        } = false;
+            get { return GameSessionState.Current.ActiveBot; }
+            set { GameSessionState.Current.ActiveBot = value; }
+        }
 
         public static bool BusyClient
         {
-            get;
-            set;
-        } = false;
+            get { return GameSessionState.Current.BusyClient; }
+            set { GameSessionState.Current.BusyClient = value; }
+        }
 
         public static bool HasLoadedQuests
         {
-            get;
-            set;
+            get { return GameSessionState.Current.HasLoadedQuests; }
+            set { GameSessionState.Current.HasLoadedQuests = value; }
         }
         public static bool ShouldUseSkill
         {
-            get;
-            set;
+            get { return GameSessionState.Current.ShouldUseSkill; }
+            set { GameSessionState.Current.ShouldUseSkill = value; }
         }
 
         public static async Task WaitUntil(this IBotEngine instance, Func<bool> condition, Func<bool> prerequisite = null, int timeout = 15, int delay = 1000, int finalDelay = 0)
@@ -162,7 +162,7 @@ namespace Grimoire.Botting
             if (Player.CurrentState == Player.State.InCombat)
             {
                 Player.MoveToCell(Player.Cell, Player.Pad);
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => Player.CurrentState != Player.State.InCombat, null, 10, 500);
+                await Bot.Instance.WaitUntil(() => Player.CurrentState != Player.State.InCombat, null, 10, 500);
             }
         }
 

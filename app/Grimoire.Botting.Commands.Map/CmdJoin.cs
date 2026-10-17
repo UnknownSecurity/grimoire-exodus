@@ -117,13 +117,13 @@ namespace Grimoire.Botting.Commands.Map
             set;
         }
 
-        private string _map => BotManager.Instance.ActiveBotEngine.Value(Map);
+        private string _map => Bot.Instance.Value(Map);
 
-        private string _room => (BotManager.Instance.ActiveBotEngine.Value(Room) != "1e99") ? BotManager.Instance.ActiveBotEngine.Value(Room) : new Random().Next(1001, 99999).ToString();
+        private string _room => (Bot.Instance.Value(Room) != "1e99") ? Bot.Instance.Value(Room) : new Random().Next(1001, 99999).ToString();
 
-        private string _cell => BotManager.Instance.ActiveBotEngine.Value(Cell);
+        private string _cell => Bot.Instance.Value(Cell);
 
-        private string _pad => BotManager.Instance.ActiveBotEngine.Value(Pad);
+        private string _pad => Bot.Instance.Value(Pad);
 
         public async Task Execute(IBotEngine instance)
         {

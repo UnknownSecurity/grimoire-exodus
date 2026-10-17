@@ -29,7 +29,9 @@ namespace Grimoire.Networking.Handlers
                 Player.Quests.OnQuestCompleted(comp);
                 LogForm.Instance.AppendDebug($"[{DateTime.Now:hh:mm:ss}] Quest completed: \"{message.DataObject["sName"].Value<string>()}\" - ID {message.DataObject["QuestID"].Value<int>()}.\r\n");
             }
-            else if (BotManager.Instance.chkReloginOnQuestFailure.Checked && BotManager.Instance.ActiveBotEngine.IsRunning)
+            else if (Bot.Instance.Configuration != null
+                && Bot.Instance.Configuration.RelogUponQuestFailure
+                && Bot.Instance.IsRunning)
             {
                 if (!Bot.Instance.questFailureCounter.IsRunning)
                 {

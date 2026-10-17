@@ -22,7 +22,10 @@ namespace Grimoire.Networking.Handlers
             switch (message.Arguments[5])
             {
                 case "true":
-                    if (BotManager.Instance.ActiveBotEngine.IsRunning && BotManager.Instance.ActiveBotEngine.Configuration.AutoRelogin && BotManager.Instance.ActiveBotEngine.Configuration.AFK)
+                    if (Bot.Instance.IsRunning
+                        && Bot.Instance.Configuration != null
+                        && Bot.Instance.Configuration.AutoRelogin
+                        && Bot.Instance.Configuration.AFK)
                     {
                         Player.Logout();
                     }

@@ -101,7 +101,37 @@ namespace Grimoire.UI
                 bool opened = root.ShowRunningClient();
                 return CreateResponse(
                     opened,
-                    opened ? "Opening Client 01." : "Client 01 is not currently running.");
+                    opened ? "Opening the selected AQW client." : "No AQW client is currently ready to open.");
+            }
+            catch (Exception ex)
+            {
+                return CreateError(ex.Message);
+            }
+        }
+
+        public string OpenClient(string id)
+        {
+            try
+            {
+                bool opened = root.ShowClientById(id);
+                return CreateResponse(
+                    opened,
+                    opened ? null : "That AQW client is no longer available.");
+            }
+            catch (Exception ex)
+            {
+                return CreateError(ex.Message);
+            }
+        }
+
+        public string AddClient()
+        {
+            try
+            {
+                bool added = root.TryAddClient(false);
+                return CreateResponse(
+                    added,
+                    added ? "Creating another AQW client." : "The six-client safety limit has been reached.");
             }
             catch (Exception ex)
             {
@@ -152,6 +182,8 @@ namespace Grimoire.UI
                 gameReady = root.IsGameReady,
                 gameLoadProgress = root.GameLoadProgress,
                 clientRunning = root.IsClientRunning,
+                clients = root.HomeClientSnapshots,
+                canAddClient = root.CanAddClient,
                 quickBots = root.QuickBotNames,
                 quickBotsLoading = root.IsQuickBotIndexing,
                 version = root.AppVersion,
@@ -167,6 +199,8 @@ namespace Grimoire.UI
                 message = string.IsNullOrWhiteSpace(message) ? "The request could not be completed." : message,
                 gameReady = false,
                 clientRunning = root.IsClientRunning,
+                clients = root.HomeClientSnapshots,
+                canAddClient = root.CanAddClient,
                 quickBots = new object[0],
                 quickBotsLoading = false,
                 version = root.AppVersion,

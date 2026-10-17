@@ -11,7 +11,7 @@ namespace Grimoire
 {
     internal static class Program
     {
-        public static string versionDate = "2026-10-16";
+        public static string versionDate = "2026-10-17";
 
         public static string flashVersion;
 
@@ -20,25 +20,45 @@ namespace Grimoire
         {
             try
             {
-                StartupDiagnostics.StartSession();
-                StartupDiagnostics.SetStage("Runtime");
-                flashVersion = FlashVersion();
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(defaultValue: false);
-                GrimoireForm.InitializeNativeTitleBarTheming();
-                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-                Application.ThreadException += (sender, args) => ReportUnhandledException(args.Exception, "Windows Forms", false);
-                TaskScheduler.UnobservedTaskException += (sender, args) =>
+                using (SingleInstanceBroker instanceBroker = SingleInstanceBroker.CreateForCurrentUser())
                 {
-                    ReportUnhandledException(args.Exception, "Background task", false);
-                    args.SetObserved();
-                };
-                AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
-                    ReportUnhandledException(args.ExceptionObject as Exception, "Application domain", args.IsTerminating);
+                    if (!instanceBroker.IsPrimaryInstance)
+                    {
+                        if (!instanceBroker.ForwardLaunchRequest(TimeSpan.FromSeconds(5)))
+                        {
+                            DarkMessageBox.Show(
+                                new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen },
+                                "Grimoire Exodus is already running, but it did not answer the new-client request. Restore the existing window from the tray and try again.",
+                                "Grimoire Exodus is already open",
+                                MessageBoxIcon.Information);
+                        }
+                        return;
+                    }
 
-                StartupDiagnostics.SetStage("UI construction");
-                Application.Run(new Root());
-                StartupDiagnostics.MarkCleanShutdown();
+                    StartupDiagnostics.StartSession();
+                    StartupDiagnostics.SetStage("Runtime");
+                    flashVersion = FlashVersion();
+                    GrimoireForm.InitializeNativeTitleBarTheming();
+                    Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                    Application.ThreadException += (sender, args) => ReportUnhandledException(args.Exception, "Windows Forms", false);
+                    TaskScheduler.UnobservedTaskException += (sender, args) =>
+                    {
+                        ReportUnhandledException(args.Exception, "Background task", false);
+                        args.SetObserved();
+                    };
+                    AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+                        ReportUnhandledException(args.ExceptionObject as Exception, "Application domain", args.IsTerminating);
+
+                    StartupDiagnostics.SetStage("UI construction");
+                    Root root = new Root();
+                    if (root.Handle == IntPtr.Zero)
+                        throw new InvalidOperationException("The main window handle could not be created.");
+                    instanceBroker.StartListening(root.HandleAdditionalLaunchRequest);
+                    Application.Run(root);
+                    StartupDiagnostics.MarkCleanShutdown();
+                }
             }
             catch (Exception exception)
             {
@@ -107,7 +127,7 @@ namespace Grimoire
         {
             if (flashVersion == string.Empty)
             {
-                DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen }, "The app-local Flash runtime is missing. Rebuild with '.\\exodus.ps1 build' or install Grimoire Exodus with the v1.3.0 installer. A separate Clean Flash installation is not required.", "Flash runtime missing", MessageBoxIcon.Error);
+                DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen }, "The app-local Flash runtime is missing. Rebuild with '.\\exodus.ps1 build' or install Grimoire Exodus with the v1.4.0 installer. A separate Clean Flash installation is not required.", "Flash runtime missing", MessageBoxIcon.Error);
                 return true;
             }
             return false;

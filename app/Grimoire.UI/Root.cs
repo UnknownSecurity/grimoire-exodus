@@ -2,6 +2,7 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
 using Grimoire.Botting;
+using Grimoire.Clients;
 using Grimoire.Game;
 using Grimoire.Game.Data;
 using Grimoire.Networking;
@@ -25,7 +26,7 @@ using System.Text;
 
 namespace Grimoire.UI
 {
-    public class Root : GrimoireForm
+    public partial class Root : GrimoireForm
     {
         private static readonly Color ToolboxBackgroundColor = Color.FromArgb(28, 32, 40);
         private static readonly Color QuickBotHoverColor = Color.FromArgb(57, 48, 68);
@@ -48,11 +49,6 @@ namespace Grimoire.UI
         private Uri homeUri;
         private bool pendingGameOpen;
         private AccountCredentials pendingAccount;
-        private System.Windows.Forms.Timer credentialFillTimer;
-        private int credentialFillAttempts;
-        private volatile bool swfLoadComplete;
-        private volatile int swfLoadProgress;
-        private bool clientRunning;
         public MenuStrip MenuMain;
         public CancellationTokenSource login_cts;
         private Panel panel1;
@@ -145,6 +141,10 @@ namespace Grimoire.UI
         private System.Threading.CancellationTokenSource _cts;
         private DarkPanel GamePanel;
         private SettingsForm settingsForm;
+        private ClientSessionManager clientSessions;
+        private ClientSession primarySession;
+        private ClientSession toolbarSession;
+        private bool isBindingToolbar;
 
         public static Root Instance
         {
@@ -152,7 +152,9 @@ namespace Grimoire.UI
             private set;
         }
 
-        public AxShockwaveFlash Client => Game;
+        public AxShockwaveFlash Client => clientSessions?.ActiveSession?.FlashBridge.Control ?? Game;
+
+        public ClientSessionManager ClientSessions => clientSessions;
 
         private AxShockwaveFlash Game;
 
@@ -201,6 +203,9 @@ namespace Grimoire.UI
         {
             InitializeComponent();
             Instance = this;
+            clientSessions = new ClientSessionManager(GetConfiguredMaximumDesktopClients(), true);
+            clientSessions.ActiveSessionChanged += ClientSessions_ActiveSessionChanged;
+            InitializeMultiClientWorkspace();
             InitializeHome();
             ApplyBranding();
             InitializeQuickBots();
@@ -209,6 +214,169 @@ namespace Grimoire.UI
             pingMonitorToggle();
             clientHeaderToggle();
             InitializeMetrics();
+        }
+
+        private void ClientSessions_ActiveSessionChanged(object sender, ActiveClientSessionChangedEventArgs e)
+        {
+            if (toolbarSession != null)
+                toolbarSession.LoginState.BusyChanged -= ActiveLoginState_BusyChanged;
+
+            toolbarSession = e.Current;
+            if (toolbarSession != null)
+                toolbarSession.LoginState.BusyChanged += ActiveLoginState_BusyChanged;
+
+            BindToolbarToSession(toolbarSession);
+            OnActiveClientSessionChanged(e.Previous, e.Current);
+        }
+
+        private void ActiveLoginState_BusyChanged(object sender, EventArgs e)
+        {
+            ClientSession session = toolbarSession;
+            if (session == null || IsDisposed || Disposing)
+                return;
+
+            Action update = delegate
+            {
+                if (ReferenceEquals(toolbarSession, session))
+                    loginBoxToggle(!session.LoginState.IsBusy);
+            };
+            if (InvokeRequired)
+                BeginInvoke(update);
+            else
+                update();
+        }
+
+        private void BindToolbarToSession(ClientSession session)
+        {
+            isBindingToolbar = true;
+            try
+            {
+                bool hasSession = session != null && !session.IsDisposed;
+                ClientOptionState options = hasSession ? session.OptionState : null;
+                infRangeToolStripMenuItem.Checked = options != null && options.InfiniteRange;
+                provokeToolStripMenuItem1.Checked = options != null && options.ProvokeMonsters;
+                provokeAllMonsterInMapToolStripMenuItem.Checked = options != null && options.ProvokeAllMonsters;
+                enemyMagnetToolStripMenuItem.Checked = options != null && options.EnemyMagnet;
+                lagKillerToolStripMenuItem.Checked = options != null && options.LagKiller;
+                hidePlayersToolStripMenuItem.Checked = options != null && options.HidePlayers;
+                skipCutscenesToolStripMenuItem.Checked = options != null && options.SkipCutscenes;
+                disableAnimationsToolStripMenuItem.Checked = options != null && options.DisableAnimations;
+                untargetSelfToolStripMenuItem.Checked = options != null && options.Untarget;
+                autosaveStateToolStripMenuItem.Checked = options != null && options.SaveStateEnabled;
+                walkSpeedToolStripMenuItem.Checked = options != null && options.WalkSpeed > 8;
+                FPSToolStripMenuItem.Checked = options != null && options.UseCustomFrameRate;
+                toolStripTextBox2.Text = options == null
+                    ? "60"
+                    : options.DesiredFramesPerSecond.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                BindServersForSession(session);
+
+                cbCells.Items.Clear();
+                cbPads.Items.Clear();
+                cbCells.Text = string.Empty;
+                cbPads.Text = string.Empty;
+                if (hasSession)
+                {
+                    using (ClientSessionContext.Push(session))
+                    {
+                        cbCells.Text = Player.Cell;
+                        cbPads.Text = Player.Pad;
+                    }
+                }
+
+                bool botRunning = hasSession && session.BotEngine != null && session.BotEngine.IsRunning;
+                BotStateChanged(botRunning);
+                loginBoxToggle(hasSession && !session.LoginState.IsBusy);
+                UpdatePingDisplay(session, session?.LatestPingLatency);
+            }
+            finally
+            {
+                isBindingToolbar = false;
+            }
+        }
+
+        private ClientSession CaptureActiveSession()
+        {
+            ClientSession session = clientSessions?.ActiveSession;
+            return session != null && !session.IsDisposed ? session : null;
+        }
+
+        private bool HasRunningBots()
+        {
+            return clientSessions != null
+                && clientSessions.Sessions.Any(session => session.BotEngine != null && session.BotEngine.IsRunning);
+        }
+
+        internal void BindServersForSession(ClientSession session)
+        {
+            bool previousBinding = isBindingToolbar;
+            isBindingToolbar = true;
+            try
+            {
+                toolStripComboBoxLoginServer.Items.Clear();
+                if (session == null || session.IsDisposed || session.GameState.Servers == null)
+                    return;
+
+                toolStripComboBoxLoginServer.Items.AddRange(session.GameState.Servers.ToArray());
+                if (toolStripComboBoxLoginServer.Items.Count == 0)
+                    return;
+
+                int preferredIndex = BotClientConfig.Instance.GetValue<int>("serverIndex");
+                toolStripComboBoxLoginServer.SelectedIndex = Math.Max(
+                    0,
+                    Math.Min(preferredIndex, toolStripComboBoxLoginServer.Items.Count - 1));
+            }
+            finally
+            {
+                isBindingToolbar = previousBinding;
+            }
+        }
+
+        private bool HasLoggedInClients()
+        {
+            return clientSessions != null
+                && clientSessions.Sessions.Any(session => session.GameState.IsLoggedIn);
+        }
+
+        internal void UpdatePingDisplay(ClientSession session, int? latency)
+        {
+            if (session != null && !ReferenceEquals(clientSessions?.ActiveSession, session))
+                return;
+            if (IsDisposed || Disposing || !IsHandleCreated)
+                return;
+
+            Action update = delegate
+            {
+                if (session != null && !ReferenceEquals(clientSessions?.ActiveSession, session))
+                    return;
+                if (latency == null)
+                {
+                    if (rtbPing.TextLength > 0)
+                        rtbPing.Clear();
+                    return;
+                }
+                if (!rtbPing.Visible)
+                    return;
+
+                if (latency <= 100)
+                    rtbPing.ForeColor = Color.LimeGreen;
+                else if (latency <= 200)
+                    rtbPing.ForeColor = Color.Orange;
+                else
+                    rtbPing.ForeColor = Color.Red;
+                rtbPing.Clear();
+                rtbPing.AppendText("⬤  " + latency.Value + " ms");
+            };
+
+            try
+            {
+                if (InvokeRequired)
+                    BeginInvoke(update);
+                else
+                    update();
+            }
+            catch (InvalidOperationException)
+            {
+            }
         }
 
         private void ApplyBranding()
@@ -537,7 +705,8 @@ namespace Grimoire.UI
 
             try
             {
-                if (BotManager.Instance.ActiveBotEngine.IsRunning)
+                ClientSession session = CaptureActiveSession();
+                if (session?.BotEngine != null && session.BotEngine.IsRunning)
                 {
                     DarkMessageBox.Show(
                         this,
@@ -727,6 +896,15 @@ namespace Grimoire.UI
         {
             AppPreferenceSnapshot preferences = AppPreferences.Load();
             SetDeviceStatsVisible(!preferences.HideDeviceStats);
+            if (clientSessions != null)
+            {
+                clientSessions.SetMaximumSessions(
+                    preferences.AllowUnlimitedClients
+                        ? UnlimitedDesktopClients
+                        : DefaultMaximumDesktopClients);
+                UpdateClientStripButtons();
+                RefreshHomeState();
+            }
         }
 
         private void SetDeviceStatsVisible(bool visible)
@@ -874,21 +1052,14 @@ namespace Grimoire.UI
         private void SetHeaderVisible(bool visible)
         {
             panel1.Visible = visible;
-            int top = visible ? 24 : 0;
-            int availableHeight = Math.Max(1, ClientSize.Height - top - metricsPanel.Height);
-            GamePanel.Dock = DockStyle.None;
-            GamePanel.Location = new Point(0, top);
-            GamePanel.Size = new Size(ClientSize.Width, availableHeight);
+            LayoutClientWorkspace();
             btnToggleHeader.Image = visible ? headerVisibleIcon : headerHiddenIcon;
             btnToggleHeader.AccessibleName = visible ? "Hide upper toolbar" : "Show upper toolbar";
             headerVisibilityToolTip.SetToolTip(
                 btnToggleHeader,
                 visible ? "Hide upper toolbar" : "Show upper toolbar");
 
-            if (homeBrowser.Visible)
-            {
-                homeBrowser.BringToFront();
-            }
+            RestoreWorkspaceZOrder();
         }
 
         private sealed class PurpleMenuRenderer : DarkUI.Renderers.DarkMenuRenderer
@@ -1027,21 +1198,24 @@ namespace Grimoire.UI
                 }
             }, failures);
             RunStartupStage("Flash", InitializeGame, failures);
-            bool proxyReady = RunStartupStage("Proxy handlers", Proxy.InitializeProxyHandlers, failures);
+            ClientSession proxySession = clientSessions.ActiveSession;
+            bool proxyReady = RunStartupStage("Proxy handlers", delegate
+            {
+                if (proxySession == null)
+                    throw new InvalidOperationException("The packet proxy cannot start without an initialized client session.");
+
+                InitializeClientProxy(proxySession);
+            }, failures);
             if (proxyReady)
             {
                 RunStartupStage("Proxy client", delegate
                 {
-                    Task proxyTask = Task.Factory
-                        .StartNew(Proxy.Instance.ClientExecute, TaskCreationOptions.LongRunning)
-                        .Unwrap();
-                    proxyTask.ContinueWith(
-                        task => StartupDiagnostics.RecordException("Proxy client", task.Exception, false),
-                        TaskContinuationOptions.OnlyOnFaulted);
+                    StartClientProxy(proxySession);
                 }, failures);
             }
 
             startupComplete = true;
+            ProcessPendingAdditionalLaunchRequest();
             StartupDiagnostics.SetStage(failures.Count == 0 ? "Ready" : "Ready with startup errors");
             StartupDiagnostics.UpdateActivity(null, false, false);
 
@@ -1145,14 +1319,7 @@ namespace Grimoire.UI
                         updateCancellation.Token);
                 }
 
-                bool botIsRunning = false;
-                try
-                {
-                    botIsRunning = BotManager.Instance.ActiveBotEngine.IsRunning;
-                }
-                catch
-                {
-                }
+                bool botIsRunning = HasRunningBots();
 
                 string warning = "Grimoire Exodus "
                     + availableUpdate.Version.ToString(3)
@@ -1266,72 +1433,19 @@ namespace Grimoire.UI
 
         private void InitializeGame()
         {
-            try
-            {
-                Flash.flash?.Dispose();
-                Game = new AxShockwaveFlash();
-                Game.BeginInit();
-                Game.Name = "Flash";
-                Game.Dock = DockStyle.Fill;
-                Game.TabIndex = 0;
-                Game.FlashCall += Flash.ProcessFlashCall;
-                Flash.SwfLoadProgress += OnLoadProgress;
-                GamePanel.Controls.Add(Game);
-                Game.Visible = false;
-                Game.EndInit();
-                Flash.flash = Game;
-                byte[] swf = File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "grimoire-exodus.swf"));
-                using (MemoryStream stream = new MemoryStream())
-                using (BinaryWriter writer = new BinaryWriter(stream))
-                {
-                    writer.Write(8 + swf.Length);
-                    writer.Write(1432769894);
-                    writer.Write(swf.Length);
-                    writer.Write(swf);
-                    writer.Seek(0, SeekOrigin.Begin);
-                    Game.OcxState = new AxHost.State(stream, 1, false, null);
-                }
+            if (primarySession != null && !primarySession.IsDisposed)
+                clientSessions.Remove(primarySession);
 
-                // Assigning the ActiveX state can make the Flash control visible and
-                // move it ahead of sibling controls. Keep Grimoire Home on top until
-                // the user chooses an account or opens the game directly.
-                Game.Visible = false;
-                homeBrowser.BringToFront();
-            }
-            catch(Exception ex)
+            primarySession = CreateClientSession("Client 01", false);
+            if (pendingGameOpen)
             {
-                StartupDiagnostics.RecordException("Flash initialization", ex, false);
-                if (!Program.CheckFlashVersion())
-                {
-                    DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen }, ex.Message, $"Error in Loading the Game!", MessageBoxIcon.Error);
-                }
-                throw;
-            }
-        }
-
-        private void OnLoadProgress(int progress)
-        {
-            int normalizedProgress = Math.Max(0, Math.Min(100, progress));
-            if (normalizedProgress != swfLoadProgress)
-            {
-                swfLoadProgress = normalizedProgress;
-                if (IsHandleCreated && !IsDisposed)
-                {
-                    BeginInvoke((Action)RefreshHomeState);
-                }
+                AccountCredentials credentials = pendingAccount;
+                pendingGameOpen = false;
+                pendingAccount = null;
+                RequestGameOpen(primarySession, credentials, false);
             }
 
-            if (progress < 100)
-            {
-                return;
-            }
-
-            Flash.SwfLoadProgress -= OnLoadProgress;
-            swfLoadComplete = true;
-            if (IsHandleCreated && !IsDisposed)
-            {
-                BeginInvoke((Action)OnGameReady);
-            }
+            homeBrowser.BringToFront();
         }
 
         private void InitializeHome()
@@ -1364,18 +1478,12 @@ namespace Grimoire.UI
             RefreshHomeState();
         }
 
-        private void OnGameReady()
-        {
-            Game.Visible = false;
-            RefreshHomeState();
-            TryCompleteGameOpen();
-        }
+        public bool IsGameReady => CaptureActiveSession()?.IsReady == true;
 
-        public bool IsGameReady => swfLoadComplete && Game != null;
+        public int GameLoadProgress => CaptureActiveSession()?.LoadProgress ?? 0;
 
-        public int GameLoadProgress => swfLoadComplete ? 100 : swfLoadProgress;
-
-        public bool IsClientRunning => clientRunning;
+        public bool IsClientRunning => clientSessions != null
+            && clientSessions.Sessions.Any(session => session.State == ClientSessionState.Running);
 
         public string[] QuickBotNames => quickBotCache
             .Select(Path.GetFileNameWithoutExtension)
@@ -1387,115 +1495,39 @@ namespace Grimoire.UI
 
         public void RequestGameOpen(AccountCredentials credentials)
         {
-            pendingAccount = credentials;
-            pendingGameOpen = true;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+            {
+                pendingAccount = credentials;
+                pendingGameOpen = true;
+                return;
+            }
 
             if (!IsHandleCreated || IsDisposed)
             {
                 return;
             }
 
-            BeginInvoke((Action)TryCompleteGameOpen);
+            RequestGameOpen(session, credentials, false);
         }
 
         public bool ShowRunningClient()
         {
-            if (!clientRunning || !IsGameReady || Game == null)
-            {
+            ClientSession session = CaptureActiveSession();
+            if (session == null || session.State != ClientSessionState.Running)
+                session = clientSessions?.Sessions.FirstOrDefault(candidate => candidate.State == ClientSessionState.Running);
+            if (session == null || !session.IsReady)
                 return false;
-            }
 
-            homeBrowser.Visible = false;
-            Game.Visible = true;
-            Game.BringToFront();
+            ShowClientSession(session);
             return true;
-        }
-
-        private void TryCompleteGameOpen()
-        {
-            if (!pendingGameOpen || !IsGameReady)
-            {
-                return;
-            }
-
-            AccountCredentials credentials = pendingAccount;
-            pendingAccount = null;
-            pendingGameOpen = false;
-
-            homeBrowser.Visible = false;
-            Game.Visible = true;
-            Game.BringToFront();
-            clientRunning = true;
-
-            if (credentials != null)
-            {
-                StartCredentialFill(credentials);
-            }
-        }
-
-        private void StartCredentialFill(AccountCredentials credentials)
-        {
-            StopCredentialFill();
-            pendingAccount = credentials;
-            credentialFillAttempts = 0;
-            credentialFillTimer = new System.Windows.Forms.Timer { Interval = 250 };
-            credentialFillTimer.Tick += CredentialFillTimer_Tick;
-            credentialFillTimer.Start();
-            TryApplyPendingCredentials();
-        }
-
-        private void CredentialFillTimer_Tick(object sender, EventArgs e)
-        {
-            TryApplyPendingCredentials();
-        }
-
-        private void TryApplyPendingCredentials()
-        {
-            if (pendingAccount == null)
-            {
-                StopCredentialFill();
-                return;
-            }
-
-            credentialFillAttempts++;
-            if (AutoRelogin.LoginLabel)
-            {
-                Flash.Instance.SetGameObject("mcLogin.ni.text", pendingAccount.Username);
-                Flash.Instance.SetGameObject("mcLogin.pi.text", pendingAccount.Password);
-                StopCredentialFill();
-            }
-            else if (credentialFillAttempts >= 60)
-            {
-                StopCredentialFill();
-            }
-        }
-
-        private void StopCredentialFill()
-        {
-            if (credentialFillTimer != null)
-            {
-                credentialFillTimer.Stop();
-                credentialFillTimer.Tick -= CredentialFillTimer_Tick;
-                credentialFillTimer.Dispose();
-                credentialFillTimer = null;
-            }
-
-            pendingAccount = null;
-            credentialFillAttempts = 0;
         }
 
         private void ShowHome()
         {
             pendingGameOpen = false;
             StopCredentialFill();
-            if (Game != null)
-            {
-                Game.Visible = false;
-            }
-
-            homeBrowser.Visible = true;
-            homeBrowser.BringToFront();
-            RefreshHomeState();
+            ShowHomeWorkspace();
         }
 
         private void RefreshHomeState()
@@ -1557,6 +1589,10 @@ namespace Grimoire.UI
 
         public void ShowForm(Form form)
         {
+            GrimoireForm grimoireForm = form as GrimoireForm;
+            if (!form.Visible)
+                grimoireForm?.BindClientSession(CaptureActiveSession());
+
             if (form.WindowState == FormWindowState.Minimized)
             {
                 form.WindowState = FormWindowState.Normal;
@@ -1578,13 +1614,17 @@ namespace Grimoire.UI
 
         private void cbCells_Click(object sender, EventArgs e)
         {
-            if (Player.IsLoggedIn)
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                if (cbCells.Items.Count > 0)
+                if (Player.IsLoggedIn)
                 {
-                    cbCells.Items.Clear();
+                    if (cbCells.Items.Count > 0)
+                        cbCells.Items.Clear();
+                    cbCells.Items.AddRange(World.Cells);
                 }
-                cbCells.Items.AddRange(World.Cells);
             }
         }
 
@@ -1602,22 +1642,22 @@ namespace Grimoire.UI
 
         private void cbPads_Click(object sender, EventArgs e)
         {
-            if (Player.IsLoggedIn)
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                if (cbPads.Items.Count > 0)
+                if (Player.IsLoggedIn)
                 {
-                    cbPads.Items.Clear();
-                }
-                List<string> pads = World.Pads ?? new List<string>();
-                if (pads.Count > 0)
-                {
-                    cbPads.Items.AddRange(pads.ToArray());
-                }
-                foreach (string pad in presetPads)
-                {
-                    if (pads.Find((string p) => p.Equals(pad)) == null)
+                    if (cbPads.Items.Count > 0)
+                        cbPads.Items.Clear();
+                    List<string> pads = World.Pads ?? new List<string>();
+                    if (pads.Count > 0)
+                        cbPads.Items.AddRange(pads.ToArray());
+                    foreach (string pad in presetPads)
                     {
-                        cbPads.Items.Add(pad);
+                        if (pads.Find((string p) => p.Equals(pad)) == null)
+                            cbPads.Items.Add(pad);
                     }
                 }
             }
@@ -1663,12 +1703,12 @@ namespace Grimoire.UI
                 && !fullResetShutdownRequested
                 && AppPreferences.Load().ConfirmOnClose)
             {
-                bool botIsRunning = false;
-                bool gameSessionIsActive = clientRunning;
+                bool botIsRunning = HasRunningBots();
+                bool gameSessionIsActive = IsClientRunning || HasLoggedInClients();
                 try
                 {
-                    botIsRunning = BotManager.Instance.ActiveBotEngine.IsRunning;
-                    gameSessionIsActive = gameSessionIsActive || Player.IsLoggedIn;
+                    ClientSession session = CaptureActiveSession();
+                    gameSessionIsActive = gameSessionIsActive || (session != null && session.GameState.IsLoggedIn);
                 }
                 catch
                 {
@@ -1719,6 +1759,13 @@ namespace Grimoire.UI
             RunShutdownStep("Keyboard hook", delegate { KeyboardHook.Instance.Dispose(); });
             RunShutdownStep("Command colors", delegate { CommandColorForm.Instance.Dispose(); });
             RunShutdownStep("Credential fill", StopCredentialFill);
+            RunShutdownStep("Client sessions", delegate
+            {
+                clientSessions?.Dispose();
+                primarySession = null;
+                Game = null;
+                Flash.flash = null;
+            });
             RunShutdownStep("Tray icon", delegate
             {
                 nTray.Visible = false;
@@ -1763,6 +1810,14 @@ namespace Grimoire.UI
                     watcher.Dispose();
                 }
                 quickBotWatchers.Clear();
+                if (clientSessions != null)
+                {
+                    clientSessions.Dispose();
+                    clientSessions = null;
+                    primarySession = null;
+                    Game = null;
+                    Flash.flash = null;
+                }
             }
             if (disposing && components != null)
             {
@@ -2628,31 +2683,39 @@ namespace Grimoire.UI
 
         private void btnJump_Click(object sender, EventArgs e)
         {
-            if (Player.IsAlive && Player.IsLoggedIn)
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                string Cell = (string)this.cbCells.SelectedItem;
-                string Pad = (string)this.cbPads.SelectedItem;
-                Player.MoveToCell(Cell ?? Player.Cell, Pad ?? Player.Pad);
+                if (Player.IsAlive && Player.IsLoggedIn)
+                {
+                    string Cell = (string)this.cbCells.SelectedItem;
+                    string Pad = (string)this.cbPads.SelectedItem;
+                    Player.MoveToCell(Cell ?? Player.Cell, Pad ?? Player.Pad);
+                }
             }
         }
 
         private void btnGetCurrentCell_Click(object sender, EventArgs e)
         {
-            if (Player.IsLoggedIn)
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                if (cbCells.Items.Count > 0)
+                if (Player.IsLoggedIn)
                 {
-                    cbCells.Items.Clear();
+                    if (cbCells.Items.Count > 0)
+                        cbCells.Items.Clear();
+                    cbCells.Items.AddRange(World.Cells);
+                    cbCells.Text = Player.Cell;
+                    string currentPad = Player.Pad;
+                    if (!string.IsNullOrWhiteSpace(currentPad) && !cbPads.Items.Contains(currentPad))
+                        cbPads.Items.Add(currentPad);
+                    cbPads.SelectedItem = currentPad;
+                    cbPads.Text = currentPad;
                 }
-                cbCells.Items.AddRange(World.Cells);
-                cbCells.Text = Player.Cell;
-                string currentPad = Player.Pad;
-                if (!string.IsNullOrWhiteSpace(currentPad) && !cbPads.Items.Contains(currentPad))
-                {
-                    cbPads.Items.Add(currentPad);
-                }
-                cbPads.SelectedItem = currentPad;
-                cbPads.Text = currentPad;
             }
         }
 
@@ -2694,9 +2757,12 @@ namespace Grimoire.UI
                     : "Quick load a GBot";
             }
 
-            UpdateBotTitle(IsRunning, BotManager.Instance.CurrentBotName);
+            ClientSession session = CaptureActiveSession();
+            string botName = session?.BotDocument.DisplayName ?? "Untitled Bot";
+            string botPath = session?.BotDocument.SourcePath;
+            UpdateBotTitle(IsRunning, botName);
             StartupDiagnostics.UpdateActivity(
-                BotManager.Instance.CurrentBotPath,
+                botPath,
                 IsRunning,
                 !Visible);
         }
@@ -2720,6 +2786,7 @@ namespace Grimoire.UI
 
         private void Root_Resize(object sender, EventArgs e)
         {
+            LayoutClientWorkspace();
             if (startupComplete
                 && WindowState == FormWindowState.Minimized
                 && AppPreferences.Load().MinimizeToTray)
@@ -2774,9 +2841,10 @@ namespace Grimoire.UI
         {
             try
             {
+                ClientSession session = Instance?.CaptureActiveSession();
                 StartupDiagnostics.UpdateActivity(
-                    BotManager.Instance.CurrentBotPath,
-                    BotManager.Instance.ActiveBotEngine.IsRunning,
+                    session?.BotDocument.SourcePath,
+                    session?.BotEngine != null && session.BotEngine.IsRunning,
                     hiddenToTray);
             }
             catch (Exception exception)
@@ -2802,102 +2870,182 @@ namespace Grimoire.UI
 
         private void infRangeToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.InfiniteRange = infRangeToolStripMenuItem.Checked;
-            BotManager.Instance.chkInfiniteRange.Checked = infRangeToolStripMenuItem.Checked;
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
+            {
+                OptionsManager.InfiniteRange = infRangeToolStripMenuItem.Checked;
+                BotManager.Instance.chkInfiniteRange.Checked = infRangeToolStripMenuItem.Checked;
+            }
         }
 
         private void provokeToolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            OptionsManager.ProvokeMonsters = provokeToolStripMenuItem1.Checked;
-            BotManager.Instance.chkProvoke.Checked = provokeToolStripMenuItem1.Checked;
-            if (provokeToolStripMenuItem1.Checked && !OptionsManager.IsRunning)
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                _ = OptionsManager.ApplySettings();
+                OptionsManager.ProvokeMonsters = provokeToolStripMenuItem1.Checked;
+                BotManager.Instance.chkProvoke.Checked = provokeToolStripMenuItem1.Checked;
+                if (provokeToolStripMenuItem1.Checked && !OptionsManager.IsRunning)
+                    _ = OptionsManager.ApplySettings();
             }
         }
 
         private void provokeToolStripMenuItem1_Clicked(object sender, EventArgs e)
         {
-            if (!provokeToolStripMenuItem1.Checked && (Player.CurrentState == Player.State.InCombat))
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                BotUtilities.MoveToSelfCell();
+                if (!provokeToolStripMenuItem1.Checked && Player.CurrentState == Player.State.InCombat)
+                    BotUtilities.MoveToSelfCell();
             }
         }
 
         private void provokeAllMonsterInMapToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.ProvokeAllMonster = provokeAllMonsterInMapToolStripMenuItem.Checked;
-            BotManager.Instance.chkProvokeAllMon.Checked = provokeAllMonsterInMapToolStripMenuItem.Checked;
-            if (!provokeAllMonsterInMapToolStripMenuItem.Checked && (Player.CurrentState == Player.State.InCombat))
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                BotUtilities.MoveToSelfCell();
-            }
-            if (provokeAllMonsterInMapToolStripMenuItem.Checked && !OptionsManager.IsRunning)
-            {
-                _ = OptionsManager.ApplySettings();
+                OptionsManager.ProvokeAllMonster = provokeAllMonsterInMapToolStripMenuItem.Checked;
+                BotManager.Instance.chkProvokeAllMon.Checked = provokeAllMonsterInMapToolStripMenuItem.Checked;
+                if (!provokeAllMonsterInMapToolStripMenuItem.Checked && Player.CurrentState == Player.State.InCombat)
+                    BotUtilities.MoveToSelfCell();
+                if (provokeAllMonsterInMapToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+                    _ = OptionsManager.ApplySettings();
             }
         }
 
         private void enemyMagnetToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.EnemyMagnet = enemyMagnetToolStripMenuItem.Checked;
-            BotManager.Instance.chkMagnet.Checked = enemyMagnetToolStripMenuItem.Checked;
-            if (enemyMagnetToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                _ = OptionsManager.ApplySettings();
+                OptionsManager.EnemyMagnet = enemyMagnetToolStripMenuItem.Checked;
+                BotManager.Instance.chkMagnet.Checked = enemyMagnetToolStripMenuItem.Checked;
+                if (enemyMagnetToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+                    _ = OptionsManager.ApplySettings();
             }
         }
 
         private void lagKillerToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.LagKiller = lagKillerToolStripMenuItem.Checked;
-            BotManager.Instance.chkLag.Checked = lagKillerToolStripMenuItem.Checked;
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
+            {
+                OptionsManager.LagKiller = lagKillerToolStripMenuItem.Checked;
+                BotManager.Instance.chkLag.Checked = lagKillerToolStripMenuItem.Checked;
+            }
         }
 
         private void hidePlayersToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.HidePlayers = hidePlayersToolStripMenuItem.Checked;
-            BotManager.Instance.chkHidePlayers.Checked = hidePlayersToolStripMenuItem.Checked;
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
+            {
+                OptionsManager.HidePlayers = hidePlayersToolStripMenuItem.Checked;
+                BotManager.Instance.chkHidePlayers.Checked = hidePlayersToolStripMenuItem.Checked;
+            }
         }
 
         private void skipCutscenesToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.SkipCutscenes = skipCutscenesToolStripMenuItem.Checked;
-            BotManager.Instance.chkSkipCutscenes.Checked = skipCutscenesToolStripMenuItem.Checked;
-            if (skipCutscenesToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                _ = OptionsManager.ApplySettings();
+                OptionsManager.SkipCutscenes = skipCutscenesToolStripMenuItem.Checked;
+                BotManager.Instance.chkSkipCutscenes.Checked = skipCutscenesToolStripMenuItem.Checked;
+                if (skipCutscenesToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+                    _ = OptionsManager.ApplySettings();
             }
         }
 
         private void disableAnimationsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.DisableAnimations = disableAnimationsToolStripMenuItem.Checked;
-            BotManager.Instance.chkDisableAnims.Checked = disableAnimationsToolStripMenuItem.Checked;
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
+            {
+                OptionsManager.DisableAnimations = disableAnimationsToolStripMenuItem.Checked;
+                BotManager.Instance.chkDisableAnims.Checked = disableAnimationsToolStripMenuItem.Checked;
+            }
         }
 
         private void untargetSelfToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.Untarget = untargetSelfToolStripMenuItem.Checked;
-            BotManager.Instance.chkUntarget.Checked = untargetSelfToolStripMenuItem.Checked;
-            if (untargetSelfToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                OptionsManager.ApplySettings();
+                OptionsManager.Untarget = untargetSelfToolStripMenuItem.Checked;
+                BotManager.Instance.chkUntarget.Checked = untargetSelfToolStripMenuItem.Checked;
+                if (untargetSelfToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+                    _ = OptionsManager.ApplySettings();
             }
         }
 
         private void autosaveStateToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager._saveState = autosaveStateToolStripMenuItem.Checked;
-            BotManager.Instance.chkSaveState.Checked = autosaveStateToolStripMenuItem.Checked;
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
+            {
+                OptionsManager._saveState = autosaveStateToolStripMenuItem.Checked;
+                BotManager.Instance.chkSaveState.Checked = autosaveStateToolStripMenuItem.Checked;
+            }
         }
 
         private void walkSpeedToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            OptionsManager.WalkSpeed = walkSpeedToolStripMenuItem.Checked ? 40 : 8;
-            if (walkSpeedToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                OptionsManager.ApplySettings();
+                OptionsManager.WalkSpeed = walkSpeedToolStripMenuItem.Checked ? 40 : 8;
+                if (walkSpeedToolStripMenuItem.Checked && !OptionsManager.IsRunning)
+                    _ = OptionsManager.ApplySettings();
             }
         }
 
@@ -2920,47 +3068,70 @@ namespace Grimoire.UI
 
         private void bankToolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            if (Player.IsAlive && Player.IsLoggedIn)
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                Player.Bank.Show();
+                if (Player.IsAlive && Player.IsLoggedIn)
+                    Player.Bank.Show();
             }
         }
 
         private async void reloadToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (Player.IsAlive && Player.IsLoggedIn)
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                await Proxy.Instance.SendToServer($"%xt%zm%loadBank%{World.RoomId}%All%");
-                Player.Bank.SavedItems = Flash.Call<List<InventoryItem>>("GetBankItems", new string[0]);
+                if (Player.IsAlive && Player.IsLoggedIn)
+                {
+                    await Proxy.Instance.SendToServer($"%xt%zm%loadBank%{World.RoomId}%All%");
+                    Player.Bank.SavedItems = Flash.Call<List<InventoryItem>>("GetBankItems", new string[0]);
+                }
             }
         }
 
         private async void startToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (Player.IsAlive && Player.IsLoggedIn && BotManager.Instance.lstCommands.Items.Count > 0)
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                if (!BotManager.Instance.IsHandleCreated)
+                if (Player.IsAlive && Player.IsLoggedIn && BotManager.Instance.lstCommands.Items.Count > 0)
                 {
-                    ShowForm(BotManager.Instance);
-                    await Task.Delay(10);
-                    BotManager.Instance.Hide();
+                    if (!BotManager.Instance.IsHandleCreated)
+                    {
+                        ShowForm(BotManager.Instance);
+                        await Task.Delay(10);
+                        BotManager.Instance.Hide();
+                    }
+                    if (!ReferenceEquals(CaptureActiveSession(), session)
+                        || !ReferenceEquals(BotManager.Instance.BoundSession, session))
+                        return;
+                    BotManager.Instance.btnBotStop.Enabled = false;
+                    BotManager.Instance.btnBotPause.Enabled = false;
+                    BotManager.Instance.CustomCommandToggle(false);
+                    BotManager.Instance.SelectionModeToggle(false);
+                    BotManager.Instance.OnBotExecute(true);
+                    BotManager.Instance.BotStateChanged(IsRunning: true);
+                    await Task.Delay(2000);
+                    if (ReferenceEquals(CaptureActiveSession(), session))
+                    {
+                        BotStateChanged(IsRunning: true);
+                        BotManager.Instance.btnBotPause.Enabled = true;
+                        BotManager.Instance.btnBotStop.Enabled = true;
+                    }
                 }
-                BotManager.Instance.btnBotStop.Enabled = false;
-                BotManager.Instance.btnBotPause.Enabled = false;
-                BotManager.Instance.CustomCommandToggle(false);
-                BotManager.Instance.SelectionModeToggle(false);
-                BotManager.Instance.OnBotExecute(true);
-                BotManager.Instance.BotStateChanged(IsRunning: true);
-                await Task.Delay(2000);
-                this.BotStateChanged(IsRunning: true);
-                BotManager.Instance.btnBotPause.Enabled = true;
-                BotManager.Instance.btnBotStop.Enabled = true;
             }
         }
 
         public void StartBotFromShortcut()
         {
-            if (!BotManager.Instance.ActiveBotEngine.IsRunning)
+            ClientSession session = CaptureActiveSession();
+            if (session?.BotEngine != null && !session.BotEngine.IsRunning)
             {
                 startToolStripMenuItem_Click(this, EventArgs.Empty);
             }
@@ -2968,20 +3139,29 @@ namespace Grimoire.UI
 
         private async void stopToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            ClientSession session = CaptureActiveSession();
+            IBotEngine engine = session?.BotEngine;
+            if (session == null || engine == null)
+                return;
             BotManager.Instance.btnBotStart.Enabled = false;
-            this.stopToolStripMenuItem.Enabled = false;
-            BotManager.Instance.ActiveBotEngine.Stop();
+            stopToolStripMenuItem.Enabled = false;
+            using (ClientSessionContext.Push(session))
+                engine.Stop();
             BotManager.Instance.CustomCommandToggle(true);
             BotManager.Instance.SelectionModeToggle(true);
             BotManager.Instance.BotStateChanged(IsRunning: false);
             await Task.Delay(2000);
-            this.BotStateChanged(IsRunning: false);
-            BotManager.Instance.btnBotStart.Enabled = true;
+            if (ReferenceEquals(CaptureActiveSession(), session))
+            {
+                BotStateChanged(IsRunning: false);
+                BotManager.Instance.btnBotStart.Enabled = true;
+            }
         }
 
         public void StopBotFromShortcut()
         {
-            if (BotManager.Instance.ActiveBotEngine.IsRunning)
+            ClientSession session = CaptureActiveSession();
+            if (session?.BotEngine != null && session.BotEngine.IsRunning)
             {
                 stopToolStripMenuItem_Click(this, EventArgs.Empty);
             }
@@ -3022,13 +3202,30 @@ namespace Grimoire.UI
 
         private void FPSToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (FPSToolStripMenuItem.Checked)
+            if (isBindingToolbar)
+                return;
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                Flash.Call("SetFPS", FPSToolStripMenuItem.DropDownItems[0].Text);
-            }
-            else
-            {
-                Flash.Call("SetFPS", 24);
+                int framesPerSecond;
+                if (!int.TryParse(
+                    toolStripTextBox2.Text,
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out framesPerSecond))
+                {
+                    framesPerSecond = 60;
+                }
+                framesPerSecond = Math.Max(1, Math.Min(240, framesPerSecond));
+                session.OptionState.UseCustomFrameRate = FPSToolStripMenuItem.Checked;
+                session.OptionState.DesiredFramesPerSecond = framesPerSecond;
+                toolStripTextBox2.Text = framesPerSecond.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (FPSToolStripMenuItem.Checked)
+                    Flash.Call("SetFPS", framesPerSecond);
+                else
+                    Flash.Call("SetFPS", 24);
             }
         }
 
@@ -3076,60 +3273,129 @@ namespace Grimoire.UI
 
         private async void loginToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (!AutoRelogin.IsTemporarilyKicked)
+            ClientSession session = clientSessions?.ActiveSession;
+            if (session == null || session.IsDisposed)
+                return;
+
+            CancellationTokenSource operation = session.LoginState.BeginOperation();
+            login_cts = operation;
+            loginBoxToggle(false);
+            try
             {
-                loginBoxToggle(false);
-                login_cts = new CancellationTokenSource();
-                if (Player.IsLoggedIn)
+                using (ClientSessionContext.Push(session))
                 {
-                    Player.Logout();
-                    await BotManager.Instance.ActiveBotEngine.WaitUntil(() => AutoRelogin.LoginLabel, () => !login_cts.IsCancellationRequested, 5, 1500);
+                    if (AutoRelogin.IsTemporarilyKicked)
+                        return;
+
+                    IBotEngine engine = session.BotEngine ?? Bot.Instance;
+                    if (Player.IsLoggedIn)
+                    {
+                        Player.Logout();
+                        await engine.WaitUntil(() => AutoRelogin.LoginLabel, () => !operation.IsCancellationRequested, 5, 1500);
+                    }
+                    operation.Token.ThrowIfCancellationRequested();
+                    AutoRelogin.LoginExecute();
+                    await engine.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !operation.IsCancellationRequested, 10, 500);
                 }
-                AutoRelogin.LoginExecute();
-                await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !login_cts.IsCancellationRequested, 10, 500);
-                loginBoxToggle(true);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            finally
+            {
+                session.LoginState.CompleteOperation(operation);
+                if (ReferenceEquals(login_cts, operation))
+                    login_cts = null;
+                if (ReferenceEquals(clientSessions?.ActiveSession, session))
+                    loginBoxToggle(true);
             }
         }
 
         private async void toolStripComboBoxLoginServer_Click(object sender, EventArgs e)
         {
+            if (isBindingToolbar)
+                return;
             if (toolStripComboBoxLoginServer.SelectedIndex == -1)
             {
                 return;
             }
-            if (AutoRelogin.AreServersLoaded)
+
+            ClientSession session = clientSessions?.ActiveSession;
+            Server server = toolStripComboBoxLoginServer.SelectedItem as Server;
+            if (session == null || session.IsDisposed || server == null)
+                return;
+
+            CancellationTokenSource operation = session.LoginState.BeginOperation();
+            login_cts = operation;
+            loginBoxToggle(false);
+            try
             {
-                loginBoxToggle(false);
-                login_cts = new CancellationTokenSource();
-                if (Player.IsLoggedIn)
+                using (ClientSessionContext.Push(session))
                 {
-                    Player.Logout();
-                    await BotManager.Instance.ActiveBotEngine.WaitUntil(() => AutoRelogin.LoginLabel, () => !login_cts.IsCancellationRequested, 5, 1500);
+                    if (!AutoRelogin.AreServersLoaded)
+                        return;
+
+                    IBotEngine engine = session.BotEngine ?? Bot.Instance;
+                    if (Player.IsLoggedIn)
+                    {
+                        Player.Logout();
+                        await engine.WaitUntil(() => AutoRelogin.LoginLabel, () => !operation.IsCancellationRequested, 5, 1500);
+                    }
+                    operation.Token.ThrowIfCancellationRequested();
+                    if (!AutoRelogin.ServerLabel)
+                    {
+                        AutoRelogin.LoginExecute();
+                        await engine.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !operation.IsCancellationRequested, 10, 500);
+                    }
+                    operation.Token.ThrowIfCancellationRequested();
+                    await AutoRelogin.ForceLogin(server, operation);
                 }
-                if (!AutoRelogin.ServerLabel)
-                {
-                    AutoRelogin.LoginExecute();
-                    await BotManager.Instance.ActiveBotEngine.WaitUntil(() => !AutoRelogin.IsClientLoading("Account"), () => !login_cts.IsCancellationRequested, 10, 500);
-                }
-                try
-                {
-                    await AutoRelogin.ForceLogin((Server)toolStripComboBoxLoginServer.SelectedItem, login_cts);
-                }
-                catch { }
-                loginBoxToggle(true);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch
+            {
+            }
+            finally
+            {
+                session.LoginState.CompleteOperation(operation);
+                if (ReferenceEquals(login_cts, operation))
+                    login_cts = null;
+                if (ReferenceEquals(clientSessions?.ActiveSession, session))
+                    loginBoxToggle(true);
             }
         }
 
         public void loginBoxToggle(bool Type)
         {
+            ClientSession session = clientSessions?.ActiveSession;
+            if (Type && session != null && session.LoginState.IsBusy)
+                Type = false;
             loginToolStripMenuItem.Enabled = Type;
             toolStripComboBoxLoginServer.Enabled = Type;
         }
 
         public void serverCatch()
         {
-            toolStripComboBoxLoginServer.SelectedIndex = int.Parse(BotClientConfig.Instance.GetValue<string>("serverIndex") ?? "0");
-            toolStripComboBoxLoginServer.SelectedItem = toolStripComboBoxLoginServer.SelectedIndex;
+            bool previousBinding = isBindingToolbar;
+            isBindingToolbar = true;
+            try
+            {
+                if (toolStripComboBoxLoginServer.Items.Count == 0)
+                    return;
+
+                int index;
+                if (!int.TryParse(BotClientConfig.Instance.GetValue<string>("serverIndex") ?? "0", out index))
+                    index = 0;
+                toolStripComboBoxLoginServer.SelectedIndex = Math.Max(
+                    0,
+                    Math.Min(index, toolStripComboBoxLoginServer.Items.Count - 1));
+            }
+            finally
+            {
+                isBindingToolbar = previousBinding;
+            }
         }
 
         public void pingMonitorToolStripMenuItem_Click(object sender, EventArgs e)
@@ -3169,66 +3435,68 @@ namespace Grimoire.UI
 
         private async void customTravel_KeyPress(object sender, KeyEventArgs e)
         {
-            if (Travel.Instance.chkCustomHotkeys.Checked && ModifierKeys == Keys.Shift)
+            ClientSession session = CaptureActiveSession();
+            if (session == null)
+                return;
+            using (ClientSessionContext.Push(session))
             {
-                if (!Player.IsLoggedIn)
+                if (Travel.Instance.chkCustomHotkeys.Checked && ModifierKeys == Keys.Shift)
                 {
-                    return;
-                }
-                if (Travel.Instance.travels.Count == 0)
-                {
-                    DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen },
-                        "Failed to execute a Custom Travel. Please make sure that you have a pre-existing list.", "Custom Travels", MessageBoxIcon.Error);
-                    return;
-                }
-                switch (e.KeyCode)
-                {
-                    case Keys.Right:
-                        if (!travelInProgress)
-                        {
-                            World.GameMessage($"Executing the {Travel.Instance.travels[Travel.Instance.cbCustomTravels.SelectedIndex].Split('`')[0]} Travel in 2 seconds.");
-                            await Task.Delay(2000);
-                            if (!customTravel)
+                    if (!Player.IsLoggedIn)
+                        return;
+                    if (Travel.Instance.travels.Count == 0)
+                    {
+                        DarkMessageBox.Show(new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen },
+                            "Failed to execute a Custom Travel. Please make sure that you have a pre-existing list.", "Custom Travels", MessageBoxIcon.Error);
+                        return;
+                    }
+                    switch (e.KeyCode)
+                    {
+                        case Keys.Right:
+                            if (!travelInProgress)
                             {
-                                return;
+                                World.GameMessage($"Executing the {Travel.Instance.travels[Travel.Instance.cbCustomTravels.SelectedIndex].Split('`')[0]} Travel in 2 seconds.");
+                                await Task.Delay(2000);
+                                if (!customTravel)
+                                    return;
+                                Travel.Instance.executeCustomTravel();
                             }
-                            Travel.Instance.executeCustomTravel();
-                        }
-                        break;
-                    case Keys.Up:
-                        if (!travelInProgress && Travel.Instance.cbCustomTravels.SelectedIndex <= (Travel.Instance.cbCustomTravels.Items.Count - 1) && Travel.Instance.cbCustomTravels.SelectedIndex >= 1)
-                        {
-                            travelInProgress = true;
-                            Travel.Instance.cbCustomTravels.SelectedIndex = Travel.Instance.cbCustomTravels.SelectedIndex - 1;
-                            string[] newTravel = Travel.Instance.travels[Travel.Instance.cbCustomTravels.SelectedIndex].Split('`');
-                            World.GameMessage($"Changing the travel target to {newTravel[0]} Travel.");
-                            travelInProgress = false;
-                        }
-                        break;
-                    case Keys.Down:
-                        if (!travelInProgress && Travel.Instance.cbCustomTravels.SelectedIndex < (Travel.Instance.cbCustomTravels.Items.Count - 1))
-                        {
-                            travelInProgress = true;
-                            Travel.Instance.cbCustomTravels.SelectedIndex = Travel.Instance.cbCustomTravels.SelectedIndex + 1;
-                            string[] newTravel = Travel.Instance.travels[Travel.Instance.cbCustomTravels.SelectedIndex].Split('`');
-                            World.GameMessage($"Changing the travel target to {newTravel[0]} Travel.");
-                            travelInProgress = false;
-                        }
-                        break;
-                    case Keys.Left:
-                        if (!travelInProgress)
-                        {
-                            travelInProgress = true;
-                            customTravel = false;
-                            World.GameMessage($"Travel execution has been canceled. Enabling the travel hotkeys back in 3 seconds.");
-                            await Task.Delay(3000);
-                            customTravel = true;
-                            travelInProgress = false;
-                            World.GameMessage($"Travel hotkeys has been enabled again.");
-                        }
-                        break;
+                            break;
+                        case Keys.Up:
+                            if (!travelInProgress && Travel.Instance.cbCustomTravels.SelectedIndex <= Travel.Instance.cbCustomTravels.Items.Count - 1 && Travel.Instance.cbCustomTravels.SelectedIndex >= 1)
+                            {
+                                travelInProgress = true;
+                                Travel.Instance.cbCustomTravels.SelectedIndex--;
+                                string[] newTravel = Travel.Instance.travels[Travel.Instance.cbCustomTravels.SelectedIndex].Split('`');
+                                World.GameMessage($"Changing the travel target to {newTravel[0]} Travel.");
+                                travelInProgress = false;
+                            }
+                            break;
+                        case Keys.Down:
+                            if (!travelInProgress && Travel.Instance.cbCustomTravels.SelectedIndex < Travel.Instance.cbCustomTravels.Items.Count - 1)
+                            {
+                                travelInProgress = true;
+                                Travel.Instance.cbCustomTravels.SelectedIndex++;
+                                string[] newTravel = Travel.Instance.travels[Travel.Instance.cbCustomTravels.SelectedIndex].Split('`');
+                                World.GameMessage($"Changing the travel target to {newTravel[0]} Travel.");
+                                travelInProgress = false;
+                            }
+                            break;
+                        case Keys.Left:
+                            if (!travelInProgress)
+                            {
+                                travelInProgress = true;
+                                customTravel = false;
+                                World.GameMessage("Travel execution has been canceled. Enabling the travel hotkeys back in 3 seconds.");
+                                await Task.Delay(3000);
+                                customTravel = true;
+                                travelInProgress = false;
+                                World.GameMessage("Travel hotkeys has been enabled again.");
+                            }
+                            break;
+                    }
+                    e.Handled = true;
                 }
-                e.Handled = true;
             }
         }
 
