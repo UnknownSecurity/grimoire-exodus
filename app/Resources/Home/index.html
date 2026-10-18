@@ -305,6 +305,8 @@
       text-align: left;
     }
     .account-card:hover { border-color: #7654aa; background: #2a2f3b; }
+    .account-card.active { opacity: .58; cursor: not-allowed; }
+    .account-card.active:hover { border-color: #3f374d; background: #222731; }
     .avatar {
       width: 34px;
       height: 34px;
@@ -773,9 +775,12 @@
         (function (account) {
           var card = document.createElement("button");
           card.type = "button";
-          card.className = "account-card";
-          card.title = "Open AQW with " + account.username;
-          card.onclick = function () { openAccount(account.id); };
+          card.className = account.active ? "account-card active" : "account-card";
+          card.title = account.active
+            ? "This account is already assigned to an open client"
+            : "Open AQW with " + account.username;
+          card.setAttribute("aria-disabled", account.active ? "true" : "false");
+          if (!account.active) card.onclick = function () { openAccount(account.id); };
 
           var avatar = document.createElement("span");
           avatar.className = "avatar";

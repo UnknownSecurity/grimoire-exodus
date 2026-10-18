@@ -22,6 +22,13 @@ namespace Grimoire.UI
         private readonly DarkCheckBox chkConfirmOnClose = new DarkCheckBox();
         private readonly DarkCheckBox chkMinimizeToTray = new DarkCheckBox();
         private readonly DarkCheckBox chkUnlimitedClients = new DarkCheckBox();
+        private readonly DarkCheckBox chkPrereleaseUpdates = new DarkCheckBox();
+        private readonly DarkComboBox cmbRenderingProfile = new DarkComboBox();
+        private readonly DarkComboBox cmbRenderQuality = new DarkComboBox();
+        private readonly DarkCheckBox chkUseActiveClientFrameRate = new DarkCheckBox();
+        private readonly DarkNumericUpDown numActiveClientFrameRate = new DarkNumericUpDown();
+        private readonly DarkCheckBox chkThrottleInactiveClients = new DarkCheckBox();
+        private readonly DarkNumericUpDown numInactiveClientFrameRate = new DarkNumericUpDown();
         private readonly Dictionary<int, DarkComboBox> bindingSelectors = new Dictionary<int, DarkComboBox>();
         private readonly DarkButton btnSave = new DarkButton();
         private readonly DarkButton btnClose = new DarkButton();
@@ -65,6 +72,7 @@ namespace Grimoire.UI
                 SizeMode = TabSizeMode.Fixed
             };
             tabs.TabPages.Add(CreateGeneralTab());
+            tabs.TabPages.Add(CreatePerformanceTab());
             tabs.TabPages.Add(CreateKeyBindingsTab());
             tabs.TabPages.Add(CreateAdvancedTab());
 
@@ -118,6 +126,72 @@ namespace Grimoire.UI
                 "Keep the client running in the notification area instead of the taskbar.");
             content.Controls.Add(chkConfirmOnClose);
             content.Controls.Add(chkMinimizeToTray);
+            page.Controls.Add(content);
+            return page;
+        }
+
+        private TabPage CreatePerformanceTab()
+        {
+            TabPage page = CreateTabPage("Performance");
+            FlowLayoutPanel content = CreateVerticalContent();
+
+            content.Controls.Add(CreateHeading("Rendering"));
+            Label rendererNote = CreateBodyLabel(
+                "These profiles change how Flash presents the game. Direct and GPU are experimental requests; game logic, bots, and networking still run on the CPU. Changes apply to newly created clients.");
+            rendererNote.Height = 48;
+            rendererNote.Margin = new Padding(0, 2, 0, 6);
+            rendererNote.Width = 570;
+            content.Controls.Add(rendererNote);
+
+            ConfigureDropDown(
+                cmbRenderingProfile,
+                "Automatic (recommended)",
+                "Direct presentation (experimental)",
+                "GPU rendering (experimental)");
+            content.Controls.Add(CreatePreferenceRow(
+                "Rendering profile",
+                "Automatic preserves the current compatibility path. Experimental profiles safely fall back if Flash rejects the request.",
+                cmbRenderingProfile));
+
+            ConfigureDropDown(cmbRenderQuality, "Automatic", "High", "Medium", "Low");
+            content.Controls.Add(CreatePreferenceRow(
+                "Render quality",
+                "Lower quality can reduce vector-rendering work on slower systems. Automatic leaves the Flash default unchanged.",
+                cmbRenderQuality));
+
+            content.Controls.Add(CreateHeading("Frame rate"));
+            ConfigurePreferenceCheckBox(
+                chkUseActiveClientFrameRate,
+                "Use a custom FPS for the active client",
+                "Applies the target below only while a client is selected. A GBot Set FPS command remains authoritative for that client.");
+            chkUseActiveClientFrameRate.CheckedChanged += delegate
+            {
+                numActiveClientFrameRate.Enabled = chkUseActiveClientFrameRate.Checked;
+            };
+            content.Controls.Add(chkUseActiveClientFrameRate);
+
+            ConfigureFrameRateInput(numActiveClientFrameRate, 1, 240);
+            content.Controls.Add(CreatePreferenceRow(
+                "Selected client FPS",
+                "Higher values can look smoother but increase CPU use. The safe range is 1–240 FPS.",
+                numActiveClientFrameRate));
+
+            ConfigurePreferenceCheckBox(
+                chkThrottleInactiveClients,
+                "Throttle inactive clients",
+                "Reduces only background clients that have no running bot. Running bots are never throttled.");
+            chkThrottleInactiveClients.CheckedChanged += delegate
+            {
+                numInactiveClientFrameRate.Enabled = chkThrottleInactiveClients.Checked;
+            };
+            content.Controls.Add(chkThrottleInactiveClients);
+
+            ConfigureFrameRateInput(numInactiveClientFrameRate, 1, 60);
+            content.Controls.Add(CreatePreferenceRow(
+                "Inactive client FPS",
+                "A conservative 15 FPS target reduces background rendering while keeping the session connected.",
+                numInactiveClientFrameRate));
+
             page.Controls.Add(content);
             return page;
         }
@@ -190,10 +264,11 @@ namespace Grimoire.UI
                 ColumnCount = 2,
                 Dock = DockStyle.Fill,
                 Padding = new Padding(18),
-                RowCount = 5
+                RowCount = 6
             };
             content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70F));
             content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
@@ -201,33 +276,42 @@ namespace Grimoire.UI
             content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             ConfigurePreferenceCheckBox(
+                chkPrereleaseUpdates,
+                "Use testing / experimental updates",
+                "Includes GitHub prereleases in update checks. These builds may be less stable than the latest public release.");
+            chkPrereleaseUpdates.Dock = DockStyle.Fill;
+            chkPrereleaseUpdates.Margin = new Padding(0, 4, 0, 10);
+            content.Controls.Add(chkPrereleaseUpdates, 0, 0);
+            content.SetColumnSpan(chkPrereleaseUpdates, 2);
+
+            ConfigurePreferenceCheckBox(
                 chkUnlimitedClients,
                 "Remove the six-client safety limit",
                 "Allows more than six live clients. Each extra Flash client increases CPU, memory, and handle use in the 32-bit process.");
             chkUnlimitedClients.Dock = DockStyle.Fill;
             chkUnlimitedClients.Margin = new Padding(0, 4, 0, 10);
-            content.Controls.Add(chkUnlimitedClients, 0, 0);
+            content.Controls.Add(chkUnlimitedClients, 0, 1);
             content.SetColumnSpan(chkUnlimitedClients, 2);
 
             AddAdvancedAction(
                 content,
-                1,
+                2,
                 "Delete character information",
                 "Permanently removes every saved account and encrypted password from the Account Locker.",
                 "Delete credentials",
                 DeleteCredentials_Click);
             AddAdvancedAction(
                 content,
-                2,
+                3,
                 "Full reset",
                 "Removes Grimoire settings, saved characters, logs, recovery data, cache, and downloaded updates. Bot folders are preserved.",
                 "Full reset",
                 FullReset_Click);
             AddAdvancedAction(
                 content,
-                3,
+                4,
                 "Check for an update",
-                "Checks the latest public GitHub release and shows the update icon when a newer version is available.",
+                "Checks the selected stable or experimental GitHub release channel and shows the update icon when a newer version is available.",
                 "Check now",
                 CheckForUpdate_Click);
 
@@ -277,6 +361,15 @@ namespace Grimoire.UI
             chkConfirmOnClose.Checked = preferences.ConfirmOnClose;
             chkMinimizeToTray.Checked = preferences.MinimizeToTray;
             chkUnlimitedClients.Checked = preferences.AllowUnlimitedClients;
+            chkPrereleaseUpdates.Checked = preferences.UsePrereleaseUpdates;
+            cmbRenderingProfile.SelectedIndex = (int)preferences.RenderingProfile;
+            cmbRenderQuality.SelectedIndex = (int)preferences.RenderQuality;
+            chkUseActiveClientFrameRate.Checked = preferences.UseActiveClientFrameRate;
+            numActiveClientFrameRate.Value = preferences.ActiveClientFramesPerSecond;
+            numActiveClientFrameRate.Enabled = preferences.UseActiveClientFrameRate;
+            chkThrottleInactiveClients.Checked = preferences.ThrottleInactiveClients;
+            numInactiveClientFrameRate.Value = preferences.InactiveClientFramesPerSecond;
+            numInactiveClientFrameRate.Enabled = preferences.ThrottleInactiveClients;
 
             foreach (HotkeyBindingDefinition definition in Hotkeys.SettingsBindingDefinitions)
             {
@@ -304,20 +397,49 @@ namespace Grimoire.UI
                         return;
                 }
 
+                if (chkPrereleaseUpdates.Checked && !previousPreferences.UsePrereleaseUpdates)
+                {
+                    DialogResult confirmation = DarkMessageBox.Show(
+                        this,
+                        "Enable testing / experimental updates?\r\n\r\nGrimoire will include GitHub prereleases when checking for updates. Prereleases may contain unfinished behavior or regressions. You can return to stable updates at any time.",
+                        "Enable experimental updates?",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2);
+                    if (confirmation != DialogResult.Yes)
+                        return;
+                }
+
                 Dictionary<int, Keys?> bindings = bindingSelectors.ToDictionary(
                     item => item.Key,
                     item => ReadSelectedKey(item.Value));
                 Hotkeys.SaveSettingsBindings(bindings);
-                AppPreferences.Save(new AppPreferenceSnapshot
+                AppPreferenceSnapshot preferences = new AppPreferenceSnapshot
                 {
                     SkipHomePage = chkSkipHome.Checked,
                     HideDeviceStats = chkHideDeviceStats.Checked,
                     ConfirmOnClose = chkConfirmOnClose.Checked,
                     MinimizeToTray = chkMinimizeToTray.Checked,
-                    AllowUnlimitedClients = chkUnlimitedClients.Checked
-                });
+                    AllowUnlimitedClients = chkUnlimitedClients.Checked,
+                    UsePrereleaseUpdates = chkPrereleaseUpdates.Checked,
+                    RenderingProfile = (FlashRenderingProfile)Math.Max(0, cmbRenderingProfile.SelectedIndex),
+                    RenderQuality = (FlashRenderQuality)Math.Max(0, cmbRenderQuality.SelectedIndex),
+                    UseActiveClientFrameRate = chkUseActiveClientFrameRate.Checked,
+                    ActiveClientFramesPerSecond = Decimal.ToInt32(numActiveClientFrameRate.Value),
+                    ThrottleInactiveClients = chkThrottleInactiveClients.Checked,
+                    InactiveClientFramesPerSecond = Decimal.ToInt32(numInactiveClientFrameRate.Value)
+                };
+                bool renderingChanged = previousPreferences.RenderingProfile != preferences.RenderingProfile
+                    || previousPreferences.RenderQuality != preferences.RenderQuality;
+                AppPreferences.Save(preferences);
                 root.ApplyPreferences();
-                DarkMessageBox.Show(this, "Your settings were saved.", "Settings", MessageBoxIcon.Information);
+                bool updateChannelChanged = previousPreferences.UsePrereleaseUpdates != preferences.UsePrereleaseUpdates;
+                string message = renderingChanged
+                    ? "Your settings were saved. Rendering changes apply to new AQW clients. Restart Grimoire to apply them to every client. Current clients were not interrupted."
+                    : "Your settings were saved.";
+                if (updateChannelChanged)
+                    message += " The selected release channel will be used on the next update check.";
+                DarkMessageBox.Show(this, message, "Settings", MessageBoxIcon.Information);
             }
             catch (Exception exception)
             {
@@ -387,8 +509,9 @@ namespace Grimoire.UI
             {
                 UpdateRelease release = await root.CheckForApplicationUpdateAsync(false);
                 string message = release == null
-                    ? "You already have the latest public release."
+                    ? "You already have the latest release on your selected update channel."
                     : "Grimoire Exodus " + release.Version.ToString(3)
+                        + (release.IsPrerelease ? " prerelease" : string.Empty)
                         + " is available. Use the update icon in the upper toolbar to install it.";
                 DarkMessageBox.Show(this, message, "Update check", MessageBoxIcon.Information);
             }
@@ -463,6 +586,61 @@ namespace Grimoire.UI
                 Padding = new Padding(0),
                 Text = title
             };
+        }
+
+        private Panel CreatePreferenceRow(string title, string description, Control input)
+        {
+            TableLayoutPanel card = new TableLayoutPanel
+            {
+                BackColor = CardColor,
+                ColumnCount = 2,
+                Height = 66,
+                Margin = new Padding(0, 5, 0, 5),
+                Padding = new Padding(12, 6, 12, 6),
+                RowCount = 1,
+                Width = 570
+            };
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70F));
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
+            card.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+            Panel copy = new Panel { BackColor = CardColor, Dock = DockStyle.Fill };
+            Label heading = new Label
+            {
+                AutoEllipsis = true,
+                Dock = DockStyle.Top,
+                Font = new Font(Font, FontStyle.Bold),
+                ForeColor = Color.Gainsboro,
+                Height = 23,
+                Text = title,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            Label body = CreateBodyLabel(description);
+            body.Dock = DockStyle.Fill;
+            copy.Controls.Add(body);
+            copy.Controls.Add(heading);
+
+            input.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            input.Margin = new Padding(10, 12, 0, 12);
+            card.Controls.Add(copy, 0, 0);
+            card.Controls.Add(input, 1, 0);
+            return card;
+        }
+
+        private static void ConfigureDropDown(DarkComboBox comboBox, params string[] items)
+        {
+            comboBox.AccessibleName = "Performance setting";
+            comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboBox.Items.AddRange(items.Cast<object>().ToArray());
+            comboBox.SelectedIndex = 0;
+        }
+
+        private static void ConfigureFrameRateInput(DarkNumericUpDown input, int minimum, int maximum)
+        {
+            input.AccessibleName = "Frame rate";
+            input.Minimum = minimum;
+            input.Maximum = maximum;
+            input.TextAlign = HorizontalAlignment.Right;
         }
 
         private static FlowLayoutPanel CreateVerticalContent()

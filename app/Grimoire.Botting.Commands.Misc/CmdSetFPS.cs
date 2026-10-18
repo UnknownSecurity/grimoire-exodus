@@ -1,5 +1,6 @@
 ﻿using Grimoire.Tools;
 using System.Threading.Tasks;
+using Grimoire.Clients;
 
 namespace Grimoire.Botting.Commands.Misc
 {
@@ -11,9 +12,18 @@ namespace Grimoire.Botting.Commands.Misc
             set;
         }
 
-        public async Task Execute(IBotEngine instance)
+        public Task Execute(IBotEngine instance)
         {
             Flash.Call("SetFPS", FPS);
+            ClientSession session = ClientSessionContext.Resolve();
+            if (session != null)
+            {
+                session.OptionState.UseCustomFrameRate = true;
+                session.OptionState.DesiredFramesPerSecond = FPS;
+                session.OptionState.LastAppliedFramesPerSecond = FPS;
+                session.OptionState.FrameRateManagedByPerformancePolicy = false;
+            }
+            return Task.CompletedTask;
         }
 
         public override string ToString()

@@ -5,6 +5,21 @@ using System.IO;
 
 namespace Grimoire.Utils
 {
+    public enum FlashRenderingProfile
+    {
+        Automatic,
+        Direct,
+        Gpu
+    }
+
+    public enum FlashRenderQuality
+    {
+        Automatic,
+        High,
+        Medium,
+        Low
+    }
+
     public sealed class AppPreferenceSnapshot
     {
         public bool SkipHomePage { get; set; }
@@ -16,6 +31,20 @@ namespace Grimoire.Utils
         public bool MinimizeToTray { get; set; }
 
         public bool AllowUnlimitedClients { get; set; }
+
+        public bool UsePrereleaseUpdates { get; set; }
+
+        public FlashRenderingProfile RenderingProfile { get; set; }
+
+        public FlashRenderQuality RenderQuality { get; set; }
+
+        public bool UseActiveClientFrameRate { get; set; }
+
+        public int ActiveClientFramesPerSecond { get; set; }
+
+        public bool ThrottleInactiveClients { get; set; }
+
+        public int InactiveClientFramesPerSecond { get; set; }
     }
 
     /// <summary>
@@ -30,6 +59,13 @@ namespace Grimoire.Utils
         private const string ConfirmOnCloseKey = "settings.confirmOnClose";
         private const string MinimizeToTrayKey = "settings.minimizeToTray";
         private const string AllowUnlimitedClientsKey = "settings.allowUnlimitedClients";
+        private const string UsePrereleaseUpdatesKey = "settings.usePrereleaseUpdates";
+        private const string RenderingProfileKey = "settings.renderingProfile";
+        private const string RenderQualityKey = "settings.renderQuality";
+        private const string UseActiveClientFrameRateKey = "settings.useActiveClientFrameRate";
+        private const string ActiveClientFramesPerSecondKey = "settings.activeClientFramesPerSecond";
+        private const string ThrottleInactiveClientsKey = "settings.throttleInactiveClients";
+        private const string InactiveClientFramesPerSecondKey = "settings.inactiveClientFramesPerSecond";
 
         public static AppPreferenceSnapshot Load()
         {
@@ -39,7 +75,14 @@ namespace Grimoire.Utils
                 HideDeviceStats = GetBoolean(HideDeviceStatsKey, false),
                 ConfirmOnClose = GetBoolean(ConfirmOnCloseKey, true),
                 MinimizeToTray = GetBoolean(MinimizeToTrayKey, true),
-                AllowUnlimitedClients = GetBoolean(AllowUnlimitedClientsKey, false)
+                AllowUnlimitedClients = GetBoolean(AllowUnlimitedClientsKey, false),
+                UsePrereleaseUpdates = GetBoolean(UsePrereleaseUpdatesKey, false),
+                RenderingProfile = GetEnum(RenderingProfileKey, FlashRenderingProfile.Automatic),
+                RenderQuality = GetEnum(RenderQualityKey, FlashRenderQuality.Automatic),
+                UseActiveClientFrameRate = GetBoolean(UseActiveClientFrameRateKey, false),
+                ActiveClientFramesPerSecond = GetInteger(ActiveClientFramesPerSecondKey, 60, 1, 240),
+                ThrottleInactiveClients = GetBoolean(ThrottleInactiveClientsKey, false),
+                InactiveClientFramesPerSecond = GetInteger(InactiveClientFramesPerSecondKey, 15, 1, 60)
             };
         }
 
@@ -53,6 +96,17 @@ namespace Grimoire.Utils
             Config.Instance.Set(ConfirmOnCloseKey, preferences.ConfirmOnClose.ToString());
             Config.Instance.Set(MinimizeToTrayKey, preferences.MinimizeToTray.ToString());
             Config.Instance.Set(AllowUnlimitedClientsKey, preferences.AllowUnlimitedClients.ToString());
+            Config.Instance.Set(UsePrereleaseUpdatesKey, preferences.UsePrereleaseUpdates.ToString());
+            Config.Instance.Set(RenderingProfileKey, preferences.RenderingProfile.ToString());
+            Config.Instance.Set(RenderQualityKey, preferences.RenderQuality.ToString());
+            Config.Instance.Set(UseActiveClientFrameRateKey, preferences.UseActiveClientFrameRate.ToString());
+            Config.Instance.Set(
+                ActiveClientFramesPerSecondKey,
+                Clamp(preferences.ActiveClientFramesPerSecond, 1, 240).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Config.Instance.Set(ThrottleInactiveClientsKey, preferences.ThrottleInactiveClients.ToString());
+            Config.Instance.Set(
+                InactiveClientFramesPerSecondKey,
+                Clamp(preferences.InactiveClientFramesPerSecond, 1, 60).ToString(System.Globalization.CultureInfo.InvariantCulture));
             Config.Instance.Save();
         }
 
@@ -60,6 +114,35 @@ namespace Grimoire.Utils
         {
             string value = Config.Instance.Get(key);
             return bool.TryParse(value, out bool parsed) ? parsed : defaultValue;
+        }
+
+        private static int GetInteger(string key, int defaultValue, int minimum, int maximum)
+        {
+            string value = Config.Instance.Get(key);
+            if (!int.TryParse(
+                value,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out int parsed))
+            {
+                return defaultValue;
+            }
+
+            return Clamp(parsed, minimum, maximum);
+        }
+
+        private static T GetEnum<T>(string key, T defaultValue)
+            where T : struct
+        {
+            string value = Config.Instance.Get(key);
+            return Enum.TryParse(value, true, out T parsed) && Enum.IsDefined(typeof(T), parsed)
+                ? parsed
+                : defaultValue;
+        }
+
+        private static int Clamp(int value, int minimum, int maximum)
+        {
+            return Math.Max(minimum, Math.Min(maximum, value));
         }
     }
 

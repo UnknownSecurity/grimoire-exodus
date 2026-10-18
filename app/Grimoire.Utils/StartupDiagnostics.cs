@@ -174,6 +174,36 @@ namespace Grimoire.Utils
             }
         }
 
+        public static void RecordWarning(string context, Exception exception)
+        {
+            if (exception == null)
+                return;
+
+            lock (SyncRoot)
+            {
+                try
+                {
+                    EnsureStartedUnsafe();
+                    string description = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Handled warning in {0}: {1}: {2}",
+                        string.IsNullOrWhiteSpace(context) ? "Unknown" : context,
+                        exception.GetType().Name,
+                        exception.Message);
+                    if (currentSession == null)
+                    {
+                        Debug.WriteLine(description);
+                        return;
+                    }
+                    AppendLogUnsafe(description);
+                }
+                catch (Exception diagnosticsException)
+                {
+                    Debug.WriteLine("Unable to record diagnostics: " + diagnosticsException);
+                }
+            }
+        }
+
         public static void MarkCleanShutdown()
         {
             lock (SyncRoot)

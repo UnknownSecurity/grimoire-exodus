@@ -18,12 +18,18 @@ plugin-workspaces/
 .env
 .env.*
 !.env.example
+**/.dev.vars
+**/.dev.vars.*
+!**/.dev.vars.example
 
 # Node.js (dev tooling only - commitlint, husky)
 node_modules/
 website/.nuxt/
 website/.output/
 website/dist/
+website/.wrangler-dist/
+website/worker/.wrangler/
+website/worker/**/.wrangler-dist/
 
 # Android and Gradle (the wrapper remains tracked)
 .gradle/

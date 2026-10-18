@@ -18,6 +18,11 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'static'
   },
+  runtimeConfig: {
+    public: {
+      issueApiUrl: process.env.NUXT_PUBLIC_ISSUE_API_URL || 'https://grimoire-exodus-issue-relay.0110harold.workers.dev'
+    }
+  },
   typescript: {
     strict: true,
     typeCheck: true

@@ -895,6 +895,7 @@ namespace Grimoire.UI
         public void ApplyPreferences()
         {
             AppPreferenceSnapshot preferences = AppPreferences.Load();
+            desktopPreferences = preferences;
             SetDeviceStatsVisible(!preferences.HideDeviceStats);
             if (clientSessions != null)
             {
@@ -902,6 +903,7 @@ namespace Grimoire.UI
                     preferences.AllowUnlimitedClients
                         ? UnlimitedDesktopClients
                         : DefaultMaximumDesktopClients);
+                ApplyClientFrameRatePolicies();
                 UpdateClientStripButtons();
                 RefreshHomeState();
             }
@@ -1271,6 +1273,7 @@ namespace Grimoire.UI
                 availableUpdate = release;
                 updateToolStripMenuItem.ToolTipText = "Grimoire Exodus "
                     + release.Version.ToString(3)
+                    + (release.IsPrerelease ? " prerelease" : string.Empty)
                     + " is available";
                 updateToolStripMenuItem.AccessibleName = "Update to Grimoire Exodus " + release.Version.ToString(3);
                 updateToolStripMenuItem.Visible = true;
@@ -3223,9 +3226,17 @@ namespace Grimoire.UI
                 session.OptionState.DesiredFramesPerSecond = framesPerSecond;
                 toolStripTextBox2.Text = framesPerSecond.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 if (FPSToolStripMenuItem.Checked)
+                {
                     Flash.Call("SetFPS", framesPerSecond);
+                    session.OptionState.LastAppliedFramesPerSecond = framesPerSecond;
+                }
                 else
+                {
                     Flash.Call("SetFPS", 24);
+                    session.OptionState.LastAppliedFramesPerSecond = 24;
+                }
+                session.OptionState.FrameRateManagedByPerformancePolicy = false;
+                ApplyClientFrameRatePolicy(session);
             }
         }
 

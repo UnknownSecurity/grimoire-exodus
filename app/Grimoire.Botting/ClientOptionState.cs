@@ -19,6 +19,7 @@ namespace Grimoire.Botting
             Timer = 250;
             WalkSpeed = 8;
             DesiredFramesPerSecond = 60;
+            LastAppliedFramesPerSecond = -1;
             SyncRoot = new object();
             HandlerHideRoom = new HandlerMapJoin();
             HandlerAfk = new HandlerAFK();
@@ -83,6 +84,10 @@ namespace Grimoire.Botting
         public bool UseCustomFrameRate { get; set; }
 
         public int DesiredFramesPerSecond { get; set; }
+
+        internal int LastAppliedFramesPerSecond { get; set; }
+
+        internal bool FrameRateManagedByPerformancePolicy { get; set; }
 
         public int Timer { get; set; }
 

@@ -22,4 +22,6 @@ Pushes to `main` that change the website or its referenced artwork are deployed 
 
 <https://unknownsecurity.github.io/grimoire-exodus/>
 
-The support form does not collect credentials, upload files, or embed a GitHub token. It creates a prefilled official GitHub issue composer URL. A selected GBot remains local and must be attached by the reporter on GitHub after reviewing it for private data.
+Text-only support reports are sent through the Cloudflare Worker in `worker/`, which keeps the repository-scoped GitHub credential out of the static site and browser. The Worker validates and bounds every field, restricts browser origins, and applies a per-address rate limit before creating an issue.
+
+The support form does not collect credentials or upload files. A selected GBot always remains local and uses the authenticated GitHub issue composer because GitHub does not provide an anonymous issue-attachment API. See `worker/README.md` for credential scope, validation, and deployment instructions.

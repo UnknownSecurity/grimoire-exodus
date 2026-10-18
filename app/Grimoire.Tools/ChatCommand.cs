@@ -96,7 +96,16 @@ namespace Grimoire.Tools
                         World.FPSBox = !World.FPSBox;
                         return;
                     }
-                    Flash.Call("SetFPS", int.Parse(parameter));
+                    int requestedFrameRate = int.Parse(parameter);
+                    Flash.Call("SetFPS", requestedFrameRate);
+                    ClientSession session = ClientSessionContext.Resolve();
+                    if (session != null)
+                    {
+                        session.OptionState.UseCustomFrameRate = true;
+                        session.OptionState.DesiredFramesPerSecond = requestedFrameRate;
+                        session.OptionState.LastAppliedFramesPerSecond = requestedFrameRate;
+                        session.OptionState.FrameRateManagedByPerformancePolicy = false;
+                    }
                     break;
                 case "pickdrop":
                     PickDrop(parameter);

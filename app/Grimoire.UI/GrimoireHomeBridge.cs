@@ -64,12 +64,8 @@ namespace Grimoire.UI
             try
             {
                 AccountCredentials credentials = AccountVault.GetCredentials(id);
-                root.RequestGameOpen(credentials);
-                return CreateResponse(
-                    true,
-                    root.IsGameReady
-                        ? "Opening AQW and filling the selected account."
-                        : "AQW is still loading. It will open automatically when ready.");
+                bool opened = root.TryOpenAccountInNewClient(credentials, out string message);
+                return CreateResponse(opened, message);
             }
             catch (Exception ex)
             {
@@ -187,7 +183,7 @@ namespace Grimoire.UI
                 quickBots = root.QuickBotNames,
                 quickBotsLoading = root.IsQuickBotIndexing,
                 version = root.AppVersion,
-                accounts = AccountVault.GetAccounts()
+                accounts = root.HomeAccountSnapshots
             });
         }
 

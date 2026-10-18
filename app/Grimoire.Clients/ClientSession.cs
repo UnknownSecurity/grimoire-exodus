@@ -19,6 +19,9 @@ namespace Grimoire.Clients
         private int loadProgress;
         private int latestPingLatency = int.MinValue;
         private ClientSessionState state;
+        private string displayName;
+        private string assignedAccountId;
+        private string assignedAccountUsername;
 
         public ClientSession(string displayName, IFlashBridge flashBridge, IBotEngine botEngine = null)
         {
@@ -28,7 +31,8 @@ namespace Grimoire.Clients
                 throw new ArgumentNullException(nameof(flashBridge));
 
             Id = Guid.NewGuid();
-            DisplayName = displayName;
+            DefaultDisplayName = displayName;
+            this.displayName = displayName;
             FlashBridge = flashBridge;
             BotEngine = botEngine;
             lifetimeCancellation = new CancellationTokenSource();
@@ -39,6 +43,8 @@ namespace Grimoire.Clients
             PacketSpammer = new Spammer(this);
             state = ClientSessionState.Created;
             FlashBridge.SwfLoadProgress += FlashBridge_SwfLoadProgress;
+            GameState.IdentityChanged += GameState_IdentityChanged;
+            GameState.LoginStateChanged += GameState_LoginStateChanged;
 
             ActiveXFlashBridge activeXBridge = flashBridge as ActiveXFlashBridge;
             activeXBridge?.BindSession(this);
@@ -52,7 +58,9 @@ namespace Grimoire.Clients
 
         public Guid Id { get; }
 
-        public string DisplayName { get; }
+        public string DefaultDisplayName { get; }
+
+        public string DisplayName => displayName;
 
         public IFlashBridge FlashBridge { get; }
 
@@ -92,6 +100,90 @@ namespace Grimoire.Clients
         public event EventHandler StateChanged;
 
         public event EventHandler LoadProgressChanged;
+
+        public event EventHandler IdentityChanged;
+
+        public void AssignAccount(string accountId, string username)
+        {
+            ThrowIfDisposed();
+            string normalizedId = NormalizeAccountValue(accountId);
+            string normalizedUsername = NormalizeAccountValue(username);
+            if (normalizedId == null && normalizedUsername == null)
+                throw new ArgumentException("An account identifier or username is required.");
+
+            if (string.Equals(assignedAccountId, normalizedId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(assignedAccountUsername, normalizedUsername, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            assignedAccountId = normalizedId;
+            assignedAccountUsername = normalizedUsername;
+            IdentityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void ReleaseAssignedAccount()
+        {
+            ThrowIfDisposed();
+            if (assignedAccountId == null && assignedAccountUsername == null)
+                return;
+
+            assignedAccountId = null;
+            assignedAccountUsername = null;
+            IdentityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public bool IsAssignedToAccount(string accountId, string username)
+        {
+            string normalizedId = NormalizeAccountValue(accountId);
+            string normalizedUsername = NormalizeAccountValue(username);
+            if (normalizedId != null
+                && assignedAccountId != null
+                && string.Equals(assignedAccountId, normalizedId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (normalizedUsername == null)
+                return false;
+            if (assignedAccountUsername != null
+                && string.Equals(assignedAccountUsername, normalizedUsername, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return GameState.IsLoggedIn
+                && !string.IsNullOrWhiteSpace(GameState.Username)
+                && string.Equals(GameState.Username.Trim(), normalizedUsername, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void GameState_IdentityChanged(object sender, EventArgs e)
+        {
+            string nextDisplayName = DefaultDisplayName;
+            if (GameState.IsLoggedIn && !string.IsNullOrWhiteSpace(GameState.Username))
+                nextDisplayName = GameState.Username.Trim();
+
+            if (string.Equals(displayName, nextDisplayName, StringComparison.Ordinal))
+                return;
+
+            displayName = nextDisplayName;
+            IdentityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void GameState_LoginStateChanged(object sender, EventArgs e)
+        {
+            if (GameState.IsLoggedIn || (assignedAccountId == null && assignedAccountUsername == null))
+                return;
+
+            assignedAccountId = null;
+            assignedAccountUsername = null;
+            IdentityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private static string NormalizeAccountValue(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
 
         private void BotEngine_ConfigurationChanged(Configuration configuration)
         {
@@ -179,6 +271,8 @@ namespace Grimoire.Clients
                 lifetimeCancellation.Cancel();
 
             FlashBridge.SwfLoadProgress -= FlashBridge_SwfLoadProgress;
+            GameState.IdentityChanged -= GameState_IdentityChanged;
+            GameState.LoginStateChanged -= GameState_LoginStateChanged;
             if (BotEngine != null)
                 BotEngine.ConfigurationChanged -= BotEngine_ConfigurationChanged;
             LoginState.Dispose();

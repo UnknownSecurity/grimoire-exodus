@@ -1,5 +1,6 @@
 using AxShockwaveFlashObjects;
 using Grimoire.Botting;
+using Grimoire.Botting.Commands.Misc;
 using Grimoire.Clients;
 using Grimoire.Game;
 using Grimoire.Game.Data;
@@ -19,7 +20,7 @@ internal static class ClientSessionIsolationSmoke
         try
         {
             Run();
-            Console.WriteLine("PASS: client context, mutable game and bot state, load state, and disposal are isolated.");
+            Console.WriteLine("PASS: client context, identity and account reservations, mutable state, load state, and disposal are isolated.");
             return 0;
         }
         catch (Exception exception)
@@ -39,10 +40,22 @@ internal static class ClientSessionIsolationSmoke
         Task firstOptionsTask = null;
         Task secondOptionsTask = null;
         CancellationToken firstLoginToken = CancellationToken.None;
+        int firstIdentityChanges = 0;
+        int secondIdentityChanges = 0;
         try
         {
             manager.Add(first);
             manager.Add(second);
+            first.IdentityChanged += delegate { firstIdentityChanges++; };
+            second.IdentityChanged += delegate { secondIdentityChanges++; };
+
+            first.AssignAccount("account-one", " first ");
+            second.AssignAccount("account-two", "second");
+            AssertEqual(true, first.IsAssignedToAccount("ACCOUNT-ONE", null), "The first account reservation was not normalized by identifier.");
+            AssertEqual(true, first.IsAssignedToAccount(null, "FIRST"), "The first account reservation was not normalized by username.");
+            AssertEqual(false, second.IsAssignedToAccount("account-one", "first"), "An account reservation crossed client sessions.");
+            AssertEqual(1, firstIdentityChanges, "The first account reservation did not publish one identity change.");
+            AssertEqual(1, secondIdentityChanges, "The second account reservation did not publish one identity change.");
 
             AssertEqual("first", Flash.Call<string>("identity", new object[0]), "The initial active client was not used.");
             manager.SetActive(second);
@@ -64,6 +77,19 @@ internal static class ClientSessionIsolationSmoke
 
             using (ClientSessionContext.Push(second))
                 AssertState("second", 202, false);
+            AssertEqual("first", first.DisplayName, "The logged-in character name was not applied to its client title.");
+            AssertEqual("Client 02", second.DisplayName, "A logged-out client title used stale character identity.");
+            AssertEqual(true, first.IsAssignedToAccount(null, "first"), "The authenticated account was not recognized as active.");
+            AssertEqual(true, second.IsAssignedToAccount("account-two", null), "A pending account reservation was lost before login.");
+
+            using (ClientSessionContext.Push(first))
+                Player.IsLoggedIn = false;
+            AssertEqual("Client 01", first.DisplayName, "Logging out did not restore the client's generic title.");
+            AssertEqual(false, first.IsAssignedToAccount("account-one", "first"), "Logging out did not release the account reservation.");
+            AssertEqual(true, second.IsAssignedToAccount("account-two", "second"), "Logging out one client released another client's account.");
+            using (ClientSessionContext.Push(first))
+                Player.IsLoggedIn = true;
+            AssertEqual("first", first.DisplayName, "Logging back in did not restore the detected character title.");
 
             if (ReferenceEquals(first.GameState.Inventory, second.GameState.Inventory)
                 || ReferenceEquals(first.GameState.DropStack, second.GameState.DropStack)
@@ -204,6 +230,15 @@ internal static class ClientSessionIsolationSmoke
             firstBridge.ReportProgress(100);
             if (!first.IsReady || second.IsReady)
                 throw new InvalidOperationException("Client readiness was not isolated.");
+
+            using (ClientSessionContext.Push(first))
+            {
+                new CmdSetFPS { FPS = 73 }.Execute(first.BotEngine).GetAwaiter().GetResult();
+            }
+            AssertEqual<int?>(73, firstBridge.LastFrameRate, "The FPS command did not target its owning client.");
+            AssertEqual(73, first.OptionState.DesiredFramesPerSecond, "The FPS command target was not retained for client switching.");
+            AssertEqual(true, first.OptionState.UseCustomFrameRate, "The FPS command was not marked as an explicit per-client target.");
+            AssertEqual<int?>(null, secondBridge.LastFrameRate, "The FPS command crossed into another client.");
 
             using (ClientSessionContext.Push(first))
             {
@@ -365,6 +400,7 @@ internal static class ClientSessionIsolationSmoke
         private readonly string identity;
 
         private int gameFunctionCallCount;
+        private int lastFrameRate = int.MinValue;
 
         public FakeFlashBridge(string identity)
         {
@@ -383,6 +419,15 @@ internal static class ClientSessionIsolationSmoke
             get { return Volatile.Read(ref gameFunctionCallCount); }
         }
 
+        public int? LastFrameRate
+        {
+            get
+            {
+                int value = Volatile.Read(ref lastFrameRate);
+                return value == int.MinValue ? (int?)null : value;
+            }
+        }
+
         public event Action<int> SwfLoadProgress;
 
         public event FlashBridgeCallHandler FlashCall;
@@ -398,6 +443,8 @@ internal static class ClientSessionIsolationSmoke
 
         public T Call<T>(string function, params object[] args)
         {
+            if (function == "SetFPS" && args != null && args.Length == 1)
+                Volatile.Write(ref lastFrameRate, Convert.ToInt32(args[0]));
             return typeof(T) == typeof(string) ? (T)(object)identity : default(T);
         }
 

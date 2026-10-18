@@ -13,6 +13,8 @@ namespace Grimoire.Game
     public sealed class GameSessionState
     {
         private static readonly GameSessionState LegacyState = new GameSessionState();
+        private string username;
+        private bool isLoggedIn;
 
         static GameSessionState()
         {
@@ -69,9 +71,36 @@ namespace Grimoire.Game
 
         public int CharUserId { get; set; }
 
-        public string Username { get; set; }
+        public string Username
+        {
+            get { return username; }
+            set
+            {
+                if (string.Equals(username, value, StringComparison.Ordinal))
+                    return;
 
-        public bool IsLoggedIn { get; set; }
+                username = value;
+                IdentityChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public bool IsLoggedIn
+        {
+            get { return isLoggedIn; }
+            set
+            {
+                if (isLoggedIn == value)
+                    return;
+
+                isLoggedIn = value;
+                LoginStateChanged?.Invoke(this, EventArgs.Empty);
+                IdentityChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public event EventHandler IdentityChanged;
+
+        public event EventHandler LoginStateChanged;
 
         public List<Map> Maps { get; set; }
 

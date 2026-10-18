@@ -32,18 +32,42 @@ interface GitHubRelease {
   name?: string
   tag_name?: string
   assets?: GitHubAsset[]
+  draft?: boolean
+  prerelease?: boolean
 }
 
+interface ReleaseOption {
+  label: string
+  value: string
+}
+
+interface IssueRelayResponse {
+  ok?: boolean
+  error?: string
+  issueUrl?: string
+}
+
+const runtimeConfig = useRuntimeConfig()
 const repositoryUrl = 'https://github.com/UnknownSecurity/grimoire-exodus'
 const releasesUrl = repositoryUrl + '/releases'
 const stableReleaseUrl = releasesUrl + '/latest'
 const securityUrl = repositoryUrl + '/security/advisories/new'
+const issueApiUrl = String(runtimeConfig.public.issueApiUrl || '').replace(/\/$/, '')
 
 const downloadUrl = ref(stableReleaseUrl)
 const releaseLabel = ref('Latest stable Windows release')
 const releaseDetail = ref('Official installer and portable ZIP')
+const releaseOptions = ref<ReleaseOption[]>([])
+const releasesLoading = ref(true)
+const releasesUnavailable = ref(false)
+const customVersion = ref('')
 const attachment = ref<File | null>(null)
 const formError = ref('')
+const fallbackIssueUrl = ref('')
+const issueCreatedUrl = ref('')
+const isSubmitting = ref(false)
+const formStartedAt = ref(0)
+const customVersionOption = '__other__'
 
 const categories = [
   { value: 'Bug', label: 'Bug report', icon: Bug },
@@ -57,33 +81,91 @@ const form = reactive({
   version: '',
   details: '',
   steps: '',
-  includeGbot: false
+  includeGbot: false,
+  website: ''
 })
 
 const canSubmit = computed(() =>
   form.subject.trim().length >= 5
   && form.details.trim().length >= 20
   && (!form.includeGbot || attachment.value !== null)
+  && !isSubmitting.value
+  && !issueCreatedUrl.value
 )
 
+const subjectLength = computed(() => form.subject.trim().length)
+const detailsLength = computed(() => form.details.trim().length)
+const subjectWordCount = computed(() => countWords(form.subject))
+const detailsWordCount = computed(() => countWords(form.details))
+const reportedVersion = computed(() =>
+  form.version === customVersionOption ? customVersion.value.trim() : form.version.trim()
+)
+const submitHint = computed(() => {
+  if (issueCreatedUrl.value) return 'Issue created successfully.'
+  if (isSubmitting.value) return 'Creating the GitHub issue securely…'
+
+  const requirements: string[] = []
+  const subjectRemaining = Math.max(0, 5 - subjectLength.value)
+  const detailsRemaining = Math.max(0, 20 - detailsLength.value)
+
+  if (subjectRemaining > 0) {
+    requirements.push(`${subjectRemaining} more subject ${subjectRemaining === 1 ? 'character' : 'characters'}`)
+  }
+  if (detailsRemaining > 0) {
+    requirements.push(`${detailsRemaining} more detail ${detailsRemaining === 1 ? 'character' : 'characters'}`)
+  }
+  if (form.includeGbot && !attachment.value) {
+    requirements.push('a GBot file')
+  }
+
+  if (requirements.length > 0) return `Still needed: ${requirements.join(', ')}.`
+  if (form.includeGbot) return 'Ready to continue to GitHub and attach the selected GBot.'
+  if (issueApiUrl) return 'Ready to send without GitHub sign-in.'
+  return 'Ready to continue to GitHub.'
+})
+const submitButtonLabel = computed(() => {
+  if (issueCreatedUrl.value) return 'Issue created'
+  if (isSubmitting.value) return 'Sending report…'
+  if (!form.includeGbot && issueApiUrl) return 'Send report'
+  return 'Continue to GitHub'
+})
+
 onMounted(async () => {
+  formStartedAt.value = Date.now()
   try {
-    const response = await fetch('https://api.github.com/repos/UnknownSecurity/grimoire-exodus/releases/latest', {
+    const response = await fetch('https://api.github.com/repos/UnknownSecurity/grimoire-exodus/releases?per_page=30', {
       headers: { Accept: 'application/vnd.github+json' }
     })
-    if (!response.ok) return
+    if (!response.ok) throw new Error(`GitHub releases request failed with ${response.status}`)
 
-    const release = await response.json() as GitHubRelease
-    const installer = (release.assets || []).find(asset =>
+    const releases = await response.json() as GitHubRelease[]
+    const publishedReleases = releases.filter(release => !release.draft && release.tag_name)
+    releaseOptions.value = publishedReleases.map(release => ({
+      value: release.tag_name || '',
+      label: `${release.tag_name}${release.prerelease ? ' (pre-release)' : ''}`
+    }))
+
+    const stableRelease = publishedReleases.find(release => !release.prerelease)
+    if (!stableRelease) return
+
+    const installer = (stableRelease.assets || []).find(asset =>
       asset.name.toLowerCase().includes('setup') && asset.name.toLowerCase().endsWith('.msi')
     )
     if (installer) downloadUrl.value = installer.browser_download_url
-    releaseLabel.value = release.name || release.tag_name || releaseLabel.value
+    releaseLabel.value = stableRelease.name || stableRelease.tag_name || releaseLabel.value
     releaseDetail.value = installer ? 'Official Windows installer' : 'Official release downloads'
   } catch {
-    // The official releases page remains a safe fallback when GitHub's API is unavailable.
+    releasesUnavailable.value = true
+    // The official releases page and manual version choice remain safe fallbacks.
+  } finally {
+    releasesLoading.value = false
   }
 })
+
+function countWords(value: string) {
+  const trimmed = value.trim()
+  return trimmed ? trimmed.split(/\s+/).length : 0
+}
 
 function onGbotSelected(event: Event) {
   const input = event.target as HTMLInputElement
@@ -117,15 +199,7 @@ function cleanInline(value: string) {
   return value.replace(/[\r\n`<>]/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
-function submitIssue() {
-  formError.value = ''
-  if (!canSubmit.value) {
-    formError.value = form.includeGbot && !attachment.value
-      ? 'Choose the GBot you want to reference before continuing.'
-      : 'Add a subject and at least 20 characters of detail before continuing.'
-    return
-  }
-
+function buildComposerUrl() {
   const selectedFile = attachment.value
   const attachmentSection = form.includeGbot && selectedFile
     ? [
@@ -143,7 +217,7 @@ function submitIssue() {
     form.category,
     '',
     '## Grimoire version',
-    form.version.trim() || 'Not specified',
+    reportedVersion.value || 'Not specified',
     '',
     '## Details',
     form.details.trim(),
@@ -163,7 +237,60 @@ function submitIssue() {
     title: `[${form.category}] ${form.subject.trim()}`,
     body
   })
-  window.location.assign(`${repositoryUrl}/issues/new?${parameters.toString()}`)
+  return `${repositoryUrl}/issues/new?${parameters.toString()}`
+}
+
+async function submitIssue() {
+  formError.value = ''
+  fallbackIssueUrl.value = ''
+  issueCreatedUrl.value = ''
+  if (!canSubmit.value) {
+    formError.value = form.includeGbot && !attachment.value
+      ? 'Choose the GBot you want to reference before continuing.'
+      : 'Add a subject and at least 20 characters of detail before continuing.'
+    return
+  }
+
+  const composerUrl = buildComposerUrl()
+  if (form.includeGbot || !issueApiUrl) {
+    window.location.assign(composerUrl)
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    const response = await fetch(`${issueApiUrl}/issues`, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        category: form.category,
+        subject: form.subject.trim(),
+        version: reportedVersion.value,
+        details: form.details.trim(),
+        steps: form.steps.trim(),
+        includeGbot: false,
+        website: form.website,
+        startedAt: formStartedAt.value
+      })
+    })
+    const result = await response.json() as IssueRelayResponse
+    if (!response.ok || !result.ok || !result.issueUrl) {
+      throw new Error(result.error || 'The report could not be created.')
+    }
+
+    const expectedPrefix = `${repositoryUrl}/issues/`
+    if (!result.issueUrl.startsWith(expectedPrefix)) {
+      throw new Error('The issue service returned an unexpected response.')
+    }
+
+    issueCreatedUrl.value = result.issueUrl
+  } catch (error) {
+    formError.value = error instanceof Error ? error.message : 'The report could not be created.'
+    fallbackIssueUrl.value = composerUrl
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -271,7 +398,7 @@ function submitIssue() {
             </div>
             <h2 class="mt-4 text-3xl font-black tracking-tight text-white">Tell us what needs attention.</h2>
             <p class="mt-4 text-sm leading-7 text-zinc-400">
-              Fill out the report here and continue to GitHub, where you can review and submit the issue. Your GitHub account becomes the contact—this site never asks for an email address or GitHub token.
+              Text-only reports are sent securely without requiring a GitHub account. Reports with a GBot continue to GitHub so you can review the issue and attach the local file yourself.
             </p>
 
             <div class="mt-7 rounded-2xl border border-amber-300/15 bg-amber-300/[.04] p-4 text-sm leading-6 text-zinc-400">
@@ -291,6 +418,7 @@ function submitIssue() {
           </div>
 
           <form class="space-y-5" @submit.prevent="submitIssue">
+            <input v-model="form.website" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" class="hidden">
             <div class="grid gap-5 sm:grid-cols-2">
               <label class="block text-sm font-semibold text-zinc-200">
                 Report type
@@ -304,12 +432,24 @@ function submitIssue() {
 
               <label class="block text-sm font-semibold text-zinc-200">
                 Grimoire version <span class="font-normal text-zinc-500">(optional)</span>
-                <input
+                <select
                   v-model="form.version"
+                  class="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#211b2b] px-4 text-zinc-100 outline-none transition focus:border-exodus-400 focus:ring-2 focus:ring-exodus-500/20"
+                >
+                  <option value="">{{ releasesLoading ? 'Loading releases…' : 'Not sure / not listed' }}</option>
+                  <option v-for="release in releaseOptions" :key="release.value" :value="release.value">{{ release.label }}</option>
+                  <option :value="customVersionOption">Other version…</option>
+                </select>
+                <input
+                  v-if="form.version === customVersionOption"
+                  v-model="customVersion"
                   maxlength="40"
-                  placeholder="Example: 1.4.0"
+                  placeholder="Enter a version or build name"
                   class="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#211b2b] px-4 text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-exodus-400 focus:ring-2 focus:ring-exodus-500/20"
                 >
+                <span v-if="releasesUnavailable" class="mt-2 block text-xs font-normal leading-5 text-amber-300">
+                  Releases could not be loaded. Choose “Other version” to enter it manually.
+                </span>
               </label>
             </div>
 
@@ -321,8 +461,15 @@ function submitIssue() {
                 minlength="5"
                 maxlength="100"
                 placeholder="A short summary"
+                aria-describedby="subject-counter"
                 class="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#211b2b] px-4 text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-exodus-400 focus:ring-2 focus:ring-exodus-500/20"
               >
+              <span id="subject-counter" class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-normal" aria-live="polite">
+                <span :class="subjectLength >= 5 ? 'text-emerald-400' : 'text-amber-300'">
+                  {{ subjectLength >= 5 ? 'Minimum reached' : `${5 - subjectLength} more ${5 - subjectLength === 1 ? 'character' : 'characters'} needed` }}
+                </span>
+                <span class="text-zinc-500">{{ subjectWordCount }} {{ subjectWordCount === 1 ? 'word' : 'words' }} · {{ subjectLength }}/100 characters</span>
+              </span>
             </label>
 
             <label class="block text-sm font-semibold text-zinc-200">
@@ -334,8 +481,15 @@ function submitIssue() {
                 maxlength="4000"
                 rows="6"
                 placeholder="Describe the issue, expected behavior, or feature idea."
+                aria-describedby="details-counter"
                 class="mt-2 w-full resize-y rounded-xl border border-white/10 bg-[#211b2b] px-4 py-3 leading-6 text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-exodus-400 focus:ring-2 focus:ring-exodus-500/20"
               />
+              <span id="details-counter" class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-normal" aria-live="polite">
+                <span :class="detailsLength >= 20 ? 'text-emerald-400' : 'text-amber-300'">
+                  {{ detailsLength >= 20 ? 'Minimum reached' : `${20 - detailsLength} more ${20 - detailsLength === 1 ? 'character' : 'characters'} needed` }}
+                </span>
+                <span class="text-zinc-500">{{ detailsWordCount }} {{ detailsWordCount === 1 ? 'word' : 'words' }} · {{ detailsLength }}/4000 characters</span>
+              </span>
             </label>
 
             <label class="block text-sm font-semibold text-zinc-200">
@@ -354,7 +508,7 @@ function submitIssue() {
                 <input v-model="form.includeGbot" type="checkbox" class="mt-1 h-4 w-4 accent-[#8c4bd3]">
                 <span>
                   <span class="block text-sm font-semibold text-zinc-200">Include a GBot with this report</span>
-                  <span class="mt-1 block text-xs leading-5 text-zinc-500">The selected file stays on your computer. GitHub will ask you to attach it after the issue composer opens.</span>
+                  <span class="mt-1 block text-xs leading-5 text-zinc-500">The selected file stays on your computer. Because GitHub does not support anonymous issue attachments, GitHub will ask you to attach it after the issue composer opens.</span>
                 </span>
               </label>
 
@@ -368,13 +522,35 @@ function submitIssue() {
 
             <p v-if="formError" role="alert" class="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ formError }}</p>
 
+            <p v-if="issueCreatedUrl" role="status" class="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+              Issue created successfully.
+              <a :href="issueCreatedUrl" target="_blank" rel="noreferrer" class="font-bold underline underline-offset-4">View it on GitHub</a>.
+            </p>
+
+            <a
+              v-if="fallbackIssueUrl"
+              :href="fallbackIssueUrl"
+              class="inline-flex items-center gap-2 text-sm font-semibold text-exodus-300 underline underline-offset-4 hover:text-exodus-200"
+            >
+              Open the GitHub issue composer instead
+              <ExternalLink class="h-4 w-4" aria-hidden="true" />
+            </a>
+
+            <p
+              class="rounded-xl border px-4 py-3 text-sm"
+              :class="canSubmit ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200' : 'border-amber-300/15 bg-amber-300/[.04] text-amber-200'"
+              aria-live="polite"
+            >
+              {{ submitHint }}
+            </p>
+
             <button
               type="submit"
               class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-exodus-500 px-6 py-3 font-bold text-white transition hover:bg-exodus-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-exodus-200 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="!canSubmit"
             >
               <Send class="h-5 w-5" aria-hidden="true" />
-              Continue to GitHub
+              {{ submitButtonLabel }}
             </button>
           </form>
         </div>

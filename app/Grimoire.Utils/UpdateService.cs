@@ -26,6 +26,15 @@ namespace Grimoire.Utils
 
         public static async Task<UpdateRelease> CheckForUpdateAsync(CancellationToken cancellationToken)
         {
+            return await CheckForUpdateAsync(
+                AppPreferences.Load().UsePrereleaseUpdates,
+                cancellationToken);
+        }
+
+        public static async Task<UpdateRelease> CheckForUpdateAsync(
+            bool includePrereleases,
+            CancellationToken cancellationToken)
+        {
             using (CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, ReleasesApi))
             {
@@ -36,7 +45,7 @@ namespace Grimoire.Utils
                 {
                     response.EnsureSuccessStatusCode();
                     string json = await response.Content.ReadAsStringAsync();
-                    return SelectUpdate(json, CurrentVersion);
+                    return SelectUpdate(json, CurrentVersion, includePrereleases);
                 }
             }
         }

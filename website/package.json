@@ -8,7 +8,11 @@
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "worker:check": "wrangler deploy --dry-run --config worker/wrangler.jsonc --outdir .wrangler-dist",
+    "worker:deploy": "wrangler deploy --config worker/wrangler.jsonc",
+    "worker:dev": "wrangler dev --config worker/wrangler.jsonc",
+    "worker:test": "node --test worker/test/*.test.mjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.0.0",
@@ -21,6 +25,7 @@
     "@types/node": "^26.6.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vue-tsc": "^3.3.13"
+    "vue-tsc": "^3.3.13",
+    "wrangler": "4.151.1"
   }
 }

@@ -41,6 +41,7 @@ namespace Grimoire.UI
         private bool homeWorkspaceVisible = true;
         private bool pendingAdditionalLaunchRequest;
         private byte[] clientSwfBytes;
+        private AppPreferenceSnapshot desktopPreferences;
 
         private static int GetConfiguredMaximumDesktopClients()
         {
@@ -61,8 +62,11 @@ namespace Grimoire.UI
             public AccountCredentials PendingCredentials;
             public int CredentialFillAttempts;
             public System.Windows.Forms.Timer CredentialFillTimer;
+            public System.Windows.Forms.Timer FrameRateReadyTimer;
+            public bool FrameRatePolicyInitialized;
             public EventHandler StateChanged;
             public EventHandler LoadProgressChanged;
+            public EventHandler IdentityChanged;
             public Action<bool> BotRunningChanged;
             public Task ProxyTask;
         }
@@ -352,13 +356,54 @@ namespace Grimoire.UI
             }
         }
 
+        public bool TryOpenAccountInNewClient(AccountCredentials credentials, out string message)
+        {
+            if (credentials == null)
+                throw new ArgumentNullException(nameof(credentials));
+
+            if (clientSessions != null && clientSessions.Sessions.Any(candidate =>
+                !candidate.IsDisposed && candidate.IsAssignedToAccount(credentials.Id, credentials.Username)))
+            {
+                message = "That account is already assigned to an open client.";
+                return false;
+            }
+
+            if (clientSessions == null || clientSessions.Sessions.Count >= clientSessions.MaximumSessions)
+            {
+                message = "The six-client safety limit has been reached.";
+                return false;
+            }
+
+            ClientSession session = null;
+            try
+            {
+                session = CreateClientSession(GetNextClientDisplayName(), true);
+                InitializeClientProxy(session);
+                StartClientProxy(session);
+                session.AssignAccount(credentials.Id, credentials.Username);
+                RequestGameOpen(session, credentials, true);
+                message = session.IsReady
+                    ? "Opening the selected account in a new AQW client."
+                    : "Creating a new AQW client. The selected account will log in when it is ready.";
+                return true;
+            }
+            catch (Exception exception)
+            {
+                if (session != null && clientSessions.Sessions.Contains(session))
+                    clientSessions.Remove(session);
+                StartupDiagnostics.RecordException("Account client initialization", exception, false);
+                message = "Grimoire could not create a client for that account. Existing clients were not changed.";
+                return false;
+            }
+        }
+
         private string GetNextClientDisplayName()
         {
             for (int index = 1; index <= clientSessions.Sessions.Count + 1; index++)
             {
                 string candidate = "Client " + index.ToString("00");
                 if (!clientSessions.Sessions.Any(session =>
-                    string.Equals(session.DisplayName, candidate, StringComparison.OrdinalIgnoreCase)))
+                    string.Equals(session.DefaultDisplayName, candidate, StringComparison.OrdinalIgnoreCase)))
                 {
                     return candidate;
                 }
@@ -403,6 +448,7 @@ namespace Grimoire.UI
                 host.Controls.Add(placeholder);
                 placeholder.BringToFront();
                 GamePanel.Controls.Add(host);
+                ApplyFlashPresentationSettings(flashControl, GetDesktopPreferences());
 
                 bridge = new ActiveXFlashBridge(flashControl);
                 session = new ClientSession(displayName, bridge, new Bot());
@@ -482,6 +528,82 @@ namespace Grimoire.UI
             }
         }
 
+        private AppPreferenceSnapshot GetDesktopPreferences()
+        {
+            return desktopPreferences ?? (desktopPreferences = AppPreferences.Load());
+        }
+
+        private static void ApplyFlashPresentationSettings(
+            AxShockwaveFlash flashControl,
+            AppPreferenceSnapshot preferences)
+        {
+            if (flashControl == null || preferences == null)
+                return;
+
+            if (preferences.RenderingProfile != FlashRenderingProfile.Automatic)
+            {
+                string requestedMode = preferences.RenderingProfile == FlashRenderingProfile.Direct
+                    ? "direct"
+                    : "gpu";
+                string previousMode = null;
+                try
+                {
+                    previousMode = flashControl.WMode;
+                    flashControl.WMode = requestedMode;
+                }
+                catch (Exception exception)
+                {
+                    TryRestoreWindowMode(flashControl, previousMode);
+                    StartupDiagnostics.RecordWarning(
+                        "Flash rendering profile fallback (" + preferences.RenderingProfile + ")",
+                        exception);
+                }
+            }
+
+            if (preferences.RenderQuality != FlashRenderQuality.Automatic)
+            {
+                string previousQuality = null;
+                try
+                {
+                    previousQuality = flashControl.Quality2;
+                    flashControl.Quality2 = preferences.RenderQuality.ToString();
+                }
+                catch (Exception exception)
+                {
+                    TryRestoreRenderQuality(flashControl, previousQuality);
+                    StartupDiagnostics.RecordWarning(
+                        "Flash render quality fallback (" + preferences.RenderQuality + ")",
+                        exception);
+                }
+            }
+        }
+
+        private static void TryRestoreWindowMode(AxShockwaveFlash flashControl, string previousMode)
+        {
+            if (string.IsNullOrWhiteSpace(previousMode))
+                return;
+            try
+            {
+                flashControl.WMode = previousMode;
+            }
+            catch
+            {
+            }
+        }
+
+        private static void TryRestoreRenderQuality(AxShockwaveFlash flashControl, string previousQuality)
+        {
+            if (string.IsNullOrWhiteSpace(previousQuality))
+                return;
+            try
+            {
+                flashControl.Quality2 = previousQuality;
+            }
+            catch
+            {
+            }
+        }
+
         private void AttachClientWorkspace(ClientWorkspaceState workspace)
         {
             Button tabButton = CreateClientStripButton(
@@ -500,9 +622,11 @@ namespace Grimoire.UI
 
             workspace.StateChanged = delegate { QueueClientWorkspaceRefresh(workspace); };
             workspace.LoadProgressChanged = delegate { QueueClientWorkspaceRefresh(workspace); };
+            workspace.IdentityChanged = delegate { QueueClientWorkspaceRefresh(workspace); };
             workspace.BotRunningChanged = delegate { QueueClientWorkspaceRefresh(workspace); };
             workspace.Session.StateChanged += workspace.StateChanged;
             workspace.Session.LoadProgressChanged += workspace.LoadProgressChanged;
+            workspace.Session.IdentityChanged += workspace.IdentityChanged;
             if (workspace.Session.BotEngine != null)
                 workspace.Session.BotEngine.IsRunningChanged += workspace.BotRunningChanged;
             UpdateClientWorkspace(workspace);
@@ -544,8 +668,39 @@ namespace Grimoire.UI
             if (ready && workspace.OpenRequested)
                 CompleteGameOpen(workspace);
 
+            if (ready)
+                ScheduleInitialFrameRatePolicy(workspace);
+
             UpdateClientTab(workspace);
             RefreshHomeState();
+        }
+
+        private void ScheduleInitialFrameRatePolicy(ClientWorkspaceState workspace)
+        {
+            if (workspace == null
+                || workspace.FrameRatePolicyInitialized
+                || workspace.FrameRateReadyTimer != null)
+            {
+                return;
+            }
+
+            // A 100% download callback arrives just before the SWF registers
+            // its ExternalInterface methods. Retry once after that event has
+            // completed instead of treating an early SetFPS call as applied.
+            workspace.FrameRateReadyTimer = new System.Windows.Forms.Timer { Interval = 500 };
+            workspace.FrameRateReadyTimer.Tick += delegate
+            {
+                workspace.FrameRateReadyTimer.Stop();
+                workspace.FrameRateReadyTimer.Dispose();
+                workspace.FrameRateReadyTimer = null;
+                if (workspace.Session.IsDisposed || !workspace.Session.IsReady)
+                    return;
+
+                workspace.Session.OptionState.LastAppliedFramesPerSecond = -1;
+                ApplyClientFrameRatePolicy(workspace.Session);
+                workspace.FrameRatePolicyInitialized = true;
+            };
+            workspace.FrameRateReadyTimer.Start();
         }
 
         private void UpdateClientTab(ClientWorkspaceState workspace)
@@ -555,6 +710,7 @@ namespace Grimoire.UI
             bool botRunning = session.BotEngine != null && session.BotEngine.IsRunning;
             string status = GetClientStatusText(session, botRunning);
             workspace.TabButton.Text = session.DisplayName + " · " + status;
+            workspace.TabButton.AccessibleName = "Show " + session.DisplayName;
             workspace.TabButton.ForeColor = botRunning
                 ? Color.LimeGreen
                 : session.State == ClientSessionState.Faulted
@@ -712,11 +868,13 @@ namespace Grimoire.UI
                 {
                     Flash.Instance.SetGameObject("mcLogin.ni.text", workspace.PendingCredentials.Username);
                     Flash.Instance.SetGameObject("mcLogin.pi.text", workspace.PendingCredentials.Password);
+                    AutoRelogin.LoginExecute();
                     StopCredentialFill(workspace.Session);
                 }
                 else if (workspace.CredentialFillAttempts >= 60)
                 {
                     StopCredentialFill(workspace.Session);
+                    workspace.Session.ReleaseAssignedAccount();
                 }
             }
         }
@@ -785,8 +943,71 @@ namespace Grimoire.UI
                     currentWorkspace.Placeholder.BringToFront();
                 EnsureClientTabVisible(currentWorkspace.TabButton);
             }
+            ApplyClientFrameRatePolicies();
             UpdateClientStripButtons();
             RefreshHomeState();
+        }
+
+        private void ApplyClientFrameRatePolicies()
+        {
+            if (clientSessions == null)
+                return;
+
+            foreach (ClientSession session in clientSessions.Sessions)
+                ApplyClientFrameRatePolicy(session);
+        }
+
+        private void ApplyClientFrameRatePolicy(ClientSession session)
+        {
+            if (session == null || session.IsDisposed || !session.IsReady)
+                return;
+
+            ClientOptionState options = session.OptionState;
+            bool botRunning = session.BotEngine != null && session.BotEngine.IsRunning;
+            if (botRunning && !options.FrameRateManagedByPerformancePolicy)
+                return;
+
+            AppPreferenceSnapshot preferences = GetDesktopPreferences();
+            bool isActive = ReferenceEquals(clientSessions.ActiveSession, session);
+            bool hasExplicitFrameRate = options.UseCustomFrameRate;
+            bool throttle = !isActive
+                && !botRunning
+                && preferences.ThrottleInactiveClients;
+            bool useActiveClientFrameRate = isActive
+                && !hasExplicitFrameRate
+                && preferences.UseActiveClientFrameRate;
+            if (!hasExplicitFrameRate
+                && !throttle
+                && !useActiveClientFrameRate
+                && !options.FrameRateManagedByPerformancePolicy)
+            {
+                return;
+            }
+
+            int desiredFrameRate = hasExplicitFrameRate
+                ? options.DesiredFramesPerSecond
+                : useActiveClientFrameRate
+                    ? ClampFrameRate(preferences.ActiveClientFramesPerSecond, 1, 240)
+                    : 24;
+            int effectiveFrameRate = throttle
+                ? ClampFrameRate(preferences.InactiveClientFramesPerSecond, 1, 60)
+                : desiredFrameRate;
+            bool managed = throttle || useActiveClientFrameRate;
+
+            if (options.LastAppliedFramesPerSecond == effectiveFrameRate)
+            {
+                options.FrameRateManagedByPerformancePolicy = managed;
+                return;
+            }
+
+            session.FlashBridge.Call<object>("SetFPS", effectiveFrameRate);
+            options.LastAppliedFramesPerSecond = effectiveFrameRate;
+            options.FrameRateManagedByPerformancePolicy = managed;
+        }
+
+        private static int ClampFrameRate(int value, int minimum, int maximum)
+        {
+            return Math.Max(minimum, Math.Min(maximum, value));
         }
 
         private void CloseSelectedClient_Click(object sender, EventArgs e)
@@ -869,10 +1090,18 @@ namespace Grimoire.UI
 
         private void DetachClientWorkspace(ClientWorkspaceState workspace)
         {
+            if (workspace.FrameRateReadyTimer != null)
+            {
+                workspace.FrameRateReadyTimer.Stop();
+                workspace.FrameRateReadyTimer.Dispose();
+                workspace.FrameRateReadyTimer = null;
+            }
             if (workspace.StateChanged != null)
                 workspace.Session.StateChanged -= workspace.StateChanged;
             if (workspace.LoadProgressChanged != null)
                 workspace.Session.LoadProgressChanged -= workspace.LoadProgressChanged;
+            if (workspace.IdentityChanged != null)
+                workspace.Session.IdentityChanged -= workspace.IdentityChanged;
             if (workspace.BotRunningChanged != null && workspace.Session.BotEngine != null)
                 workspace.Session.BotEngine.IsRunningChanged -= workspace.BotRunningChanged;
             workspace.TabButton.Click -= ClientTab_Click;
@@ -952,6 +1181,17 @@ namespace Grimoire.UI
                 botRunning = session.BotEngine != null && session.BotEngine.IsRunning,
                 running = session.State == ClientSessionState.Running
             }).ToArray();
+
+        public object[] HomeAccountSnapshots => AccountVault.GetAccounts()
+            .Select(account => (object)new
+            {
+                id = account.Id,
+                label = account.Label,
+                username = account.Username,
+                active = clientSessions != null && clientSessions.Sessions.Any(session =>
+                    !session.IsDisposed && session.IsAssignedToAccount(account.Id, account.Username))
+            })
+            .ToArray();
 
         public bool CanAddClient => clientSessions != null
             && clientSessions.Sessions.Count < clientSessions.MaximumSessions;
