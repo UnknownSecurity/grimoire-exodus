@@ -9,3 +9,6 @@
 *.rar binary
 *.ico binary
 *.png binary
+
+# Keep embedded and generated HTML out of GitHub's repository language totals.
+*.html linguist-detectable=false

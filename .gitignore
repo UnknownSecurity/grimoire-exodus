@@ -21,6 +21,9 @@ plugin-workspaces/
 
 # Node.js (dev tooling only - commitlint, husky)
 node_modules/
+website/.nuxt/
+website/.output/
+website/dist/
 
 # Android and Gradle (the wrapper remains tracked)
 .gradle/
