@@ -142,9 +142,13 @@ namespace Grimoire.Clients
 
         public string CallGameFunction(string path, params object[] args)
         {
-            return args != null && args.Length > 0
-                ? Call<string>("callGameFunction", new object[] { path }.Concat(args).ToArray())
-                : CallWithStringArguments<string>("callGameFunction0", path);
+            if (args == null || args.Length == 0)
+                return CallWithStringArguments<string>("callGameFunction0", path);
+
+            object[] callArguments = new object[args.Length + 1];
+            callArguments[0] = path;
+            Array.Copy(args, 0, callArguments, 1, args.Length);
+            return Call<string>("callGameFunction", callArguments);
         }
 
         public string GetGameObject(string path)

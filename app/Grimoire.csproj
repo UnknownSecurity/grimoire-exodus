@@ -328,6 +328,7 @@
     <Compile Include="Grimoire.Botting\OptionsManager.cs" />
     <Compile Include="Grimoire.Clients\ActiveXFlashBridge.cs" />
     <Compile Include="Grimoire.Clients\ClientLoginState.cs" />
+    <Compile Include="Grimoire.Clients\ClientSurfacePolicy.cs" />
     <Compile Include="Grimoire.Clients\ClientSession.cs" />
     <Compile Include="Grimoire.Clients\ClientSessionContext.cs" />
     <Compile Include="Grimoire.Clients\ClientSessionManager.cs" />

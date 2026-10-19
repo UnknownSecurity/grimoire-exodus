@@ -421,7 +421,7 @@ namespace Grimoire.UI
                 BackColor = Color.Black,
                 Dock = DockStyle.Fill,
                 Name = "workspace" + displayName.Replace(" ", string.Empty),
-                Visible = true
+                Visible = false
             };
             Label placeholder = new Label
             {
@@ -671,6 +671,7 @@ namespace Grimoire.UI
             if (ready)
                 ScheduleInitialFrameRatePolicy(workspace);
 
+            UpdateClientSurfaceVisibility();
             UpdateClientTab(workspace);
             RefreshHomeState();
         }
@@ -784,8 +785,7 @@ namespace Grimoire.UI
             workspace.ShowWhileLoading = true;
             homeWorkspaceVisible = false;
             clientSessions.SetActive(session);
-            homeBrowser.Visible = true;
-            workspace.Host.Visible = true;
+            UpdateClientSurfaceVisibility();
             workspace.Host.BringToFront();
             if (session.IsReady)
                 CompleteGameOpen(workspace);
@@ -812,6 +812,7 @@ namespace Grimoire.UI
             else if (showWhileLoading)
             {
                 homeWorkspaceVisible = false;
+                UpdateClientSurfaceVisibility();
                 workspace.Host.BringToFront();
                 workspace.Placeholder.BringToFront();
             }
@@ -831,7 +832,7 @@ namespace Grimoire.UI
                 && (homeWorkspaceVisible || workspace.ShowWhileLoading))
             {
                 homeWorkspaceVisible = false;
-                workspace.Host.Visible = true;
+                UpdateClientSurfaceVisibility();
                 workspace.Host.BringToFront();
                 workspace.FlashControl.Focus();
             }
@@ -905,7 +906,7 @@ namespace Grimoire.UI
         private void ShowHomeWorkspace()
         {
             homeWorkspaceVisible = true;
-            homeBrowser.Visible = true;
+            UpdateClientSurfaceVisibility();
             homeBrowser.BringToFront();
             UpdateClientStripButtons();
             RefreshHomeState();
@@ -913,9 +914,9 @@ namespace Grimoire.UI
 
         private void RestoreWorkspaceZOrder()
         {
+            UpdateClientSurfaceVisibility();
             if (homeWorkspaceVisible)
             {
-                homeBrowser.Visible = true;
                 homeBrowser.BringToFront();
                 return;
             }
@@ -932,6 +933,8 @@ namespace Grimoire.UI
             foreach (ClientWorkspaceState workspace in clientWorkspaces.Values)
                 UpdateClientTab(workspace);
 
+            UpdateClientSurfaceVisibility();
+
             if (!homeWorkspaceVisible
                 && current != null
                 && clientWorkspaces.TryGetValue(current, out ClientWorkspaceState currentWorkspace))
@@ -946,6 +949,26 @@ namespace Grimoire.UI
             ApplyClientFrameRatePolicies();
             UpdateClientStripButtons();
             RefreshHomeState();
+        }
+
+        private void UpdateClientSurfaceVisibility()
+        {
+            if (homeBrowser != null)
+                homeBrowser.Visible = homeWorkspaceVisible;
+
+            ClientSession activeSession = clientSessions?.ActiveSession;
+            foreach (ClientWorkspaceState workspace in clientWorkspaces.Values)
+            {
+                bool isActive = ReferenceEquals(activeSession, workspace.Session);
+                bool botRunning = workspace.Session.BotEngine != null
+                    && workspace.Session.BotEngine.IsRunning;
+                bool shouldRender = ClientSurfacePolicy.ShouldRenderClientSurface(
+                    homeWorkspaceVisible,
+                    isActive,
+                    botRunning);
+                if (workspace.Host.Visible != shouldRender)
+                    workspace.Host.Visible = shouldRender;
+            }
         }
 
         private void ApplyClientFrameRatePolicies()

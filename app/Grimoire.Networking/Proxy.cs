@@ -394,6 +394,21 @@ namespace Grimoire.Networking
 
         public void LogPackets(string text, string text2)
         {
+            if (ownerSession == null)
+            {
+                LogPacketsCore(text, text2);
+                return;
+            }
+
+            if (ownerSession.IsDisposed)
+                return;
+
+            using (ClientSessionContext.Push(ownerSession))
+                LogPacketsCore(text, text2);
+        }
+
+        private void LogPacketsCore(string text, string text2)
+        {
             switch (text)
             {
                 case "packet":

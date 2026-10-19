@@ -147,10 +147,10 @@ namespace Grimoire.UI
                 cmbRenderingProfile,
                 "Automatic (recommended)",
                 "Direct presentation (experimental)",
-                "GPU rendering (experimental)");
+                "GPU (single-client experimental)");
             content.Controls.Add(CreatePreferenceRow(
                 "Rendering profile",
-                "Automatic preserves the current compatibility path. Experimental profiles safely fall back if Flash rejects the request.",
+                "Automatic is recommended for multiple clients. Legacy GPU presentation can stall on some drivers and is best limited to one client.",
                 cmbRenderingProfile));
 
             ConfigureDropDown(cmbRenderQuality, "Automatic", "High", "Medium", "Low");

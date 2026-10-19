@@ -32,6 +32,27 @@ internal static class ClientSessionIsolationSmoke
 
     private static void Run()
     {
+        AssertEqual(
+            false,
+            ClientSurfacePolicy.ShouldRenderClientSurface(true, true, false),
+            "The AQW surface remained visible behind the Home workspace.");
+        AssertEqual(
+            true,
+            ClientSurfacePolicy.ShouldRenderClientSurface(false, true, false),
+            "The selected AQW surface was hidden.");
+        AssertEqual(
+            false,
+            ClientSurfacePolicy.ShouldRenderClientSurface(false, false, false),
+            "An inactive idle AQW surface remained visible behind the selected client.");
+        AssertEqual(
+            true,
+            ClientSurfacePolicy.ShouldRenderClientSurface(false, false, true),
+            "An inactive bot-owned AQW surface was hidden and could lose legacy timing behavior.");
+        AssertEqual(
+            true,
+            ClientSurfacePolicy.ShouldRenderClientSurface(true, false, true),
+            "A bot-owned AQW surface was hidden behind Home and could lose legacy timing behavior.");
+
         ClientSessionManager manager = new ClientSessionManager(2, true);
         FakeFlashBridge firstBridge = new FakeFlashBridge("first");
         FakeFlashBridge secondBridge = new FakeFlashBridge("second");
@@ -151,6 +172,17 @@ internal static class ClientSessionIsolationSmoke
             AssertEqual(1, secondPackets, "The second packet stream lost or received another session's packet.");
             AssertEqual(75, first.LatestPingLatency, "The first client's ping was not retained by its session.");
             AssertEqual<int?>(null, second.LatestPingLatency, "Ping state leaked into another client.");
+
+            first.GameState.PlayerQuests.LoadedQuests.Clear();
+            second.GameState.PlayerQuests.LoadedQuests.Clear();
+            manager.SetActive(second);
+            first.PacketDispatcher.LogPackets("packetFromServer", QuestPacket(1001, "First quest"));
+            manager.SetActive(first);
+            second.PacketDispatcher.LogPackets("packetFromServer", QuestPacket(2002, "Second quest"));
+            AssertEqual(1, first.GameState.PlayerQuests.LoadedQuests.Count, "The first client's quest response was routed through the active tab.");
+            AssertEqual(1001, first.GameState.PlayerQuests.LoadedQuests[0].Id, "The first client received another client's quest.");
+            AssertEqual(1, second.GameState.PlayerQuests.LoadedQuests.Count, "The second client's quest response was routed through the active tab.");
+            AssertEqual(2002, second.GameState.PlayerQuests.LoadedQuests[0].Id, "The second client received another client's quest.");
 
             int firstSpamIterations = 0;
             int secondSpamIterations = 0;
@@ -321,6 +353,17 @@ internal static class ClientSessionIsolationSmoke
     private static string UnknownPacket()
     {
         return "{\"t\":\"xt\",\"b\":{\"r\":-1,\"o\":{\"cmd\":\"sessionIsolationProbe\"}}}";
+    }
+
+    private static string QuestPacket(int id, string name)
+    {
+        return "{\"t\":\"xt\",\"b\":{\"r\":-1,\"o\":{\"cmd\":\"getQuests\",\"quests\":{\""
+            + id
+            + "\":{\"QuestID\":"
+            + id
+            + ",\"sName\":\""
+            + name
+            + "\"}}}}}";
     }
 
     private static void PopulateState(string name, int seed, bool loggedIn)
