@@ -1554,10 +1554,10 @@
     "semantic_hash": "c6e921efe0b90937ec3447c829edc6f0"
   },
   "app/Grimoire.UI/LogForm.cs": {
-    "mtime": 1792115964.7294042,
-    "seen": 1792162093.054525,
-    "ast_hash": "2dc65b37721823b6cd152a3c202111ef",
-    "semantic_hash": "2dc65b37721823b6cd152a3c202111ef"
+    "mtime": 1792382200.979171,
+    "seen": 1792382414.6672485,
+    "ast_hash": "29b914bcadb5402106f9697a83d4e5c4",
+    "semantic_hash": ""
   },
   "app/Grimoire.UI/NonClosableVSTabControl.cs": {
     "mtime": 1791964840.8269782,
@@ -1722,9 +1722,9 @@
     "semantic_hash": ""
   },
   "app/Grimoire.csproj": {
-    "mtime": 1792368792.6563308,
-    "seen": 1792368945.6040485,
-    "ast_hash": "f8a6e55e5ce69887e8f07305ee769d90",
+    "mtime": 1792382202.0243664,
+    "seen": 1792382414.6673653,
+    "ast_hash": "b4ffd58a52d9a73306da434f7601e8e9",
     "semantic_hash": ""
   },
   "app/Grimoire/Program.cs": {
@@ -1848,9 +1848,9 @@
     "semantic_hash": "496b835f8858b4805afdb578b4408909"
   },
   ".github/workflows/tagged-build.yml": {
-    "mtime": 1792235796.751344,
-    "seen": 1792235869.9618714,
-    "ast_hash": "8111045b94deb359ed2c658424a646c4",
+    "mtime": 1792382203.5962026,
+    "seen": 1792382414.6675994,
+    "ast_hash": "e7648967d6565ac94e073be5c69c4c12",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -1956,9 +1956,9 @@
     "semantic_hash": "199d3daf752beb46089a647034586b1d"
   },
   "app/Grimoire.UI/SettingsForm.cs": {
-    "mtime": 1792368861.7341776,
-    "seen": 1792368945.6040266,
-    "ast_hash": "39d6337548a3e068aa97647b582a9558",
+    "mtime": 1792382529.1954658,
+    "seen": 1792395341.402422,
+    "ast_hash": "9ac9b5442a51edbd3c461d13836af244",
     "semantic_hash": ""
   },
   "app/Grimoire.Utils/AppPreferences.cs": {
@@ -2364,9 +2364,9 @@
     "semantic_hash": ""
   },
   "docs/releases/v1.4.0.md": {
-    "mtime": 1792371472.2987537,
-    "seen": 1792371487.4682767,
-    "ast_hash": "f10add081b0f3d019827cda128d019b7",
+    "mtime": 1792382204.1030936,
+    "seen": 1792382414.667654,
+    "ast_hash": "de627fdbd3ce3b98eafe656a803e029b",
     "semantic_hash": ""
   },
   "docs/desktop-rendering-performance-research-v1.4.0.md": {
@@ -2475,6 +2475,24 @@
     "mtime": 1792368877.4408433,
     "seen": 1792368945.603903,
     "ast_hash": "0b1a5230bdd64e365e2a06848d89d9aa",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.Utils/SupportDiagnostics.cs": {
+    "mtime": 1792382908.6186192,
+    "seen": 1792395341.4024408,
+    "ast_hash": "7e58d21ec361fa7f8ada171f99fb9afc",
+    "semantic_hash": ""
+  },
+  "tests/SupportDiagnosticsSmoke.cs": {
+    "mtime": 1792382604.5227077,
+    "seen": 1792395341.4024932,
+    "ast_hash": "0280c365f5000867ffad9370f5a3f2b9",
+    "semantic_hash": ""
+  },
+  "tests/Test-SupportDiagnostics.ps1": {
+    "mtime": 1792382203.0749152,
+    "seen": 1792382414.6675434,
+    "ast_hash": "40e3c5c286ad3a648f1c6ca729af94d2",
     "semantic_hash": ""
   }
 }

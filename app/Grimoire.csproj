@@ -418,6 +418,7 @@
     <Compile Include="Grimoire.Utils\AppPreferences.cs" />
     <Compile Include="Grimoire.Utils\AtomicFile.cs" />
     <Compile Include="Grimoire.Utils\BoundedTextBuffer.cs" />
+    <Compile Include="Grimoire.Utils\SupportDiagnostics.cs" />
     <Compile Include="Grimoire.Utils\StartupDiagnostics.cs" />
     <Compile Include="Grimoire.Utils\SingleInstanceBroker.cs" />
     <Compile Include="Grimoire.Utils\UpdateService.cs" />

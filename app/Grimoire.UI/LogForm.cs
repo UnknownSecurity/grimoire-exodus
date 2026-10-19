@@ -146,6 +146,16 @@ namespace Grimoire.UI
             debugBuffer.Append(text);
         }
 
+        internal string GetDebugLogSnapshot(int maximumCharacters)
+        {
+            if (txtLogDebug.IsDisposed || txtLogDebug.InvokeRequired)
+                return string.Empty;
+
+            string text = txtLogDebug.Text ?? string.Empty;
+            int limit = Math.Max(0, maximumCharacters);
+            return text.Length <= limit ? text : text.Substring(text.Length - limit);
+        }
+
         //
         // Append Drops
         //

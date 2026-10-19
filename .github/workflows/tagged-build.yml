@@ -58,6 +58,7 @@ jobs:
           .\tests\Test-LegacyGbotCompatibility.ps1 -Configuration Release
           .\tests\Test-UpdateService.ps1 -Configuration Release
           .\tests\Test-StartupDiagnostics.ps1 -Configuration Release
+          .\tests\Test-SupportDiagnostics.ps1 -Configuration Release
           .\tests\Test-UpdaterMerge.ps1 -Configuration Release
           .\tests\Test-FlashActivation.ps1 -Configuration Release
 

@@ -4,8 +4,10 @@ using Grimoire.Tools;
 using Grimoire.Utils;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Grimoire.UI
@@ -29,9 +31,15 @@ namespace Grimoire.UI
         private readonly DarkNumericUpDown numActiveClientFrameRate = new DarkNumericUpDown();
         private readonly DarkCheckBox chkThrottleInactiveClients = new DarkCheckBox();
         private readonly DarkNumericUpDown numInactiveClientFrameRate = new DarkNumericUpDown();
+        private readonly DarkTextBox txtSupportReport = new DarkTextBox();
+        private readonly DarkButton btnRefreshLogs = new DarkButton();
+        private readonly DarkButton btnCopySupportReport = new DarkButton();
+        private readonly DarkButton btnOpenDiagnosticsFolder = new DarkButton();
         private readonly Dictionary<int, DarkComboBox> bindingSelectors = new Dictionary<int, DarkComboBox>();
         private readonly DarkButton btnSave = new DarkButton();
         private readonly DarkButton btnClose = new DarkButton();
+        private string supportReport;
+        private bool supportReportLoaded;
 
         public SettingsForm(Root owner)
         {
@@ -74,6 +82,7 @@ namespace Grimoire.UI
             tabs.TabPages.Add(CreateGeneralTab());
             tabs.TabPages.Add(CreatePerformanceTab());
             tabs.TabPages.Add(CreateKeyBindingsTab());
+            tabs.TabPages.Add(CreateLogsTab());
             tabs.TabPages.Add(CreateAdvancedTab());
 
             FlowLayoutPanel footer = new FlowLayoutPanel
@@ -95,6 +104,7 @@ namespace Grimoire.UI
             Controls.Add(layout);
             AcceptButton = btnSave;
             CancelButton = btnClose;
+            Shown += SettingsForm_Shown;
         }
 
         private TabPage CreateGeneralTab()
@@ -317,6 +327,147 @@ namespace Grimoire.UI
 
             page.Controls.Add(content);
             return page;
+        }
+
+        private TabPage CreateLogsTab()
+        {
+            TabPage page = CreateTabPage("Logs");
+            TableLayoutPanel content = new TableLayoutPanel
+            {
+                BackColor = BackgroundColor,
+                ColumnCount = 1,
+                Dock = DockStyle.Fill,
+                Padding = new Padding(18, 12, 18, 12),
+                RowCount = 3
+            };
+            content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 56F));
+            content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+
+            Label note = CreateBodyLabel(
+                "Review recent startup and crash diagnostics here. The copied report removes common private fields and paths automatically; review free-form errors before sharing.");
+            note.AutoEllipsis = false;
+            note.Dock = DockStyle.Fill;
+            note.Padding = new Padding(0, 2, 0, 7);
+
+            txtSupportReport.AccessibleName = "Privacy-filtered support report";
+            txtSupportReport.BackColor = CardColor;
+            txtSupportReport.BorderStyle = BorderStyle.FixedSingle;
+            txtSupportReport.Dock = DockStyle.Fill;
+            txtSupportReport.Font = new Font("Consolas", 8.5F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            txtSupportReport.ForeColor = Color.Gainsboro;
+            txtSupportReport.Multiline = true;
+            txtSupportReport.ReadOnly = true;
+            txtSupportReport.ScrollBars = ScrollBars.Both;
+            txtSupportReport.Text = "Collecting diagnostics...";
+            txtSupportReport.WordWrap = false;
+
+            FlowLayoutPanel actions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft,
+                Padding = new Padding(0, 8, 0, 0),
+                WrapContents = false
+            };
+            ConfigureButton(btnRefreshLogs, "Refresh", 88);
+            ConfigureButton(btnCopySupportReport, "Copy device info + logs", 174);
+            ConfigureButton(btnOpenDiagnosticsFolder, "Open diagnostics folder", 160);
+            btnRefreshLogs.Click += RefreshLogs_Click;
+            btnCopySupportReport.Click += CopySupportReport_Click;
+            btnOpenDiagnosticsFolder.Click += OpenDiagnosticsFolder_Click;
+            actions.Controls.Add(btnRefreshLogs);
+            actions.Controls.Add(btnCopySupportReport);
+            actions.Controls.Add(btnOpenDiagnosticsFolder);
+
+            content.Controls.Add(note, 0, 0);
+            content.Controls.Add(txtSupportReport, 0, 1);
+            content.Controls.Add(actions, 0, 2);
+            page.Controls.Add(content);
+            return page;
+        }
+
+        private async void SettingsForm_Shown(object sender, EventArgs e)
+        {
+            if (!supportReportLoaded)
+                await RefreshSupportReportAsync();
+        }
+
+        private async void RefreshLogs_Click(object sender, EventArgs e)
+        {
+            await RefreshSupportReportAsync();
+        }
+
+        private async void CopySupportReport_Click(object sender, EventArgs e)
+        {
+            if (!supportReportLoaded)
+                await RefreshSupportReportAsync();
+            if (string.IsNullOrWhiteSpace(supportReport) || IsDisposed)
+                return;
+
+            try
+            {
+                Clipboard.SetText(supportReport);
+                DarkMessageBox.Show(
+                    this,
+                    "The privacy-filtered device information and logs were copied.",
+                    "Support report copied",
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception exception)
+            {
+                DarkMessageBox.Show(this, exception.Message, "Unable to copy support report", MessageBoxIcon.Error);
+            }
+        }
+
+        private void OpenDiagnosticsFolder_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(AppPaths.DataDirectory) { UseShellExecute = true });
+            }
+            catch (Exception exception)
+            {
+                DarkMessageBox.Show(this, exception.Message, "Unable to open diagnostics folder", MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task RefreshSupportReportAsync()
+        {
+            btnRefreshLogs.Enabled = false;
+            btnCopySupportReport.Enabled = false;
+            txtSupportReport.Text = "Collecting diagnostics...";
+            try
+            {
+                string debugLog = LogForm.Instance.GetDebugLogSnapshot(64000);
+                string report = await Task.Run(() => SupportDiagnostics.BuildReport(debugLog));
+                if (IsDisposed)
+                    return;
+
+                supportReport = report;
+                supportReportLoaded = true;
+                txtSupportReport.Text = report;
+                txtSupportReport.SelectionStart = 0;
+                txtSupportReport.SelectionLength = 0;
+                txtSupportReport.ScrollToCaret();
+            }
+            catch (Exception exception)
+            {
+                supportReport = null;
+                supportReportLoaded = false;
+                if (!IsDisposed)
+                {
+                    txtSupportReport.Text = "The diagnostics report could not be created.\r\n\r\n" + exception.Message;
+                }
+            }
+            finally
+            {
+                if (!IsDisposed)
+                {
+                    btnRefreshLogs.Enabled = true;
+                    btnCopySupportReport.Enabled = supportReportLoaded;
+                }
+            }
         }
 
         private void AddAdvancedAction(
