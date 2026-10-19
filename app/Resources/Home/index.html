@@ -19,7 +19,7 @@
       font-family: "Segoe UI", Arial, sans-serif;
       font-size: 13px;
     }
-    button, input { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
 
     /*
@@ -477,6 +477,82 @@
       text-transform: uppercase;
     }
     .roadmap-item.done .status-tag { border-color: #315e4c; color: #71c6a1; }
+    .report-form { padding-top: 13px; }
+    .report-grid {
+      display: -ms-flexbox;
+      display: flex;
+      margin: 0 -5px;
+    }
+    .report-grid .report-field { width: 50%; padding: 0 5px; }
+    .report-field { display: block; margin-bottom: 12px; color: #cbc5d3; font-size: 11px; font-weight: 700; }
+    .report-field small { color: #777180; font-weight: 400; }
+    .report-control {
+      display: block;
+      width: 100%;
+      margin-top: 5px;
+      padding: 9px 10px;
+      border: 1px solid #393143;
+      border-radius: 8px;
+      outline: none;
+      color: #f5f1ff;
+      background: #171b22;
+    }
+    .report-control:focus { border-color: #7650bd; box-shadow: 0 0 0 2px rgba(118, 80, 189, .18); }
+    textarea.report-control { min-height: 70px; resize: vertical; line-height: 1.45; }
+    .report-counter {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-pack: justify;
+      justify-content: space-between;
+      margin-top: 5px;
+      color: #777180;
+      font-size: 10px;
+      font-weight: 400;
+    }
+    .report-counter .ready { color: #73caa4; }
+    .report-counter .needed { color: #d8ad70; }
+    .report-check {
+      display: block;
+      margin-bottom: 12px;
+      padding: 11px;
+      border: 1px solid #393143;
+      border-radius: 9px;
+      color: #d2cbdc;
+      background: #20242d;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .report-check input { margin: 2px 7px 0 0; vertical-align: top; }
+    .report-check small { display: block; margin: 4px 0 0 24px; color: #7f7888; }
+    .report-privacy {
+      margin: 0 0 12px;
+      padding: 10px 11px;
+      border: 1px solid #58452f;
+      border-radius: 9px;
+      color: #cbb28a;
+      background: #282016;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    .report-security { margin: 0 0 12px; }
+    .report-status {
+      display: none;
+      margin: 0 0 12px;
+      padding: 10px 11px;
+      border: 1px solid #4a385f;
+      border-radius: 9px;
+      color: #d9c8f6;
+      background: #211c29;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .report-status.show { display: block; }
+    .report-status.success { border-color: #315e4c; color: #83d8b2; background: #14251f; }
+    .report-status.error { border-color: #774046; color: #ffb7bd; background: #241216; }
+    .report-actions { display: -ms-flexbox; display: flex; -ms-flex-pack: end; justify-content: flex-end; }
+    .report-actions .button { margin-left: 8px; }
+    .report-open { display: none; }
+    .report-honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 
     .footer {
       margin-top: 18px;
@@ -656,6 +732,60 @@
                   </ul>
                 </div>
               </section>
+
+              <section id="report-accordion" class="accordion">
+                <button class="accordion-toggle" type="button" aria-expanded="false" aria-controls="report-content" onclick="toggleAccordion('report-accordion')">
+                  <span class="accordion-heading">
+                    <span class="icon-box" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path><path d="M8 9h8M8 13h5"></path></svg>
+                    </span>
+                    <span class="accordion-copy">
+                      <span class="accordion-title">Contact / Report Issue</span>
+                      <span class="accordion-subtitle">Send feedback without leaving Grimoire Home.</span>
+                    </span>
+                  </span>
+                  <span class="accordion-chevron" aria-hidden="true">+</span>
+                </button>
+                <div id="report-content" class="accordion-content">
+                  <form id="report-form" class="report-form" autocomplete="off" onsubmit="submitIssueReport(); return false;">
+                    <label class="report-honeypot" aria-hidden="true">Website<input id="report-website" type="text" tabindex="-1" autocomplete="off"></label>
+                    <div class="report-grid">
+                      <label class="report-field">Report type
+                        <select id="report-category" class="report-control">
+                          <option value="Bug">Bug report</option>
+                          <option value="Feature">Feature request</option>
+                          <option value="Support">General support</option>
+                        </select>
+                      </label>
+                      <label class="report-field">Grimoire version <small>(optional)</small>
+                        <input id="report-version" class="report-control" type="text" maxlength="40" placeholder="Current version">
+                      </label>
+                    </div>
+                    <label class="report-field">Subject
+                      <input id="report-subject" class="report-control" type="text" minlength="5" maxlength="100" placeholder="A short summary" required oninput="updateReportCounters()">
+                      <span class="report-counter"><span id="report-subject-requirement" class="needed">5 more characters needed</span><span id="report-subject-count">0 words · 0/100</span></span>
+                    </label>
+                    <label class="report-field">What happened or what should change?
+                      <textarea id="report-details" class="report-control" minlength="20" maxlength="4000" rows="5" placeholder="Describe the issue, expected behavior, or feature idea." required oninput="updateReportCounters()"></textarea>
+                      <span class="report-counter"><span id="report-details-requirement" class="needed">20 more characters needed</span><span id="report-details-count">0 words · 0/4000</span></span>
+                    </label>
+                    <label class="report-field">Steps or additional context <small>(optional)</small>
+                      <textarea id="report-steps" class="report-control" maxlength="2000" rows="3" placeholder="Reproduction steps, relevant settings, or other context."></textarea>
+                    </label>
+                    <label class="report-check">
+                      <input id="report-gbot" type="checkbox">Include a GBot with this report
+                      <small>GitHub will open so you can attach it yourself. Grimoire will not read or upload the local file.</small>
+                    </label>
+                    <p class="report-privacy"><strong>Keep reports public-safe.</strong> Remove passwords, character credentials, account-vault data, private room names, tokens, logs, and personal information before sending.</p>
+                    <p class="report-security"><button class="credit-link" type="button" onclick="openExternal('https://github.com/UnknownSecurity/grimoire-exodus/security/advisories/new')">Report a security issue privately</button></p>
+                    <div id="report-status" class="report-status" role="status" aria-live="polite"></div>
+                    <div class="report-actions">
+                      <button id="report-open-issue" class="button secondary small report-open" type="button" onclick="openCreatedIssue()">View issue</button>
+                      <button id="report-submit" class="button small" type="submit">Send report</button>
+                    </div>
+                  </form>
+                </div>
+              </section>
             </div>
           </section>
         </div>
@@ -701,13 +831,16 @@
   <script>
     var scrollTimer = null;
     var awaitingGameOpen = false;
+    var reportStartedAt = new Date().getTime();
+    var reportPollCount = 0;
+    var createdIssueUrl = null;
 
     function parseHostResponse(raw) {
       try { return JSON.parse(raw); }
       catch (error) { return { success: false, message: "The Grimoire Home bridge returned an invalid response.", accounts: [] }; }
     }
 
-    function invokeHost(method, first, second, third) {
+    function invokeHost(method, first, second, third, fourth, fifth, sixth, seventh) {
       if (!window.external) {
         return { success: false, message: "The Grimoire Home bridge is unavailable.", accounts: [] };
       }
@@ -723,6 +856,8 @@
         if (method === "AddClient") return parseHostResponse(window.external.AddClient());
         if (method === "OpenBotFolder") return parseHostResponse(window.external.OpenBotFolder());
         if (method === "OpenWebsite") return parseHostResponse(window.external.OpenWebsite(first));
+        if (method === "BeginIssueReport") return parseHostResponse(window.external.BeginIssueReport(first, second, third, fourth, fifth, sixth, seventh));
+        if (method === "GetIssueReportStatus") return parseHostResponse(window.external.GetIssueReportStatus(first));
       } catch (error) {
         return { success: false, message: error.message || "Grimoire could not complete the request.", accounts: [] };
       }
@@ -891,6 +1026,9 @@
       renderClients(state.clients || [], !!state.canAddClient);
       setClientRunning((state.clients || []).length > 0);
       document.getElementById("app-version").innerText = state.version || "Development";
+      if (!document.getElementById("report-version").value) {
+        document.getElementById("report-version").value = state.version || "";
+      }
       if (state.gameReady && awaitingGameOpen) {
         awaitingGameOpen = false;
         showNotice(null, false);
@@ -974,6 +1112,119 @@
       if (!state.success) showNotice(state.message, true);
     }
 
+    function trimmed(value) {
+      return String(value || "").replace(/^\s+|\s+$/g, "");
+    }
+
+    function countWords(value) {
+      var cleaned = trimmed(value);
+      return cleaned ? cleaned.split(/\s+/).length : 0;
+    }
+
+    function updateReportCounters() {
+      var subject = trimmed(document.getElementById("report-subject").value);
+      var details = trimmed(document.getElementById("report-details").value);
+      var subjectRemaining = Math.max(0, 5 - subject.length);
+      var detailsRemaining = Math.max(0, 20 - details.length);
+      var subjectRequirement = document.getElementById("report-subject-requirement");
+      var detailsRequirement = document.getElementById("report-details-requirement");
+
+      subjectRequirement.className = subjectRemaining ? "needed" : "ready";
+      subjectRequirement.innerText = subjectRemaining
+        ? subjectRemaining + " more character" + (subjectRemaining === 1 ? "" : "s") + " needed"
+        : "Minimum reached";
+      detailsRequirement.className = detailsRemaining ? "needed" : "ready";
+      detailsRequirement.innerText = detailsRemaining
+        ? detailsRemaining + " more character" + (detailsRemaining === 1 ? "" : "s") + " needed"
+        : "Minimum reached";
+      document.getElementById("report-subject-count").innerText = countWords(subject) + " words · " + subject.length + "/100";
+      document.getElementById("report-details-count").innerText = countWords(details) + " words · " + details.length + "/4000";
+    }
+
+    function setReportStatus(message, kind) {
+      var status = document.getElementById("report-status");
+      status.className = message ? "report-status show" + (kind ? " " + kind : "") : "report-status";
+      status.innerText = message || "";
+      window.setTimeout(function () { updateScrollThumb(false); }, 20);
+    }
+
+    function setReportBusy(busy) {
+      var button = document.getElementById("report-submit");
+      button.disabled = busy;
+      button.innerText = busy ? "Sending report..." : "Send report";
+    }
+
+    function submitIssueReport() {
+      var subject = trimmed(document.getElementById("report-subject").value);
+      var details = trimmed(document.getElementById("report-details").value);
+      if (subject.length < 5 || details.length < 20) {
+        setReportStatus("Add a subject and at least 20 characters of detail before continuing.", "error");
+        updateReportCounters();
+        return;
+      }
+      if (document.getElementById("report-website").value) return;
+
+      createdIssueUrl = null;
+      document.getElementById("report-open-issue").style.display = "none";
+      setReportBusy(true);
+      setReportStatus("Sending the report securely...", "");
+      var state = invokeHost(
+        "BeginIssueReport",
+        document.getElementById("report-category").value,
+        subject,
+        trimmed(document.getElementById("report-version").value),
+        details,
+        trimmed(document.getElementById("report-steps").value),
+        document.getElementById("report-gbot").checked,
+        reportStartedAt);
+      handleIssueReportState(state);
+    }
+
+    function handleIssueReportState(state) {
+      if (!state.success) {
+        setReportBusy(false);
+        setReportStatus(state.message || "The report could not be created.", "error");
+        return;
+      }
+      if (state.external) {
+        setReportBusy(false);
+        setReportStatus(state.message || "GitHub opened for the GBot report.", "success");
+        return;
+      }
+      if (!state.completed) {
+        reportPollCount = 0;
+        window.setTimeout(function () { pollIssueReport(state.requestId); }, 500);
+        return;
+      }
+
+      setReportBusy(false);
+      setReportStatus(state.message || "Issue created successfully.", "success");
+      if (state.issueUrl && state.issueUrl.indexOf("https://github.com/UnknownSecurity/grimoire-exodus/issues/") === 0) {
+        createdIssueUrl = state.issueUrl;
+        document.getElementById("report-open-issue").style.display = "inline-block";
+      }
+    }
+
+    function pollIssueReport(requestId) {
+      reportPollCount++;
+      if (!requestId || reportPollCount > 60) {
+        setReportBusy(false);
+        setReportStatus("The report status timed out. Try again.", "error");
+        return;
+      }
+
+      var state = invokeHost("GetIssueReportStatus", requestId);
+      if (state.success && !state.completed) {
+        window.setTimeout(function () { pollIssueReport(requestId); }, 500);
+        return;
+      }
+      handleIssueReportState(state);
+    }
+
+    function openCreatedIssue() {
+      if (createdIssueUrl) openExternal(createdIssueUrl);
+    }
+
     function updateScrollThumb(show) {
       var viewport = document.getElementById("app-scroll");
       var thumb = document.getElementById("scroll-thumb");
@@ -1001,6 +1252,7 @@
 
     document.getElementById("app-scroll").onscroll = function () { updateScrollThumb(true); };
     window.onresize = function () { updateScrollThumb(false); };
+    updateReportCounters();
     refreshState();
   </script>
 </body>

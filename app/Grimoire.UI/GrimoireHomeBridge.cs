@@ -13,10 +13,12 @@ namespace Grimoire.UI
     public sealed class GrimoireHomeBridge
     {
         private readonly Root root;
+        private readonly IssueReportService issueReports;
 
         public GrimoireHomeBridge(Root root)
         {
             this.root = root ?? throw new ArgumentNullException(nameof(root));
+            issueReports = new IssueReportService();
         }
 
         public string GetState()
@@ -169,6 +171,56 @@ namespace Grimoire.UI
             }
         }
 
+        public string BeginIssueReport(
+            string category,
+            string subject,
+            string version,
+            string details,
+            string steps,
+            bool includeGbot,
+            double startedAt)
+        {
+            try
+            {
+                long startedAtMilliseconds = double.IsNaN(startedAt) || double.IsInfinity(startedAt)
+                    ? 0L
+                    : Convert.ToInt64(Math.Floor(startedAt));
+                IssueReportOperation operation = issueReports.Begin(new IssueReportRequest
+                {
+                    Category = category,
+                    Subject = subject,
+                    Version = version,
+                    Details = details,
+                    Steps = steps,
+                    IncludeGbot = includeGbot,
+                    StartedAtUnixMilliseconds = startedAtMilliseconds
+                });
+
+                if (operation.Success && operation.External)
+                {
+                    Process.Start(new ProcessStartInfo(operation.IssueUrl) { UseShellExecute = true });
+                    operation.IssueUrl = null;
+                }
+                return CreateIssueResponse(operation);
+            }
+            catch (Exception)
+            {
+                return CreateIssueError("The report could not be created. Try again later.");
+            }
+        }
+
+        public string GetIssueReportStatus(string requestId)
+        {
+            try
+            {
+                return CreateIssueResponse(issueReports.GetStatus(requestId));
+            }
+            catch (Exception)
+            {
+                return CreateIssueError("The report status could not be read. Try again.");
+            }
+        }
+
         private string CreateResponse(bool success, string message)
         {
             return JsonConvert.SerializeObject(new
@@ -201,6 +253,34 @@ namespace Grimoire.UI
                 quickBotsLoading = false,
                 version = root.AppVersion,
                 accounts = new object[0]
+            });
+        }
+
+        private static string CreateIssueResponse(IssueReportOperation operation)
+        {
+            return JsonConvert.SerializeObject(new
+            {
+                success = operation.Success,
+                completed = operation.Completed,
+                external = operation.External,
+                requestId = operation.RequestId,
+                issueUrl = operation.IssueUrl,
+                message = operation.Message
+            });
+        }
+
+        private static string CreateIssueError(string message)
+        {
+            return JsonConvert.SerializeObject(new
+            {
+                success = false,
+                completed = true,
+                external = false,
+                requestId = (string)null,
+                issueUrl = (string)null,
+                message = string.IsNullOrWhiteSpace(message)
+                    ? "The report could not be created."
+                    : message
             });
         }
     }

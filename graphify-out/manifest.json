@@ -1536,9 +1536,9 @@
     "semantic_hash": "f48f685ba13796b556ae0db63db0be7f"
   },
   "app/Grimoire.UI/GrimoireHomeBridge.cs": {
-    "mtime": 1792293376.3998723,
-    "seen": 1792293610.6177025,
-    "ast_hash": "7c562b4e777d31d30805684380792ac3",
+    "mtime": 1792396586.470469,
+    "seen": 1792396933.1791513,
+    "ast_hash": "200b05c7ae03aabc614791db56a8a7cb",
     "semantic_hash": ""
   },
   "app/Grimoire.UI/Hotkeys.cs": {
@@ -1722,9 +1722,9 @@
     "semantic_hash": ""
   },
   "app/Grimoire.csproj": {
-    "mtime": 1792382202.0243664,
-    "seen": 1792382414.6673653,
-    "ast_hash": "b4ffd58a52d9a73306da434f7601e8e9",
+    "mtime": 1792396325.9686134,
+    "seen": 1792396933.1791928,
+    "ast_hash": "24ec4d03f5e7e195f10991251b567b83",
     "semantic_hash": ""
   },
   "app/Grimoire/Program.cs": {
@@ -1848,9 +1848,9 @@
     "semantic_hash": "496b835f8858b4805afdb578b4408909"
   },
   ".github/workflows/tagged-build.yml": {
-    "mtime": 1792382203.5962026,
-    "seen": 1792382414.6675994,
-    "ast_hash": "e7648967d6565ac94e073be5c69c4c12",
+    "mtime": 1792396464.2298868,
+    "seen": 1792396933.179279,
+    "ast_hash": "81655901521a664ba038f787124468e3",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -1890,9 +1890,9 @@
     "semantic_hash": "0a93c562383a99017a2c7e726f4ec59e"
   },
   "app/Resources/Home/index.html": {
-    "mtime": 1792293376.9774609,
-    "seen": 1792293610.617885,
-    "ast_hash": "f0d17a6dcbcec82998a64bba1342deb6",
+    "mtime": 1792396769.2817948,
+    "seen": 1792396933.1792865,
+    "ast_hash": "ac594920b089ff12de72df5808e957c3",
     "semantic_hash": ""
   },
   "app/Runtime/Flash/README.md": {
@@ -2364,9 +2364,9 @@
     "semantic_hash": ""
   },
   "docs/releases/v1.4.0.md": {
-    "mtime": 1792382204.1030936,
-    "seen": 1792382414.667654,
-    "ast_hash": "de627fdbd3ce3b98eafe656a803e029b",
+    "mtime": 1792396464.7796762,
+    "seen": 1792396933.1792986,
+    "ast_hash": "d3617518f51bd647e4b0e40c7cbcc174",
     "semantic_hash": ""
   },
   "docs/desktop-rendering-performance-research-v1.4.0.md": {
@@ -2493,6 +2493,24 @@
     "mtime": 1792382203.0749152,
     "seen": 1792382414.6675434,
     "ast_hash": "40e3c5c286ad3a648f1c6ca729af94d2",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.Utils/IssueReportService.cs": {
+    "mtime": 1792396585.962532,
+    "seen": 1792396933.1791832,
+    "ast_hash": "4b12b73d9db7863090346440e88d4b0f",
+    "semantic_hash": ""
+  },
+  "tests/IssueReportServiceSmoke.cs": {
+    "mtime": 1792396463.2327917,
+    "seen": 1792396933.1792362,
+    "ast_hash": "1f2b4c9b08fa268521b4249bfb3a25ff",
+    "semantic_hash": ""
+  },
+  "tests/Test-IssueReportService.ps1": {
+    "mtime": 1792396463.7333753,
+    "seen": 1792396933.1792505,
+    "ast_hash": "8c9a9368e28e9529eb321fb2b1a54635",
     "semantic_hash": ""
   }
 }
