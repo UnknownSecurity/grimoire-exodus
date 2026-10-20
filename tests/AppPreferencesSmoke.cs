@@ -27,11 +27,14 @@ internal static class AppPreferencesSmoke
             AssertEqual(false, defaults.ThrottleInactiveClients, "Inactive-client throttling must remain opt-in.");
             AssertEqual(15, defaults.InactiveClientFramesPerSecond, "The inactive-client FPS default changed.");
             AssertEqual(false, defaults.UsePrereleaseUpdates, "Prerelease updates must remain opt-in.");
+            AssertEqual(false, defaults.EnableMultiClient, "Multi-client mode must remain opt-in.");
 
             AppPreferences.Save(new AppPreferenceSnapshot
             {
                 ConfirmOnClose = true,
                 MinimizeToTray = true,
+                EnableMultiClient = true,
+                AllowUnlimitedClients = true,
                 RenderingProfile = FlashRenderingProfile.Gpu,
                 RenderQuality = FlashRenderQuality.Low,
                 UseActiveClientFrameRate = true,
@@ -48,6 +51,8 @@ internal static class AppPreferencesSmoke
             AssertEqual(true, saved.ThrottleInactiveClients, "The inactive-client throttle was not persisted.");
             AssertEqual(12, saved.InactiveClientFramesPerSecond, "The inactive-client FPS was not persisted.");
             AssertEqual(true, saved.UsePrereleaseUpdates, "The prerelease update preference was not persisted.");
+            AssertEqual(true, saved.EnableMultiClient, "The multi-client preference was not persisted.");
+            AssertEqual(true, saved.AllowUnlimitedClients, "The unlimited-client preference was not persisted.");
 
             Config.Instance.Set("settings.renderingProfile", "unsupported");
             Config.Instance.Set("settings.renderQuality", "unsupported");
@@ -59,7 +64,7 @@ internal static class AppPreferencesSmoke
             AssertEqual(240, sanitized.ActiveClientFramesPerSecond, "The active-client FPS was not clamped.");
             AssertEqual(1, sanitized.InactiveClientFramesPerSecond, "The inactive-client FPS was not clamped.");
 
-            Console.WriteLine("PASS: rendering, FPS, and update-channel preferences keep compatibility defaults and persist safely.");
+            Console.WriteLine("PASS: rendering, FPS, client-limit, and update-channel preferences keep compatibility defaults and persist safely.");
             return 0;
         }
         catch (Exception exception)

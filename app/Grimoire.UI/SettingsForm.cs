@@ -23,8 +23,10 @@ namespace Grimoire.UI
         private readonly DarkCheckBox chkHideDeviceStats = new DarkCheckBox();
         private readonly DarkCheckBox chkConfirmOnClose = new DarkCheckBox();
         private readonly DarkCheckBox chkMinimizeToTray = new DarkCheckBox();
+        private readonly DarkCheckBox chkEnableMultiClient = new DarkCheckBox();
         private readonly DarkCheckBox chkUnlimitedClients = new DarkCheckBox();
         private readonly DarkCheckBox chkPrereleaseUpdates = new DarkCheckBox();
+        private readonly DarkComboBox cmbGameEngine = new DarkComboBox();
         private readonly DarkComboBox cmbRenderingProfile = new DarkComboBox();
         private readonly DarkComboBox cmbRenderQuality = new DarkComboBox();
         private readonly DarkCheckBox chkUseActiveClientFrameRate = new DarkCheckBox();
@@ -136,6 +138,17 @@ namespace Grimoire.UI
                 "Keep the client running in the notification area instead of the taskbar.");
             content.Controls.Add(chkConfirmOnClose);
             content.Controls.Add(chkMinimizeToTray);
+
+            content.Controls.Add(CreateHeading("Experimental"));
+            ConfigurePreferenceCheckBox(
+                chkEnableMultiClient,
+                "Enable multi-client mode (experimental)",
+                "Shows the client switcher and allows up to six independent AQW clients. Extra clients increase CPU and memory use.");
+            chkEnableMultiClient.CheckedChanged += delegate
+            {
+                chkUnlimitedClients.Enabled = chkEnableMultiClient.Checked;
+            };
+            content.Controls.Add(chkEnableMultiClient);
             page.Controls.Add(content);
             return page;
         }
@@ -144,6 +157,14 @@ namespace Grimoire.UI
         {
             TabPage page = CreateTabPage("Performance");
             FlowLayoutPanel content = CreateVerticalContent();
+
+            content.Controls.Add(CreateHeading("Game engine"));
+            ConfigureDropDown(cmbGameEngine, "Flash.ocx (current)", "Ruffle (planned)");
+            cmbGameEngine.Enabled = false;
+            content.Controls.Add(CreatePreferenceRow(
+                "AQW engine",
+                "Flash.ocx is the current compatible engine. Ruffle switching is planned and remains unavailable until the bot bridge is supported safely.",
+                cmbGameEngine));
 
             content.Controls.Add(CreateHeading("Rendering"));
             Label rendererNote = CreateBodyLabel(
@@ -511,7 +532,9 @@ namespace Grimoire.UI
             chkHideDeviceStats.Checked = preferences.HideDeviceStats;
             chkConfirmOnClose.Checked = preferences.ConfirmOnClose;
             chkMinimizeToTray.Checked = preferences.MinimizeToTray;
+            chkEnableMultiClient.Checked = preferences.EnableMultiClient;
             chkUnlimitedClients.Checked = preferences.AllowUnlimitedClients;
+            chkUnlimitedClients.Enabled = preferences.EnableMultiClient;
             chkPrereleaseUpdates.Checked = preferences.UsePrereleaseUpdates;
             cmbRenderingProfile.SelectedIndex = (int)preferences.RenderingProfile;
             cmbRenderQuality.SelectedIndex = (int)preferences.RenderQuality;
@@ -535,6 +558,18 @@ namespace Grimoire.UI
             try
             {
                 AppPreferenceSnapshot previousPreferences = AppPreferences.Load();
+                if (!chkEnableMultiClient.Checked
+                    && previousPreferences.EnableMultiClient
+                    && root.OpenClientCount > 1)
+                {
+                    DarkMessageBox.Show(
+                        this,
+                        "Close the additional AQW clients before turning off multi-client mode. Grimoire will not close a live client automatically.",
+                        "Multi-client is still in use",
+                        MessageBoxIcon.Information);
+                    return;
+                }
+
                 if (chkUnlimitedClients.Checked && !previousPreferences.AllowUnlimitedClients)
                 {
                     DialogResult confirmation = DarkMessageBox.Show(
@@ -571,7 +606,8 @@ namespace Grimoire.UI
                     HideDeviceStats = chkHideDeviceStats.Checked,
                     ConfirmOnClose = chkConfirmOnClose.Checked,
                     MinimizeToTray = chkMinimizeToTray.Checked,
-                    AllowUnlimitedClients = chkUnlimitedClients.Checked,
+                    EnableMultiClient = chkEnableMultiClient.Checked,
+                    AllowUnlimitedClients = chkEnableMultiClient.Checked && chkUnlimitedClients.Checked,
                     UsePrereleaseUpdates = chkPrereleaseUpdates.Checked,
                     RenderingProfile = (FlashRenderingProfile)Math.Max(0, cmbRenderingProfile.SelectedIndex),
                     RenderQuality = (FlashRenderQuality)Math.Max(0, cmbRenderQuality.SelectedIndex),

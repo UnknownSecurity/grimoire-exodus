@@ -30,6 +30,8 @@ namespace Grimoire.Utils
 
         public bool MinimizeToTray { get; set; }
 
+        public bool EnableMultiClient { get; set; }
+
         public bool AllowUnlimitedClients { get; set; }
 
         public bool UsePrereleaseUpdates { get; set; }
@@ -58,6 +60,7 @@ namespace Grimoire.Utils
         private const string HideDeviceStatsKey = "settings.hideDeviceStats";
         private const string ConfirmOnCloseKey = "settings.confirmOnClose";
         private const string MinimizeToTrayKey = "settings.minimizeToTray";
+        private const string EnableMultiClientKey = "settings.enableMultiClient";
         private const string AllowUnlimitedClientsKey = "settings.allowUnlimitedClients";
         private const string UsePrereleaseUpdatesKey = "settings.usePrereleaseUpdates";
         private const string RenderingProfileKey = "settings.renderingProfile";
@@ -75,6 +78,7 @@ namespace Grimoire.Utils
                 HideDeviceStats = GetBoolean(HideDeviceStatsKey, false),
                 ConfirmOnClose = GetBoolean(ConfirmOnCloseKey, true),
                 MinimizeToTray = GetBoolean(MinimizeToTrayKey, true),
+                EnableMultiClient = GetBoolean(EnableMultiClientKey, false),
                 AllowUnlimitedClients = GetBoolean(AllowUnlimitedClientsKey, false),
                 UsePrereleaseUpdates = GetBoolean(UsePrereleaseUpdatesKey, false),
                 RenderingProfile = GetEnum(RenderingProfileKey, FlashRenderingProfile.Automatic),
@@ -95,6 +99,7 @@ namespace Grimoire.Utils
             Config.Instance.Set(HideDeviceStatsKey, preferences.HideDeviceStats.ToString());
             Config.Instance.Set(ConfirmOnCloseKey, preferences.ConfirmOnClose.ToString());
             Config.Instance.Set(MinimizeToTrayKey, preferences.MinimizeToTray.ToString());
+            Config.Instance.Set(EnableMultiClientKey, preferences.EnableMultiClient.ToString());
             Config.Instance.Set(AllowUnlimitedClientsKey, preferences.AllowUnlimitedClients.ToString());
             Config.Instance.Set(UsePrereleaseUpdatesKey, preferences.UsePrereleaseUpdates.ToString());
             Config.Instance.Set(RenderingProfileKey, preferences.RenderingProfile.ToString());

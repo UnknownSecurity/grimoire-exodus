@@ -129,7 +129,11 @@ namespace Grimoire.UI
                 bool added = root.TryAddClient(false);
                 return CreateResponse(
                     added,
-                    added ? "Creating another AQW client." : "The six-client safety limit has been reached.");
+                    added
+                        ? "Creating another AQW client."
+                        : root.IsMultiClientEnabled
+                            ? "The six-client safety limit has been reached."
+                            : "Enable experimental multi-client mode in Settings > General first.");
             }
             catch (Exception ex)
             {
@@ -230,6 +234,7 @@ namespace Grimoire.UI
                 gameReady = root.IsGameReady,
                 gameLoadProgress = root.GameLoadProgress,
                 clientRunning = root.IsClientRunning,
+                multiClientEnabled = root.IsMultiClientEnabled,
                 clients = root.HomeClientSnapshots,
                 canAddClient = root.CanAddClient,
                 quickBots = root.QuickBotNames,
@@ -247,6 +252,7 @@ namespace Grimoire.UI
                 message = string.IsNullOrWhiteSpace(message) ? "The request could not be completed." : message,
                 gameReady = false,
                 clientRunning = root.IsClientRunning,
+                multiClientEnabled = root.IsMultiClientEnabled,
                 clients = root.HomeClientSnapshots,
                 canAddClient = root.CanAddClient,
                 quickBots = new object[0],

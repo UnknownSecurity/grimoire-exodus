@@ -4,7 +4,7 @@
 
 Grimoire Exodus is a maintained AQW automation client based on Grimlite Rev. It is developed and maintained by **dsenin**.
 
-Version 1.4.0 introduces the desktop multi-client preview with isolated client, bot, game, and proxy state. One Grimoire window can host up to six AQW clients by default, with an advanced override, compact client-tab navigation, opt-in rendering and FPS controls, and preserved legacy `.gbot` compatibility.
+Version 1.4.0 introduces an opt-in experimental desktop multi-client preview with isolated client, bot, game, and proxy state. When enabled, one Grimoire window can host up to six AQW clients with an advanced override, compact client-tab navigation, opt-in rendering and FPS controls, and preserved legacy `.gbot` compatibility.
 
 > [!WARNING]
 > Only download Grimoire Exodus from the [official GitHub Releases page](https://github.com/UnknownSecurity/grimoire-exodus/releases). Third-party mirrors, repacks, and unofficial installers are not maintained or verified by this project and may contain malware, credential stealers, cryptocurrency miners, or other unwanted modifications.
@@ -93,10 +93,11 @@ The installer build uses [WiX Toolset 3.14.1](https://github.com/wixtoolset/wix3
 | ✅ Completed | Tag-triggered GitHub Actions release builds |
 | ✅ Completed | A native Windows installer with desktop-shortcut and launch-after-setup options |
 | ✅ Completed | A bundled native Flash runtime that removes the separate Clean Flash requirement |
-| ✅ Completed | Up to six independent AQW clients by default, with per-client bots, state, toolbar effects, safe switching, and an advanced unlimited override |
+| ✅ Completed | Opt-in experimental multi-client mode for up to six independent AQW clients, with per-client bots, state, toolbar effects, safe switching, and an advanced unlimited override |
 | ✅ Completed | Opt-in Direct/GPU Flash presentation requests, render-quality controls, active-client FPS, and bot-safe inactive-client throttling |
 | ✅ Completed | Verified in-app updates from official GitHub releases |
 | ✅ Completed | Startup diagnostics, conservative orphan-state cleanup, tray controls, and crash recovery |
+| Planned | A Flash.ocx / Ruffle engine switcher after the synchronous bot bridge is supported safely |
 | 🧪 In development | Standalone HARMAN AIR Android client and cross-platform compatibility contracts |
 | 🧪 In development | Local AIR host bridge, device login validation, and native control integration |
 | Planned | A community-maintained bot script repository |

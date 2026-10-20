@@ -1,6 +1,6 @@
 # Grimoire Exodus desktop multi-client research and implementation plan
 
-**Status:** Six-client desktop default and advanced unlimited override implemented; extended soak and optional split-screen remain future work
+**Status:** Opt-in experimental desktop mode with a six-client safety cap and advanced unlimited override implemented; extended soak and optional split-screen remain future work
 
 **Research date:** 2026-10-17
 
@@ -47,7 +47,7 @@ behind those contracts by introducing explicit session services and temporary
 compatibility facades.
 
 The research sections preserve the design rationale. Section 15 records the
-implemented six-client default, advanced unlimited override, and remaining
+implemented opt-in six-client mode, advanced unlimited override, and remaining
 follow-up work.
 
 ## 2. Product outcome
@@ -812,7 +812,7 @@ Establish actual baselines in Phase 0, then use these provisional gates:
   actions;
 - no unbounded packet, log, callback, or diagnostic queue;
 - no monotonic private-byte, handle, or GDI growth after warm-up during a
-  one-hour six-client-default soak, plus bounded override stress testing;
+  one-hour six-client opt-in soak, plus bounded override stress testing;
 - client switching remains responsive and does not recreate the ActiveX
   control;
 - bot stop remains bounded, with cancellable waits targeting completion within
@@ -833,7 +833,7 @@ lower-memory supported Windows system as well.
 | Flash callback answers the wrong control | Critical | Instance handler uses event sender/owning bridge; two-control callback test |
 | Static game state leaks between accounts | Critical | Per-session state storage; interleaved event tests; development guard |
 | Hidden Flash client pauses or loses network timers | High | Mandatory real-runtime spike; choose proven host strategy |
-| x86 memory/handle exhaustion | High | Six-client safe default, explicit override warning, resource telemetry, soak tests, graceful initialization failure |
+| x86 memory/handle exhaustion | High | Opt-in multi-client mode, six-client safety cap, explicit override warning, resource telemetry, soak tests, graceful initialization failure |
 | UI-thread/COM deadlock | High | Synchronous UI marshal only at bridge boundary; no UI sync-over-async; stress tests |
 | Bot Manager edits/runs the wrong document | High | Separate model from view, atomic detach/rebind, engine configuration snapshot |
 | Packet/log data mixes clients | High | Per-session streams/buffers and explicit labeled aggregate view |
@@ -898,9 +898,10 @@ packet handler, timer, login flow, or asynchronous toolbar action controls.
 
 ## 15. Implementation status
 
-The production shell now supports up to six live clients by default with one
-AQW surface visible at a time. An opt-in Advanced setting removes the software
-cap while keeping the actual x86 memory, handle, and CPU limits explicit. The
+The production shell now starts in the legacy-compatible single-client mode.
+An opt-in experimental setting enables up to six live clients with one AQW
+surface visible at a time. A separate Advanced setting removes the software cap
+while keeping the actual x86 memory, handle, and CPU limits explicit. The
 implementation includes:
 
 - `ClientSession`, `ClientSessionManager`, lifecycle cancellation, and scoped

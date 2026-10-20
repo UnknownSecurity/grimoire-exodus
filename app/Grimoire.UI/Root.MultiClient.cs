@@ -45,9 +45,11 @@ namespace Grimoire.UI
 
         private static int GetConfiguredMaximumDesktopClients()
         {
-            return AppPreferences.Load().AllowUnlimitedClients
-                ? UnlimitedDesktopClients
-                : DefaultMaximumDesktopClients;
+            AppPreferenceSnapshot preferences = AppPreferences.Load();
+            if (!preferences.EnableMultiClient)
+                return 1;
+
+            return preferences.AllowUnlimitedClients ? UnlimitedDesktopClients : DefaultMaximumDesktopClients;
         }
 
         private sealed class ClientWorkspaceState
@@ -81,7 +83,8 @@ namespace Grimoire.UI
                 BackColor = ToolboxBackgroundColor,
                 Height = ClientStripHeight,
                 Name = "clientStripPanel",
-                TabIndex = 39
+                TabIndex = 39,
+                Visible = GetDesktopPreferences().EnableMultiClient
             };
 
             btnCloseClient = CreateClientStripButton("−", "Close selected client", 31);
@@ -265,7 +268,8 @@ namespace Grimoire.UI
             int toolbarHeight = panel1 != null && panel1.Visible ? panel1.Height : 0;
             clientStripPanel.Location = new Point(0, toolbarHeight);
             clientStripPanel.Width = ClientSize.Width;
-            int gameTop = toolbarHeight + ClientStripHeight;
+            int clientStripHeight = clientStripPanel.Visible ? ClientStripHeight : 0;
+            int gameTop = toolbarHeight + clientStripHeight;
             GamePanel.Dock = DockStyle.None;
             GamePanel.Location = new Point(0, gameTop);
             GamePanel.Size = new Size(
@@ -316,6 +320,19 @@ namespace Grimoire.UI
 
         public bool TryAddClient(bool showErrors)
         {
+            if (!IsMultiClientEnabled)
+            {
+                if (showErrors)
+                {
+                    DarkMessageBox.Show(
+                        this,
+                        "Enable experimental multi-client mode in Settings > General before creating another AQW client.",
+                        "Multi-client is disabled",
+                        MessageBoxIcon.Information);
+                }
+                return false;
+            }
+
             if (clientSessions == null || clientSessions.Sessions.Count >= clientSessions.MaximumSessions)
             {
                 if (showErrors)
@@ -366,6 +383,23 @@ namespace Grimoire.UI
             {
                 message = "That account is already assigned to an open client.";
                 return false;
+            }
+
+            if (!IsMultiClientEnabled)
+            {
+                ClientSession activeSession = clientSessions?.ActiveSession;
+                if (activeSession == null || activeSession.IsDisposed)
+                {
+                    message = "The AQW client is not available yet.";
+                    return false;
+                }
+
+                activeSession.AssignAccount(credentials.Id, credentials.Username);
+                RequestGameOpen(activeSession, credentials, true);
+                message = activeSession.IsReady
+                    ? "Opening the selected account in the current AQW client."
+                    : "The selected account will log in when AQW is ready.";
+                return true;
             }
 
             if (clientSessions == null || clientSessions.Sessions.Count >= clientSessions.MaximumSessions)
@@ -1135,12 +1169,42 @@ namespace Grimoire.UI
         {
             if (btnNewClient == null || btnCloseClient == null || clientSessions == null)
                 return;
+
+            bool showClientStrip = IsMultiClientEnabled;
+            if (clientStripPanel != null && clientStripPanel.Visible != showClientStrip)
+            {
+                clientStripPanel.Visible = showClientStrip;
+                LayoutClientWorkspace();
+            }
+
             btnNewClient.Enabled = clientSessions.Sessions.Count < clientSessions.MaximumSessions;
             btnCloseClient.Enabled = clientSessions.Sessions.Count > 1 && clientSessions.ActiveSession != null;
             clientWorkspaceToolTip.SetToolTip(
                 btnNewClient,
                 btnNewClient.Enabled ? "Add AQW client" : "Six-client safety limit reached");
             UpdateClientTabNavigation();
+        }
+
+        private void ApplyMultiClientPreference(AppPreferenceSnapshot preferences)
+        {
+            if (preferences == null || clientSessions == null)
+                return;
+
+            int maximumClients = !preferences.EnableMultiClient
+                ? 1
+                : preferences.AllowUnlimitedClients
+                    ? UnlimitedDesktopClients
+                    : DefaultMaximumDesktopClients;
+            clientSessions.SetMaximumSessions(maximumClients);
+
+            if (clientStripPanel != null)
+            {
+                // An externally edited preference must never strand already-open
+                // clients. Keep navigation visible until the extras are closed.
+                clientStripPanel.Visible = preferences.EnableMultiClient
+                    || clientSessions.Sessions.Count > 1;
+            }
+            LayoutClientWorkspace();
         }
 
         private void InitializeClientProxy(ClientSession session)
@@ -1217,6 +1281,12 @@ namespace Grimoire.UI
             .ToArray();
 
         public bool CanAddClient => clientSessions != null
+            && IsMultiClientEnabled
             && clientSessions.Sessions.Count < clientSessions.MaximumSessions;
+
+        public bool IsMultiClientEnabled => GetDesktopPreferences().EnableMultiClient
+            || (clientSessions != null && clientSessions.Sessions.Count > 1);
+
+        public int OpenClientCount => clientSessions?.Sessions.Count ?? 0;
     }
 }

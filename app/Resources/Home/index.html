@@ -224,6 +224,7 @@
       max-height: 128px;
       margin: -4px;
       overflow-y: auto;
+      -ms-overflow-style: -ms-autohiding-scrollbar;
       -ms-flex-wrap: wrap;
       flex-wrap: wrap;
     }
@@ -406,7 +407,33 @@
       padding: 0 18px 16px;
       overflow-x: hidden;
       overflow-y: auto;
+      -ms-overflow-style: -ms-autohiding-scrollbar;
       border-top: 1px solid #30283a;
+    }
+    .selector-options, .accordion-content, textarea.report-control {
+      scrollbar-width: thin;
+      scrollbar-color: #62458a #1c2028;
+      scrollbar-base-color: #252a34;
+      scrollbar-face-color: #62458a;
+      scrollbar-track-color: #1c2028;
+      scrollbar-arrow-color: #b99ae6;
+      scrollbar-highlight-color: #62458a;
+      scrollbar-shadow-color: #1c2028;
+      scrollbar-3dlight-color: #252a34;
+      scrollbar-darkshadow-color: #12151b;
+    }
+    .selector-options::-webkit-scrollbar,
+    .accordion-content::-webkit-scrollbar,
+    textarea.report-control::-webkit-scrollbar { width: 7px; height: 7px; }
+    .selector-options::-webkit-scrollbar-track,
+    .accordion-content::-webkit-scrollbar-track,
+    textarea.report-control::-webkit-scrollbar-track { background: #1c2028; }
+    .selector-options::-webkit-scrollbar-thumb,
+    .accordion-content::-webkit-scrollbar-thumb,
+    textarea.report-control::-webkit-scrollbar-thumb {
+      border: 2px solid #1c2028;
+      border-radius: 999px;
+      background: #62458a;
     }
     .accordion.open .accordion-content { display: block; }
     .bot-actions { padding: 12px 0 0; text-align: right; }
@@ -511,8 +538,7 @@
     }
     .report-counter .ready { color: #73caa4; }
     .report-counter .needed { color: #d8ad70; }
-    .report-check {
-      display: block;
+    .report-attachment {
       margin-bottom: 12px;
       padding: 11px;
       border: 1px solid #393143;
@@ -522,8 +548,7 @@
       font-size: 11px;
       line-height: 1.45;
     }
-    .report-check input { margin: 2px 7px 0 0; vertical-align: top; }
-    .report-check small { display: block; margin: 4px 0 0 24px; color: #7f7888; }
+    .report-attachment .credit-link { margin-left: 4px; }
     .report-privacy {
       margin: 0 0 12px;
       padding: 10px 11px;
@@ -722,11 +747,12 @@
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Grimoire Home with an encrypted, one-click Account Locker<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Conventional commit linting with Commitlint and Husky<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Tag-triggered GitHub Actions release builds<span class="status-tag">Done</span></li>
-                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Six desktop clients by default with per-client state and an advanced unlimited override<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Experimental multi-client workspace with per-client state and an advanced unlimited override<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Windows installer with desktop-shortcut and launch-after-setup options<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Bundled native Flash runtime instead of a separate Clean Flash installation<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Verified in-app updates from official GitHub releases<span class="status-tag">Done</span></li>
                     <li class="roadmap-item done"><span class="roadmap-dot">✓</span>Startup diagnostics, orphan-state cleanup, tray controls, and crash recovery<span class="status-tag">Done</span></li>
+                    <li class="roadmap-item"><span class="roadmap-dot">•</span>Flash.ocx / Ruffle engine switcher<span class="status-tag">Planned</span></li>
                     <li class="roadmap-item"><span class="roadmap-dot">•</span>Remote control through a companion mobile app<span class="status-tag">Planned</span></li>
                     <li class="roadmap-item"><span class="roadmap-dot">•</span>A community-maintained bot script repository<span class="status-tag">Planned</span></li>
                   </ul>
@@ -772,10 +798,7 @@
                     <label class="report-field">Steps or additional context <small>(optional)</small>
                       <textarea id="report-steps" class="report-control" maxlength="2000" rows="3" placeholder="Reproduction steps, relevant settings, or other context."></textarea>
                     </label>
-                    <label class="report-check">
-                      <input id="report-gbot" type="checkbox">Include a GBot with this report
-                      <small>GitHub will open so you can attach it yourself. Grimoire will not read or upload the local file.</small>
-                    </label>
+                    <p class="report-attachment">Need to attach a GBot file? <button class="credit-link" type="button" onclick="openExternal('https://unknownsecurity.github.io/grimoire-exodus/#contact')">Use the online report form</button>.</p>
                     <p class="report-privacy"><strong>Keep reports public-safe.</strong> Remove passwords, character credentials, account-vault data, private room names, tokens, logs, and personal information before sending.</p>
                     <p class="report-security"><button class="credit-link" type="button" onclick="openExternal('https://github.com/UnknownSecurity/grimoire-exodus/security/advisories/new')">Report a security issue privately</button></p>
                     <div id="report-status" class="report-status" role="status" aria-live="polite"></div>
@@ -990,8 +1013,10 @@
       window.setTimeout(function () { updateScrollThumb(false); }, 20);
     }
 
-    function setClientRunning(running) {
-      document.getElementById("home-hero").className = running ? "hero client-running" : "hero";
+    function setClientRunning(running, multiClientEnabled) {
+      document.getElementById("home-hero").className = running && multiClientEnabled
+        ? "hero client-running"
+        : "hero";
     }
 
     function renderClients(clients, canAddClient) {
@@ -1024,7 +1049,7 @@
       renderAccounts(state.accounts || []);
       renderQuickBots(state.quickBots || [], !!state.quickBotsLoading);
       renderClients(state.clients || [], !!state.canAddClient);
-      setClientRunning((state.clients || []).length > 0);
+      setClientRunning((state.clients || []).length > 0, !!state.multiClientEnabled);
       document.getElementById("app-version").innerText = state.version || "Development";
       if (!document.getElementById("report-version").value) {
         document.getElementById("report-version").value = state.version || "";
@@ -1175,7 +1200,7 @@
         trimmed(document.getElementById("report-version").value),
         details,
         trimmed(document.getElementById("report-steps").value),
-        document.getElementById("report-gbot").checked,
+        false,
         reportStartedAt);
       handleIssueReportState(state);
     }

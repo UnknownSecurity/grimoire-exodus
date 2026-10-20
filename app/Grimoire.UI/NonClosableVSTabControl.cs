@@ -15,6 +15,19 @@ namespace Grimoire.UI
         public NonClosableVSTabControl()
         {
             DoubleBuffered = true;
+            BackgroundColor = Color.FromArgb(28, 32, 40);
+            SelectedTabColor = Color.FromArgb(76, 56, 98);
+            UnselectedTabColor = Color.FromArgb(36, 40, 50);
+            HoverTabColor = Color.FromArgb(68, 52, 84);
+            BorderTabLineColor = Color.MediumPurple;
+            UnderBorderTabLineColor = Color.FromArgb(76, 56, 98);
+            UnselectedBorderTabLineColor = Color.FromArgb(62, 49, 76);
+            SelectedTabButtonColor = Color.FromArgb(76, 56, 98);
+            HoverTabButtonColor = Color.FromArgb(68, 52, 84);
+            HoverUnselectedTabButtonColor = Color.FromArgb(50, 43, 60);
+            UpDownBackColor = Color.FromArgb(36, 40, 50);
+            UpDownTextColor = Color.Gainsboro;
+            TextColor = Color.Gainsboro;
         }
 
         protected override void OnMouseDown(MouseEventArgs e)

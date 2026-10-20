@@ -44,7 +44,7 @@ internal static class ClientLimitSmoke
             eighth = null;
             AssertEqual(6, manager.Sessions.Count, "The restored cap did not allow a client after the count fell below six.");
 
-            Console.WriteLine("PASS: six clients are allowed by default, the unlimited override removes the cap, and restoring the cap preserves live clients.");
+            Console.WriteLine("PASS: the configured six-client safety limit, unlimited override, and live-client preservation behave correctly.");
             return 0;
         }
         catch (Exception exception)

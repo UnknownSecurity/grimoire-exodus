@@ -899,10 +899,7 @@ namespace Grimoire.UI
             SetDeviceStatsVisible(!preferences.HideDeviceStats);
             if (clientSessions != null)
             {
-                clientSessions.SetMaximumSessions(
-                    preferences.AllowUnlimitedClients
-                        ? UnlimitedDesktopClients
-                        : DefaultMaximumDesktopClients);
+                ApplyMultiClientPreference(preferences);
                 ApplyClientFrameRatePolicies();
                 UpdateClientStripButtons();
                 RefreshHomeState();

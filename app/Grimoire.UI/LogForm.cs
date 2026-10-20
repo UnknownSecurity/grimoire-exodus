@@ -41,7 +41,7 @@ namespace Grimoire.UI
 
         private DarkButton btnSave;
 
-        private DarkUI.Controls.VSTabControl tabLogs;
+        private NonClosableVSTabControl tabLogs;
 
         private TabPage tabLogDebug;
 
@@ -228,7 +228,7 @@ namespace Grimoire.UI
             this.txtLogDebug = new DarkUI.Controls.DarkTextBox();
             this.btnClear = new DarkUI.Controls.DarkButton();
             this.btnSave = new DarkUI.Controls.DarkButton();
-            this.tabLogs = new DarkUI.Controls.VSTabControl();
+            this.tabLogs = new Grimoire.UI.NonClosableVSTabControl();
             this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.changeFontToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.changeColorToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
