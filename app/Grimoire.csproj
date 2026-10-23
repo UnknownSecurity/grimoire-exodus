@@ -418,6 +418,7 @@
     <Compile Include="Grimoire.Utils\AppPreferences.cs" />
     <Compile Include="Grimoire.Utils\AtomicFile.cs" />
     <Compile Include="Grimoire.Utils\BoundedTextBuffer.cs" />
+    <Compile Include="Grimoire.Utils\CompatibilityCheckService.cs" />
     <Compile Include="Grimoire.Utils\IssueReportService.cs" />
     <Compile Include="Grimoire.Utils\SupportDiagnostics.cs" />
     <Compile Include="Grimoire.Utils\StartupDiagnostics.cs" />
@@ -513,6 +514,9 @@
     </Compile>
     <Compile Include="Grimoire.UI\Root.MultiClient.cs">
       <DependentUpon>Root.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Grimoire.UI\QuickBotSelectorForm.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="Grimoire.UI\SettingsForm.cs">
       <SubType>Form</SubType>

@@ -79,12 +79,14 @@ namespace Grimoire.UI
         private Bitmap settingsIcon;
         private Bitmap updateAvailableIcon;
         private ToolStripMenuItem updateToolStripMenuItem;
-        private ToolStripDropDownButton quickBotsMenuItem;
+        private ToolStripButton quickBotsButton;
         private readonly List<FileSystemWatcher> quickBotWatchers = new List<FileSystemWatcher>();
         private List<string> quickBotCache = new List<string>();
         private CancellationTokenSource quickBotRefreshCancellation;
+        private Task quickBotRefreshTask = Task.CompletedTask;
         private bool quickBotIndexDirty = true;
         private bool quickBotIndexing;
+        private bool quickBotSelectorOpening;
         private DateTime quickBotIndexRefreshedUtc = DateTime.MinValue;
         private UpdateRelease availableUpdate;
         private PreparedUpdate preparedUpdate;
@@ -457,38 +459,35 @@ namespace Grimoire.UI
 
         private void InitializeQuickBots()
         {
-            quickBotsMenuItem = new ToolStripDropDownButton
+            quickBotsButton = new ToolStripButton
             {
-                AccessibleDescription = "Quickly loads a bundled or user-managed GBot.",
+                AccessibleDescription = "Opens a scrollable list of bundled and user-managed GBots.",
                 AccessibleName = "Quick load GBot",
                 Alignment = ToolStripItemAlignment.Right,
                 AutoSize = false,
                 AutoToolTip = true,
                 BackColor = ToolboxBackgroundColor,
+                DisplayStyle = ToolStripItemDisplayStyle.Text,
                 ForeColor = Color.Gainsboro,
-                Name = "quickBotsMenuItem",
+                Name = "quickBotsButton",
                 Padding = new Padding(8, 0, 4, 0),
-                ShowDropDownArrow = true,
                 Size = new Size(235, 23),
                 Text = "Quick load GBot...",
                 TextAlign = ContentAlignment.MiddleLeft,
-                ToolTipText = "Quick load a GBot"
+                ToolTipText = "Open the Quick Load GBot list"
             };
-            quickBotsMenuItem.DropDown.Name = "quickBotsDropDown";
-            quickBotsMenuItem.DropDown.BackColor = ToolboxBackgroundColor;
-            quickBotsMenuItem.DropDown.ForeColor = Color.Gainsboro;
-            quickBotsMenuItem.DropDownOpening += quickBotsMenuItem_DropDownOpening;
-            MenuStrip1.Items.Add(quickBotsMenuItem);
+            quickBotsButton.Click += quickBotsButton_Click;
+            MenuStrip1.Items.Add(quickBotsButton);
             InitializeQuickBotWatchers();
             RefreshQuickBots();
         }
 
-        private void quickBotsMenuItem_DropDownOpening(object sender, EventArgs e)
+        private void RefreshQuickBots()
         {
-            RefreshQuickBots();
+            ObserveQuickBotRefresh(EnsureQuickBotIndexAsync());
         }
 
-        private void RefreshQuickBots()
+        private Task EnsureQuickBotIndexAsync()
         {
             if (DateTime.UtcNow - quickBotIndexRefreshedUtc > TimeSpan.FromMinutes(1))
             {
@@ -497,8 +496,9 @@ namespace Grimoire.UI
             RenderQuickBots(quickBotCache, quickBotIndexing);
             if (quickBotIndexDirty && !quickBotIndexing)
             {
-                ObserveQuickBotRefresh(RefreshQuickBotIndexAsync());
+                quickBotRefreshTask = RefreshQuickBotIndexAsync();
             }
+            return quickBotRefreshTask;
         }
 
         private static void ObserveQuickBotRefresh(Task refreshTask)
@@ -550,33 +550,22 @@ namespace Grimoire.UI
 
         private void RenderQuickBots(IReadOnlyCollection<string> bots, bool indexing)
         {
-            if (quickBotsMenuItem == null || IsDisposed)
+            if (quickBotsButton == null || IsDisposed)
                 return;
 
-            quickBotsMenuItem.DropDownItems.Clear();
-            if (bots.Count == 0)
-            {
-                quickBotsMenuItem.DropDownItems.Add(new QuickBotStatusMenuItem(indexing ? "Scanning GBots..." : "No GBots found"));
-            }
-            else
-            {
-                AddQuickBotItems(bots);
-            }
-
-            int botCount = bots.Count;
             bool currentExists = IsQuickBotPath(lastQuickBotPath);
             if (!currentExists)
             {
                 lastQuickBotPath = null;
             }
-            quickBotsMenuItem.Text = currentExists
+            quickBotsButton.Text = currentExists
                 ? Path.GetFileNameWithoutExtension(lastQuickBotPath)
                 : "Quick load GBot...";
-            quickBotsMenuItem.ToolTipText = indexing
+            quickBotsButton.ToolTipText = indexing
                 ? "Refreshing the GBot list..."
-                : botCount == 0
+                : bots.Count == 0
                     ? "Add .gbot files to Documents\\Grimoire\\Bot"
-                    : "Quick load one of " + botCount + " GBot" + (botCount == 1 ? string.Empty : "s");
+                    : "Open the Quick Load GBot list";
         }
 
         private static IEnumerable<string> GetQuickBots(string directory)
@@ -679,28 +668,53 @@ namespace Grimoire.UI
                 : StringComparer.OrdinalIgnoreCase.Compare(left, right);
         }
 
-        private void AddQuickBotItems(IEnumerable<string> botPaths)
+        private async void quickBotsButton_Click(object sender, EventArgs e)
         {
-            foreach (string path in botPaths)
+            if (quickBotSelectorOpening || quickBotsButton == null)
+                return;
+
+            quickBotSelectorOpening = true;
+            quickBotsButton.Enabled = false;
+            try
             {
-                ToolStripMenuItem item = new ToolStripMenuItem
+                await EnsureQuickBotIndexAsync();
+                if (IsDisposed || Disposing)
+                    return;
+
+                using (QuickBotSelectorForm selector = new QuickBotSelectorForm(quickBotCache, lastQuickBotPath))
                 {
-                    BackColor = ToolboxBackgroundColor,
-                    ForeColor = Color.Gainsboro,
-                    Tag = path,
-                    Text = Path.GetFileNameWithoutExtension(path),
-                    ToolTipText = path
-                };
-                item.Click += quickBotMenuItem_Click;
-                quickBotsMenuItem.DropDownItems.Add(item);
+                    if (selector.ShowDialog(this) == DialogResult.OK)
+                    {
+                        LoadQuickBot(selector.SelectedBotPath);
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine("Unable to open the Quick Load GBot selector: " + exception);
+                if (!IsDisposed && !Disposing)
+                {
+                    DarkMessageBox.Show(
+                        this,
+                        "Grimoire could not open the GBot list.\r\n\r\n" + exception.Message,
+                        "Quick load GBot",
+                        MessageBoxIcon.Error);
+                }
+            }
+            finally
+            {
+                quickBotSelectorOpening = false;
+                if (quickBotsButton != null && !IsDisposed && !Disposing)
+                {
+                    ClientSession session = CaptureActiveSession();
+                    quickBotsButton.Enabled = session?.BotEngine == null || !session.BotEngine.IsRunning;
+                }
             }
         }
 
-        private void quickBotMenuItem_Click(object sender, EventArgs e)
+        private void LoadQuickBot(string path)
         {
-            ToolStripMenuItem menuItem = sender as ToolStripMenuItem;
-            string path = menuItem?.Tag as string;
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            if (!IsQuickBotPath(path))
                 return;
 
             try
@@ -719,7 +733,7 @@ namespace Grimoire.UI
                 if (BotManager.Instance.LoadBotFromFile(path, true, false))
                 {
                     lastQuickBotPath = path;
-                    quickBotsMenuItem.Text = Path.GetFileNameWithoutExtension(path);
+                    quickBotsButton.Text = Path.GetFileNameWithoutExtension(path);
                     ShowForm(BotManager.Instance);
                 }
             }
@@ -736,7 +750,7 @@ namespace Grimoire.UI
 
         public void UpdateQuickBotSelection(string path)
         {
-            if (quickBotsMenuItem == null || IsDisposed)
+            if (quickBotsButton == null || IsDisposed)
                 return;
             if (InvokeRequired)
             {
@@ -746,7 +760,7 @@ namespace Grimoire.UI
 
             bool isQuickBot = IsQuickBotPath(path);
             lastQuickBotPath = isQuickBot ? path : null;
-            quickBotsMenuItem.Text = string.IsNullOrWhiteSpace(lastQuickBotPath)
+            quickBotsButton.Text = string.IsNullOrWhiteSpace(lastQuickBotPath)
                 ? "Quick load GBot..."
                 : Path.GetFileNameWithoutExtension(lastQuickBotPath);
         }
@@ -774,18 +788,6 @@ namespace Grimoire.UI
             catch
             {
                 return false;
-            }
-        }
-
-        private sealed class QuickBotStatusMenuItem : ToolStripMenuItem
-        {
-            public QuickBotStatusMenuItem(string text)
-            {
-                AutoToolTip = false;
-                BackColor = ToolboxBackgroundColor;
-                Enabled = false;
-                ForeColor = Color.FromArgb(145, 145, 160);
-                Text = text;
             }
         }
 
@@ -1066,25 +1068,21 @@ namespace Grimoire.UI
             protected override void InitializeItem(ToolStripItem item)
             {
                 base.InitializeItem(item);
-                if (item is QuickBotStatusMenuItem)
-                {
-                    item.ForeColor = Color.FromArgb(145, 145, 160);
-                }
-                else if (item is ToolStripMenuItem)
+                if (item is ToolStripMenuItem)
                 {
                     item.ForeColor = Color.MediumPurple;
                 }
-                else if (item.Name == "quickBotsMenuItem")
+                else if (item.Name == "quickBotsButton")
                 {
                     item.ForeColor = Color.MediumPurple;
                 }
             }
 
-            protected override void OnRenderDropDownButtonBackground(ToolStripItemRenderEventArgs e)
+            protected override void OnRenderButtonBackground(ToolStripItemRenderEventArgs e)
             {
-                if (e.Item.Name != "quickBotsMenuItem")
+                if (e.Item.Name != "quickBotsButton")
                 {
-                    base.OnRenderDropDownButtonBackground(e);
+                    base.OnRenderButtonBackground(e);
                     return;
                 }
 
@@ -1097,57 +1095,13 @@ namespace Grimoire.UI
                 }
             }
 
-            protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
-            {
-                if (e.ToolStrip.Name != "quickBotsDropDown")
-                {
-                    base.OnRenderToolStripBackground(e);
-                    return;
-                }
-
-                using (SolidBrush brush = new SolidBrush(ToolboxBackgroundColor))
-                {
-                    e.Graphics.FillRectangle(brush, e.AffectedBounds);
-                }
-            }
-
-            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
-            {
-                if (e.Item.Owner?.Name != "quickBotsDropDown")
-                {
-                    base.OnRenderMenuItemBackground(e);
-                    return;
-                }
-
-                Color background = e.Item.Selected && e.Item.Enabled
-                    ? QuickBotHoverColor
-                    : ToolboxBackgroundColor;
-                using (SolidBrush brush = new SolidBrush(background))
-                {
-                    e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
-                }
-            }
-
-            protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
-            {
-                if (e.Item.Name == "quickBotsMenuItem")
-                {
-                    e.ArrowColor = Color.MediumPurple;
-                }
-                base.OnRenderArrow(e);
-            }
-
             protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
             {
-                if (e.Item is QuickBotStatusMenuItem)
-                {
-                    e.TextColor = Color.FromArgb(145, 145, 160);
-                }
-                else if (e.Item is ToolStripMenuItem)
+                if (e.Item is ToolStripMenuItem)
                 {
                     e.TextColor = Color.MediumPurple;
                 }
-                else if (e.Item.Name == "quickBotsMenuItem")
+                else if (e.Item.Name == "quickBotsButton")
                 {
                     e.TextColor = Color.MediumPurple;
                 }
@@ -1481,6 +1435,8 @@ namespace Grimoire.UI
         public bool IsGameReady => CaptureActiveSession()?.IsReady == true;
 
         public int GameLoadProgress => CaptureActiveSession()?.LoadProgress ?? 0;
+
+        public string ActiveClientState => CaptureActiveSession()?.State.ToString() ?? "Unavailable";
 
         public bool IsClientRunning => clientSessions != null
             && clientSessions.Sessions.Any(session => session.State == ClientSessionState.Running);
@@ -2749,12 +2705,12 @@ namespace Grimoire.UI
                 stopToolStripMenuItem.Enabled = false;
             }
 
-            if (quickBotsMenuItem != null)
+            if (quickBotsButton != null)
             {
-                quickBotsMenuItem.Enabled = !IsRunning;
-                quickBotsMenuItem.ToolTipText = IsRunning
+                quickBotsButton.Enabled = !IsRunning && !quickBotSelectorOpening;
+                quickBotsButton.ToolTipText = IsRunning
                     ? "Stop the running bot before loading another GBot"
-                    : "Quick load a GBot";
+                    : "Open the Quick Load GBot list";
             }
 
             ClientSession session = CaptureActiveSession();

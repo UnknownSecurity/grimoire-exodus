@@ -37,7 +37,8 @@ namespace Grimoire.UI
         private readonly DarkButton btnRefreshLogs = new DarkButton();
         private readonly DarkButton btnCopySupportReport = new DarkButton();
         private readonly DarkButton btnOpenDiagnosticsFolder = new DarkButton();
-        private readonly Dictionary<int, DarkComboBox> bindingSelectors = new Dictionary<int, DarkComboBox>();
+        private readonly Dictionary<int, DarkTextBox> bindingEditors = new Dictionary<int, DarkTextBox>();
+        private readonly Dictionary<int, HotkeyGesture?> bindingValues = new Dictionary<int, HotkeyGesture?>();
         private readonly DarkButton btnSave = new DarkButton();
         private readonly DarkButton btnClose = new DarkButton();
         private string supportReport;
@@ -107,6 +108,7 @@ namespace Grimoire.UI
             AcceptButton = btnSave;
             CancelButton = btnClose;
             Shown += SettingsForm_Shown;
+            FormClosed += SettingsForm_FormClosed;
         }
 
         private TabPage CreateGeneralTab()
@@ -244,7 +246,7 @@ namespace Grimoire.UI
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 55F));
 
             Label introduction = CreateBodyLabel(
-                "Shortcuts work while Grimoire is focused. Existing legacy shortcuts remain available in Tools > Hotkeys.");
+                "Click a field, then press one key or a combination such as Ctrl+Shift+S. Press Backspace or Delete to clear it. Shortcuts work while Grimoire is focused.");
             introduction.Dock = DockStyle.Fill;
             content.Controls.Add(introduction, 0, 0);
             content.SetColumnSpan(introduction, 2);
@@ -257,19 +259,28 @@ namespace Grimoire.UI
                 label.Dock = DockStyle.Fill;
                 label.TextAlign = ContentAlignment.MiddleLeft;
 
-                DarkComboBox selector = new DarkComboBox
+                DarkTextBox editor = new DarkTextBox
                 {
                     AccessibleName = definition.DisplayName + " shortcut",
+                    AccessibleDescription = "Focus this field and press the shortcut keys together. Press Backspace or Delete to clear it.",
+                    BackColor = CardColor,
                     Dock = DockStyle.Fill,
-                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    ForeColor = Color.Gainsboro,
                     Margin = new Padding(8, 10, 8, 10)
                 };
-                selector.Items.Add("None");
-                selector.Items.AddRange(GetKeyChoices().Cast<object>().ToArray());
-                bindingSelectors[definition.ActionIndex] = selector;
+                editor.ReadOnly = true;
+                editor.ShortcutsEnabled = false;
+                editor.Tag = definition.ActionIndex;
+                editor.TextAlign = HorizontalAlignment.Center;
+                editor.Enter += ShortcutEditor_Enter;
+                editor.Leave += ShortcutEditor_Leave;
+                editor.PreviewKeyDown += ShortcutEditor_PreviewKeyDown;
+                editor.KeyDown += ShortcutEditor_KeyDown;
+                bindingEditors[definition.ActionIndex] = editor;
+                bindingValues[definition.ActionIndex] = null;
 
                 content.Controls.Add(label, 0, row);
-                content.Controls.Add(selector, 1, row);
+                content.Controls.Add(editor, 1, row);
                 row++;
             }
 
@@ -414,6 +425,11 @@ namespace Grimoire.UI
                 await RefreshSupportReportAsync();
         }
 
+        private void SettingsForm_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            KeyboardHook.Instance.SuppressHotkeyEvents = false;
+        }
+
         private async void RefreshLogs_Click(object sender, EventArgs e)
         {
             await RefreshSupportReportAsync();
@@ -547,9 +563,9 @@ namespace Grimoire.UI
 
             foreach (HotkeyBindingDefinition definition in Hotkeys.SettingsBindingDefinitions)
             {
-                SetSelectedKey(
-                    bindingSelectors[definition.ActionIndex],
-                    Hotkeys.GetBindingKey(definition.ActionIndex));
+                SetBinding(
+                    definition.ActionIndex,
+                    Hotkeys.GetBindingGesture(definition.ActionIndex));
             }
         }
 
@@ -596,10 +612,8 @@ namespace Grimoire.UI
                         return;
                 }
 
-                Dictionary<int, Keys?> bindings = bindingSelectors.ToDictionary(
-                    item => item.Key,
-                    item => ReadSelectedKey(item.Value));
-                Hotkeys.SaveSettingsBindings(bindings);
+                Hotkeys.SaveSettingsBindings(
+                    new Dictionary<int, HotkeyGesture?>(bindingValues));
                 AppPreferenceSnapshot preferences = new AppPreferenceSnapshot
                 {
                     SkipHomePage = chkSkipHome.Checked,
@@ -724,44 +738,55 @@ namespace Grimoire.UI
         {
             foreach (HotkeyBindingDefinition definition in Hotkeys.SettingsBindingDefinitions)
             {
-                SetSelectedKey(bindingSelectors[definition.ActionIndex], definition.DefaultKey);
+                SetBinding(
+                    definition.ActionIndex,
+                    new HotkeyGesture(definition.DefaultKey, Keys.None));
             }
         }
 
-        private static IEnumerable<Keys> GetKeyChoices()
+        private void ShortcutEditor_Enter(object sender, EventArgs e)
         {
-            for (Keys key = Keys.F1; key <= Keys.F12; key++)
-                yield return key;
-            for (Keys key = Keys.A; key <= Keys.Z; key++)
-                yield return key;
-            for (Keys key = Keys.D0; key <= Keys.D9; key++)
-                yield return key;
+            KeyboardHook.Instance.SuppressHotkeyEvents = true;
         }
 
-        private static Keys? ReadSelectedKey(DarkComboBox selector)
+        private void ShortcutEditor_Leave(object sender, EventArgs e)
         {
-            return selector.SelectedItem is Keys key ? key : (Keys?)null;
+            KeyboardHook.Instance.SuppressHotkeyEvents = false;
         }
 
-        private static void SetSelectedKey(DarkComboBox selector, Keys? key)
+        private static void ShortcutEditor_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
         {
-            if (!key.HasValue)
+            if (e.KeyCode != Keys.Tab)
+                e.IsInputKey = true;
+        }
+
+        private void ShortcutEditor_KeyDown(object sender, KeyEventArgs e)
+        {
+            DarkTextBox editor = sender as DarkTextBox;
+            if (editor == null || !(editor.Tag is int actionIndex))
+                return;
+
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+
+            if ((e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
+                && e.Modifiers == Keys.None)
             {
-                selector.SelectedIndex = 0;
+                SetBinding(actionIndex, null);
                 return;
             }
 
-            for (int index = 0; index < selector.Items.Count; index++)
-            {
-                if (selector.Items[index] is Keys item && item == key.Value)
-                {
-                    selector.SelectedIndex = index;
-                    return;
-                }
-            }
+            if (HotkeyGesture.TryCreate(e.KeyCode, e.Modifiers, out HotkeyGesture gesture))
+                SetBinding(actionIndex, gesture);
+        }
 
-            selector.Items.Add(key.Value);
-            selector.SelectedItem = key.Value;
+        private void SetBinding(int actionIndex, HotkeyGesture? gesture)
+        {
+            bindingValues[actionIndex] = gesture;
+            if (!bindingEditors.TryGetValue(actionIndex, out DarkTextBox editor))
+                return;
+
+            editor.Text = gesture.HasValue ? gesture.Value.ToString() : "None";
         }
 
         private static TabPage CreateTabPage(string title)

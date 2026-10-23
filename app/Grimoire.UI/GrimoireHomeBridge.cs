@@ -4,7 +4,9 @@ using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 
 namespace Grimoire.UI
 {
@@ -14,11 +16,13 @@ namespace Grimoire.UI
     {
         private readonly Root root;
         private readonly IssueReportService issueReports;
+        private readonly CompatibilityCheckService compatibilityChecks;
 
         public GrimoireHomeBridge(Root root)
         {
             this.root = root ?? throw new ArgumentNullException(nameof(root));
             issueReports = new IssueReportService();
+            compatibilityChecks = new CompatibilityCheckService();
         }
 
         public string GetState()
@@ -225,6 +229,89 @@ namespace Grimoire.UI
             }
         }
 
+        public string BeginCompatibilityCheck()
+        {
+            try
+            {
+                AppPreferenceSnapshot preferences = AppPreferences.Load();
+                long workingSetBytes = 0L;
+                try
+                {
+                    using (Process process = Process.GetCurrentProcess())
+                        workingSetBytes = process.WorkingSet64;
+                }
+                catch
+                {
+                    // Resource headroom remains useful even if this metric is unavailable.
+                }
+
+                CompatibilityCheckOperation operation = compatibilityChecks.Begin(
+                    new CompatibilityCheckContext
+                    {
+                        ApplicationDirectory = AppPaths.ApplicationDirectory,
+                        DataDirectory = AppPaths.DataDirectory,
+                        LogsDirectory = AppPaths.LogsDirectory,
+                        UpdatesDirectory = AppPaths.UpdatesDirectory,
+                        ApplicationVersion = root.AppVersion,
+                        ClientState = root.ActiveClientState,
+                        GameReady = root.IsGameReady,
+                        GameLoadProgress = root.GameLoadProgress,
+                        OpenClientCount = root.OpenClientCount,
+                        MultiClientEnabled = preferences.EnableMultiClient,
+                        RenderingProfile = preferences.RenderingProfile.ToString(),
+                        WorkingSetBytes = workingSetBytes
+                    });
+                return CreateCompatibilityResponse(operation);
+            }
+            catch
+            {
+                return CreateCompatibilityError("The compatibility check could not start. Try again.");
+            }
+        }
+
+        public string GetCompatibilityCheckStatus(string requestId)
+        {
+            try
+            {
+                return CreateCompatibilityResponse(compatibilityChecks.GetStatus(requestId));
+            }
+            catch
+            {
+                return CreateCompatibilityError("The compatibility check status could not be read. Try again.");
+            }
+        }
+
+        public string CopyCompatibilityCheckResults(string requestId)
+        {
+            try
+            {
+                CompatibilityCheckOperation operation = compatibilityChecks.GetStatus(requestId);
+                if (!operation.Success || !operation.Completed || string.IsNullOrWhiteSpace(operation.Report))
+                {
+                    return JsonConvert.SerializeObject(new
+                    {
+                        success = false,
+                        message = operation.Message ?? "Run the checkup before copying its results."
+                    });
+                }
+
+                Clipboard.SetText(operation.Report);
+                return JsonConvert.SerializeObject(new
+                {
+                    success = true,
+                    message = "Privacy-safe checkup results copied to the clipboard."
+                });
+            }
+            catch
+            {
+                return JsonConvert.SerializeObject(new
+                {
+                    success = false,
+                    message = "The checkup results could not be copied. Try again."
+                });
+            }
+        }
+
         private string CreateResponse(bool success, string message)
         {
             return JsonConvert.SerializeObject(new
@@ -287,6 +374,47 @@ namespace Grimoire.UI
                 message = string.IsNullOrWhiteSpace(message)
                     ? "The report could not be created."
                     : message
+            });
+        }
+
+        private static string CreateCompatibilityResponse(CompatibilityCheckOperation operation)
+        {
+            return JsonConvert.SerializeObject(new
+            {
+                success = operation.Success,
+                completed = operation.Completed,
+                requestId = operation.RequestId,
+                message = operation.Message,
+                summary = new
+                {
+                    passed = operation.Passed,
+                    warnings = operation.Warnings,
+                    failed = operation.Failed
+                },
+                checks = (operation.Checks ?? new System.Collections.Generic.List<CompatibilityCheckResult>())
+                    .Select(check => new
+                    {
+                        id = check.Id,
+                        title = check.Title,
+                        status = check.Status,
+                        message = check.Message
+                    })
+                    .ToArray()
+            });
+        }
+
+        private static string CreateCompatibilityError(string message)
+        {
+            return JsonConvert.SerializeObject(new
+            {
+                success = false,
+                completed = true,
+                requestId = (string)null,
+                message = string.IsNullOrWhiteSpace(message)
+                    ? "The compatibility check could not run."
+                    : message,
+                summary = new { passed = 0, warnings = 0, failed = 0 },
+                checks = new object[0]
             });
         }
     }

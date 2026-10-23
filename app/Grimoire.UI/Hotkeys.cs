@@ -343,6 +343,7 @@ namespace Grimoire.UI
 
         private static System.Threading.CancellationTokenSource login_cts;
         private static System.Threading.CancellationTokenSource _cts;
+        private HotkeyGesture? pendingGesture;
 
         public static Hotkeys Instance
         {
@@ -360,6 +361,13 @@ namespace Grimoire.UI
         private Hotkeys()
         {
             InitializeComponent();
+            cbKeys.SelectedIndexChanged += cbKeys_SelectedIndexChanged;
+            cbKeys.PreviewKeyDown += ShortcutCapture_PreviewKeyDown;
+            cbKeys.KeyDown += cbKeys_KeyDown;
+            cbKeys.Enter += ShortcutCapture_Enter;
+            cbKeys.Leave += ShortcutCapture_Leave;
+            cbKeys.AccessibleName = "Shortcut key or combination";
+            cbKeys.AccessibleDescription = "Choose one key, or focus this field and press a modifier combination.";
         }
 
         private void Hotkeys_Load(object sender, EventArgs e)
@@ -423,10 +431,10 @@ namespace Grimoire.UI
         private void btnAdd_Click(object sender, EventArgs e)
         {
             int selectedIndex = cbActions.SelectedIndex;
-            if (selectedIndex > -1 && cbKeys.SelectedIndex > -1)
+            if (selectedIndex > -1 && pendingGesture.HasValue)
             {
-                Keys keys = (Keys)Enum.Parse(typeof(Keys), cbKeys.SelectedItem.ToString());
-                if (!KeyboardHook.Instance.TargetedKeys.Contains(keys))
+                HotkeyGesture gesture = pendingGesture.Value;
+                if (!InstalledHotkeys.Any(item => item.Gesture.Equals(gesture)))
                 {
                     if (string.Equals(cbActions.Items[selectedIndex]?.ToString(), "Immediate Login", StringComparison.Ordinal))
                     {
@@ -458,14 +466,74 @@ namespace Grimoire.UI
                     Hotkey hotkey = new Hotkey
                     {
                         ActionIndex = selectedIndex,
-                        Key = keys,
-                        Text = $"{keys}: {cbActions.Items[selectedIndex]}"
+                        Key = gesture.Key,
+                        Modifiers = gesture.Modifiers,
+                        Text = gesture + ": " + cbActions.Items[selectedIndex]
                     };
                     hotkey.Install();
                     InstalledHotkeys.Add(hotkey);
                     lstKeys.Items.Add(hotkey.Text);
                 }
             }
+        }
+
+        private void cbKeys_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cbKeys.SelectedItem is HotkeyGesture gesture)
+            {
+                pendingGesture = gesture;
+                return;
+            }
+
+            if (cbKeys.SelectedItem != null
+                && Enum.TryParse(cbKeys.SelectedItem.ToString(), true, out Keys key)
+                && HotkeyGesture.TryCreate(key, Keys.None, out gesture))
+            {
+                pendingGesture = gesture;
+            }
+        }
+
+        private void cbKeys_KeyDown(object sender, KeyEventArgs e)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            if (!HotkeyGesture.TryCreate(e.KeyCode, e.Modifiers, out HotkeyGesture gesture))
+                return;
+
+            int existingIndex = -1;
+            for (int index = 0; index < cbKeys.Items.Count; index++)
+            {
+                if (cbKeys.Items[index] is HotkeyGesture existing && existing.Equals(gesture))
+                {
+                    existingIndex = index;
+                    break;
+                }
+            }
+
+            if (existingIndex < 0)
+            {
+                cbKeys.Items.Add(gesture);
+                existingIndex = cbKeys.Items.Count - 1;
+            }
+
+            cbKeys.SelectedIndex = existingIndex;
+            pendingGesture = gesture;
+        }
+
+        private static void ShortcutCapture_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+        {
+            if (e.KeyCode != Keys.Tab)
+                e.IsInputKey = true;
+        }
+
+        private static void ShortcutCapture_Enter(object sender, EventArgs e)
+        {
+            KeyboardHook.Instance.SuppressHotkeyEvents = true;
+        }
+
+        private static void ShortcutCapture_Leave(object sender, EventArgs e)
+        {
+            KeyboardHook.Instance.SuppressHotkeyEvents = false;
         }
 
         private void btnSave_Click(object sender, EventArgs e)
@@ -504,7 +572,8 @@ namespace Grimoire.UI
             {
                 installedHotkey.Install();
             }
-            KeyboardHook.Instance.KeyDown += OnKeyDown;
+            KeyboardHook.Instance.GestureDown -= OnKeyDown;
+            KeyboardHook.Instance.GestureDown += OnKeyDown;
             _processId = Process.GetCurrentProcess().Id;
         }
 
@@ -514,30 +583,59 @@ namespace Grimoire.UI
             return hotkey == null ? (Keys?)null : hotkey.Key;
         }
 
+        public static HotkeyGesture? GetBindingGesture(int actionIndex)
+        {
+            Hotkey hotkey = InstalledHotkeys.FirstOrDefault(item => item.ActionIndex == actionIndex);
+            return hotkey == null ? (HotkeyGesture?)null : hotkey.Gesture;
+        }
+
         public static void SaveSettingsBindings(IReadOnlyDictionary<int, Keys?> bindings)
+        {
+            if (bindings == null)
+                throw new ArgumentNullException(nameof(bindings));
+
+            SaveSettingsBindings(bindings.ToDictionary(
+                item => item.Key,
+                item => item.Value.HasValue
+                    ? (HotkeyGesture?)new HotkeyGesture(item.Value.Value, Keys.None)
+                    : null));
+        }
+
+        public static void SaveSettingsBindings(IReadOnlyDictionary<int, HotkeyGesture?> bindings)
         {
             if (bindings == null)
                 throw new ArgumentNullException(nameof(bindings));
 
             HashSet<int> managedActions = new HashSet<int>(
                 SettingsBindingDefinitions.Select(definition => definition.ActionIndex));
-            HashSet<Keys> desiredKeys = new HashSet<Keys>();
+            HashSet<HotkeyGesture> desiredGestures = new HashSet<HotkeyGesture>();
 
-            foreach (KeyValuePair<int, Keys?> binding in bindings)
+            foreach (KeyValuePair<int, HotkeyGesture?> binding in bindings)
             {
                 if (!managedActions.Contains(binding.Key))
                     throw new InvalidOperationException("An unsupported shortcut action was selected.");
 
-                if (binding.Value.HasValue && !desiredKeys.Add(binding.Value.Value))
-                    throw new InvalidOperationException("Each shortcut must use a different key.");
+                if (binding.Value.HasValue)
+                {
+                    if (!HotkeyGesture.TryCreate(
+                        binding.Value.Value.Key,
+                        binding.Value.Value.Modifiers,
+                        out HotkeyGesture gesture))
+                    {
+                        throw new InvalidOperationException("A shortcut must include a non-modifier key.");
+                    }
+
+                    if (!desiredGestures.Add(gesture))
+                        throw new InvalidOperationException("Each shortcut must use a different key combination.");
+                }
             }
 
             Hotkey conflict = InstalledHotkeys.FirstOrDefault(item =>
-                !managedActions.Contains(item.ActionIndex) && desiredKeys.Contains(item.Key));
+                !managedActions.Contains(item.ActionIndex) && desiredGestures.Contains(item.Gesture));
             if (conflict != null)
             {
                 throw new InvalidOperationException(
-                    conflict.Key + " is already assigned to " + GetActionName(conflict.ActionIndex) + ".");
+                    conflict.Gesture + " is already assigned to " + GetActionName(conflict.ActionIndex) + ".");
             }
 
             foreach (Hotkey existing in InstalledHotkeys
@@ -550,14 +648,20 @@ namespace Grimoire.UI
 
             foreach (HotkeyBindingDefinition definition in SettingsBindingDefinitions)
             {
-                if (!bindings.TryGetValue(definition.ActionIndex, out Keys? key) || !key.HasValue)
+                if (!bindings.TryGetValue(definition.ActionIndex, out HotkeyGesture? binding)
+                    || !binding.HasValue)
+                {
                     continue;
+                }
+
+                HotkeyGesture gesture = binding.Value;
 
                 Hotkey hotkey = new Hotkey
                 {
                     ActionIndex = definition.ActionIndex,
-                    Key = key.Value,
-                    Text = key.Value + ": " + definition.DisplayName
+                    Key = gesture.Key,
+                    Modifiers = gesture.Modifiers,
+                    Text = gesture + ": " + definition.DisplayName
                 };
                 hotkey.Install();
                 InstalledHotkeys.Add(hotkey);
@@ -575,32 +679,37 @@ namespace Grimoire.UI
             if (hotkeys == null)
                 return;
 
-            HashSet<Keys> assignedKeys = new HashSet<Keys>();
+            HashSet<HotkeyGesture> assignedGestures = new HashSet<HotkeyGesture>();
             foreach (Hotkey hotkey in hotkeys)
             {
-                if (hotkey == null
-                    || hotkey.ActionIndex < 0
+                if (hotkey == null || !HotkeyGesture.TryCreate(hotkey.Key, hotkey.Modifiers, out HotkeyGesture gesture))
+                    continue;
+
+                if (hotkey.ActionIndex < 0
                     || hotkey.ActionIndex >= Actions.Length
-                    || hotkey.Key == Keys.None
-                    || !assignedKeys.Add(hotkey.Key))
+                    || !assignedGestures.Add(gesture))
                 {
                     continue;
                 }
 
-                hotkey.Text = hotkey.Key + ": " + GetActionName(hotkey.ActionIndex);
+                hotkey.Key = gesture.Key;
+                hotkey.Modifiers = gesture.Modifiers;
+                hotkey.Text = gesture + ": " + GetActionName(hotkey.ActionIndex);
                 InstalledHotkeys.Add(hotkey);
             }
         }
 
         private static void AddMissingSettingsDefaults()
         {
-            HashSet<Keys> assignedKeys = new HashSet<Keys>(InstalledHotkeys.Select(item => item.Key));
+            HashSet<HotkeyGesture> assignedGestures = new HashSet<HotkeyGesture>(
+                InstalledHotkeys.Select(item => item.Gesture));
             HashSet<int> assignedActions = new HashSet<int>(InstalledHotkeys.Select(item => item.ActionIndex));
 
             foreach (HotkeyBindingDefinition definition in SettingsBindingDefinitions)
             {
+                HotkeyGesture gesture = new HotkeyGesture(definition.DefaultKey, Keys.None);
                 if (assignedActions.Contains(definition.ActionIndex)
-                    || assignedKeys.Contains(definition.DefaultKey))
+                    || assignedGestures.Contains(gesture))
                 {
                     continue;
                 }
@@ -608,11 +717,12 @@ namespace Grimoire.UI
                 InstalledHotkeys.Add(new Hotkey
                 {
                     ActionIndex = definition.ActionIndex,
-                    Key = definition.DefaultKey,
-                    Text = definition.DefaultKey + ": " + definition.DisplayName
+                    Key = gesture.Key,
+                    Modifiers = gesture.Modifiers,
+                    Text = gesture + ": " + definition.DisplayName
                 });
                 assignedActions.Add(definition.ActionIndex);
-                assignedKeys.Add(definition.DefaultKey);
+                assignedGestures.Add(gesture);
             }
         }
 
@@ -638,9 +748,9 @@ namespace Grimoire.UI
             }
         }
 
-        public void OnKeyDown(Keys key)
+        public void OnKeyDown(HotkeyGesture gesture)
         {
-            Hotkey hotkey = InstalledHotkeys.FirstOrDefault((Hotkey h) => h.Key == key);
+            Hotkey hotkey = InstalledHotkeys.FirstOrDefault(h => h.Gesture.Equals(gesture));
             if (hotkey == null || hotkey.ActionIndex < 0 || hotkey.ActionIndex >= Actions.Length)
                 return;
 
@@ -671,6 +781,7 @@ namespace Grimoire.UI
 
         private void Hotkeys_FormClosing(object sender, FormClosingEventArgs e)
         {
+            KeyboardHook.Instance.SuppressHotkeyEvents = false;
             if (e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
@@ -867,9 +978,9 @@ namespace Grimoire.UI
             this.label1.ForeColor = System.Drawing.Color.Gainsboro;
             this.label1.Location = new System.Drawing.Point(12, 9);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(46, 13);
+            this.label1.Size = new System.Drawing.Size(96, 13);
             this.label1.TabIndex = 35;
-            this.label1.Text = "Hotkeys";
+            this.label1.Text = "Key / combination";
             // 
             // label2
             // 

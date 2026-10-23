@@ -148,6 +148,7 @@
       box-shadow: 0 8px 22px rgba(87, 48, 155, .28);
     }
     .button:hover { background: #8053cb; }
+    .button:disabled { cursor: default; opacity: .55; }
     .button.secondary {
       border-color: #58456e;
       color: #d7cde8;
@@ -371,6 +372,8 @@
       box-shadow: 0 12px 34px rgba(0, 0, 0, .22);
     }
     .accordion:last-child { margin-bottom: 0; }
+    .accordion-header { position: relative; }
+    .accordion.has-header-action .accordion-toggle { padding-right: 94px; }
     .accordion-toggle {
       display: block;
       position: relative;
@@ -401,6 +404,38 @@
       line-height: 20px;
       text-align: center;
     }
+    .accordion-header-action {
+      position: absolute;
+      z-index: 2;
+      top: 50%;
+      right: 52px;
+      width: 28px;
+      height: 28px;
+      margin-top: -14px;
+      padding: 5px;
+      border: 1px solid #584369;
+      border-radius: 7px;
+      outline: none;
+      color: #c7a9f6;
+      background: #272331;
+      box-shadow: none;
+    }
+    .accordion-header-action:hover,
+    .accordion-header-action:focus { border-color: #7650bd; color: #fff; background: #352b45; }
+    .accordion-header-action:disabled { cursor: default; opacity: .55; }
+    .accordion-header-action svg {
+      display: block;
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .accordion-header-action.busy svg { -ms-animation: accordion-spin 1s linear infinite; animation: accordion-spin 1s linear infinite; }
+    @-ms-keyframes accordion-spin { to { -ms-transform: rotate(360deg); } }
+    @keyframes accordion-spin { to { transform: rotate(360deg); } }
     .accordion-content {
       display: none;
       max-height: 290px;
@@ -436,7 +471,6 @@
       background: #62458a;
     }
     .accordion.open .accordion-content { display: block; }
-    .bot-actions { padding: 12px 0 0; text-align: right; }
     .bot-list { margin-top: 12px; }
     .bot-item {
       position: relative;
@@ -578,6 +612,66 @@
     .report-actions .button { margin-left: 8px; }
     .report-open { display: none; }
     .report-honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+    .doctor-content { max-height: 360px; }
+    .doctor-intro {
+      margin: 13px 0 12px;
+      color: #a9a2b2;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+    .doctor-summary {
+      margin-bottom: 8px;
+      padding: 10px 11px;
+      border: 1px solid #4a385f;
+      border-radius: 9px;
+      color: #d9c8f6;
+      background: #211c29;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .doctor-summary.pass { border-color: #315e4c; color: #83d8b2; background: #14251f; }
+    .doctor-summary.warning { border-color: #735b36; color: #edc98f; background: #282016; }
+    .doctor-summary.fail { border-color: #774046; color: #ffb7bd; background: #241216; }
+    .doctor-list { margin: 0; padding: 0; list-style: none; }
+    .doctor-item {
+      position: relative;
+      min-height: 54px;
+      padding: 9px 8px 9px 40px;
+      border-bottom: 1px solid #29242f;
+    }
+    .doctor-item:last-child { border-bottom: 0; }
+    .doctor-check {
+      position: absolute;
+      top: 11px;
+      left: 4px;
+      width: 24px;
+      height: 24px;
+      border: 1px solid #4b4157;
+      border-radius: 7px;
+      color: #8c8495;
+      background: #24212a;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 22px;
+      text-align: center;
+    }
+    .doctor-item.pass .doctor-check { border-color: #397b60; color: #78d6ac; background: #14251f; }
+    .doctor-item.warning .doctor-check { border-color: #735b36; color: #edc98f; background: #282016; }
+    .doctor-item.fail .doctor-check { border-color: #774046; color: #ffb7bd; background: #241216; }
+    .doctor-title { display: block; color: #ded8e7; font-size: 12px; font-weight: 700; line-height: 1.35; }
+    .doctor-message { display: block; margin-top: 3px; color: #8f8998; font-size: 10px; line-height: 1.45; }
+    .doctor-item.pass .doctor-message { color: #78b99d; }
+    .doctor-item.warning .doctor-message { color: #c6aa7c; }
+    .doctor-item.fail .doctor-message { color: #d79ca2; }
+    .doctor-actions {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-pack: end;
+      justify-content: flex-end;
+      padding-top: 12px;
+    }
+    .doctor-actions .button { margin-left: 8px; }
+    .doctor-copy { display: none; }
 
     .footer {
       margin-top: 18px;
@@ -707,24 +801,54 @@
 
           <section class="column roadmap">
             <div class="accordion-stack">
-              <section id="bot-manager-accordion" class="accordion">
-                <button class="accordion-toggle" type="button" aria-expanded="false" aria-controls="bot-manager-content" onclick="toggleAccordion('bot-manager-accordion')">
-                  <span class="accordion-heading">
-                    <span class="icon-box" aria-hidden="true">
-                      <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path><path d="M2 7h.01M2 12h.01M2 17h.01"></path></svg>
+              <section id="bot-manager-accordion" class="accordion has-header-action">
+                <div class="accordion-header">
+                  <button class="accordion-toggle" type="button" aria-expanded="false" aria-controls="bot-manager-content" onclick="toggleAccordion('bot-manager-accordion')">
+                    <span class="accordion-heading">
+                      <span class="icon-box" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path><path d="M2 7h.01M2 12h.01M2 17h.01"></path></svg>
+                      </span>
+                      <span class="accordion-copy">
+                        <span class="accordion-title">Bot Manager</span>
+                        <span id="bot-manager-summary" class="accordion-subtitle">Scanning available GBots...</span>
+                      </span>
                     </span>
-                    <span class="accordion-copy">
-                      <span class="accordion-title">Bot Manager</span>
-                      <span id="bot-manager-summary" class="accordion-subtitle">Scanning available GBots...</span>
-                    </span>
-                  </span>
-                  <span class="accordion-chevron" aria-hidden="true">+</span>
-                </button>
+                    <span class="accordion-chevron" aria-hidden="true">+</span>
+                  </button>
+                  <button class="accordion-header-action" type="button" title="Open Bot folder" aria-label="Open Bot folder" onclick="openBotFolder()">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5h7l2 2h9v9.5H3z"></path><path d="M3 7.5V5h7l2 2h6"></path></svg>
+                  </button>
+                </div>
                 <div id="bot-manager-content" class="accordion-content">
-                  <div class="bot-actions">
-                    <button class="button secondary small" type="button" onclick="openBotFolder()">Open Bot folder</button>
-                  </div>
                   <div id="bot-list" class="bot-list"></div>
+                </div>
+              </section>
+
+              <section id="doctor-accordion" class="accordion has-header-action">
+                <div class="accordion-header">
+                  <button class="accordion-toggle" type="button" aria-expanded="false" aria-controls="doctor-content" onclick="toggleAccordion('doctor-accordion')">
+                    <span class="accordion-heading">
+                      <span class="icon-box" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v8M8 12h8"></path></svg>
+                      </span>
+                      <span class="accordion-copy">
+                        <span class="accordion-title">Grimoire Doctor</span>
+                        <span class="accordion-subtitle">Run an automated compatibility check for this device.</span>
+                      </span>
+                    </span>
+                    <span class="accordion-chevron" aria-hidden="true">+</span>
+                  </button>
+                  <button id="doctor-run" class="accordion-header-action" type="button" title="Run diagnostic" aria-label="Run diagnostic" aria-controls="doctor-content" onclick="runDoctor()">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"></path><path d="M12 7v5l3 2"></path><path d="M17 3h4v4"></path><path d="M21 3l-4 4"></path></svg>
+                  </button>
+                </div>
+                <div id="doctor-content" class="accordion-content doctor-content">
+                  <p class="doctor-intro">Checks Windows, .NET, the bundled Flash runtime, writable storage, network reachability, client startup, and experimental settings. It does not read accounts, bots, packets, or logs.</p>
+                  <div id="doctor-summary" class="doctor-summary" role="status" aria-live="polite">Ready to check this device.</div>
+                  <ul id="doctor-list" class="doctor-list"></ul>
+                  <div class="doctor-actions">
+                    <button id="doctor-copy" class="button secondary small doctor-copy" type="button" onclick="copyDoctorResults()">Copy results</button>
+                  </div>
                 </div>
               </section>
 
@@ -844,7 +968,10 @@
               <button class="credit-link" type="button" onclick="openExternal('https://github.com/vtrsz/GrimliteRev')">vtrsz/GrimliteRev</button>
             </div>
           </div>
-          <div class="footer-note">Built on the work of the original Grimoire and Grimlite communities.</div>
+          <div class="footer-note">
+            Built on the work of the original Grimoire and Grimlite communities.
+            · <button class="credit-link" type="button" onclick="openExternal('https://ko-fi.com/i5osceles')">Support Grimoire Exodus on Ko-fi</button>
+          </div>
         </footer>
       </main>
     </div>
@@ -857,6 +984,21 @@
     var reportStartedAt = new Date().getTime();
     var reportPollCount = 0;
     var createdIssueUrl = null;
+    var doctorPollCount = 0;
+    var doctorRequestId = null;
+    var doctorDefaultChecks = [
+      { title: "Windows compatibility", status: "pending", message: "Not checked yet." },
+      { title: ".NET Framework 4.8", status: "pending", message: "Not checked yet." },
+      { title: "32-bit runtime", status: "pending", message: "Not checked yet." },
+      { title: "Required application files", status: "pending", message: "Not checked yet." },
+      { title: "Bundled Flash runtime", status: "pending", message: "Not checked yet." },
+      { title: "Writable app data", status: "pending", message: "Not checked yet." },
+      { title: "Storage and memory headroom", status: "pending", message: "Not checked yet." },
+      { title: "AQW service reachability", status: "pending", message: "Not checked yet." },
+      { title: "GitHub update reachability", status: "pending", message: "Not checked yet." },
+      { title: "AQW client initialization", status: "pending", message: "Not checked yet." },
+      { title: "Experimental settings", status: "pending", message: "Not checked yet." }
+    ];
 
     function parseHostResponse(raw) {
       try { return JSON.parse(raw); }
@@ -881,6 +1023,9 @@
         if (method === "OpenWebsite") return parseHostResponse(window.external.OpenWebsite(first));
         if (method === "BeginIssueReport") return parseHostResponse(window.external.BeginIssueReport(first, second, third, fourth, fifth, sixth, seventh));
         if (method === "GetIssueReportStatus") return parseHostResponse(window.external.GetIssueReportStatus(first));
+        if (method === "BeginCompatibilityCheck") return parseHostResponse(window.external.BeginCompatibilityCheck());
+        if (method === "GetCompatibilityCheckStatus") return parseHostResponse(window.external.GetCompatibilityCheckStatus(first));
+        if (method === "CopyCompatibilityCheckResults") return parseHostResponse(window.external.CopyCompatibilityCheckResults(first));
       } catch (error) {
         return { success: false, message: error.message || "Grimoire could not complete the request.", accounts: [] };
       }
@@ -1002,15 +1147,23 @@
       }
     }
 
-    function toggleAccordion(id) {
+    function setAccordionOpen(id, open) {
       var accordion = document.getElementById(id);
-      var toggle = accordion.getElementsByTagName("button")[0];
+      if (!accordion) return;
+      var toggle = accordion.getElementsByClassName("accordion-toggle")[0];
       var chevron = toggle.getElementsByClassName("accordion-chevron")[0];
-      var open = accordion.className.indexOf("open") < 0;
-      accordion.className = open ? "accordion open" : "accordion";
+      var classes = (" " + accordion.className + " ").replace(/\sopen\s/g, " ").replace(/\s+/g, " ");
+      accordion.className = classes.replace(/^\s+|\s+$/g, "") + (open ? " open" : "");
       toggle.setAttribute("aria-expanded", open ? "true" : "false");
       chevron.innerText = open ? "−" : "+";
       window.setTimeout(function () { updateScrollThumb(false); }, 20);
+    }
+
+    function toggleAccordion(id) {
+      var accordion = document.getElementById(id);
+      if (!accordion) return;
+      var open = (" " + accordion.className + " ").indexOf(" open ") < 0;
+      setAccordionOpen(id, open);
     }
 
     function setClientRunning(running, multiClientEnabled) {
@@ -1250,6 +1403,119 @@
       if (createdIssueUrl) openExternal(createdIssueUrl);
     }
 
+    function doctorGlyph(status) {
+      if (status === "pass") return "✓";
+      if (status === "warning") return "!";
+      if (status === "fail") return "×";
+      return "…";
+    }
+
+    function renderDoctorChecks(checks) {
+      var list = document.getElementById("doctor-list");
+      while (list.firstChild) list.removeChild(list.firstChild);
+      checks = checks && checks.length ? checks : doctorDefaultChecks;
+
+      for (var index = 0; index < checks.length; index++) {
+        var check = checks[index];
+        var status = check.status === "pass" || check.status === "warning" || check.status === "fail"
+          ? check.status
+          : "pending";
+        var item = document.createElement("li");
+        item.className = "doctor-item " + status;
+        item.setAttribute("role", "checkbox");
+        item.setAttribute("aria-disabled", "true");
+        item.setAttribute("aria-checked", status === "pass" ? "true" : status === "warning" ? "mixed" : "false");
+
+        var marker = document.createElement("span");
+        marker.className = "doctor-check";
+        marker.setAttribute("aria-hidden", "true");
+        marker.innerText = doctorGlyph(status);
+
+        var title = document.createElement("span");
+        title.className = "doctor-title";
+        title.innerText = check.title || "Compatibility check";
+
+        var message = document.createElement("span");
+        message.className = "doctor-message";
+        message.innerText = check.message || "Waiting to be checked.";
+
+        item.appendChild(marker);
+        item.appendChild(title);
+        item.appendChild(message);
+        list.appendChild(item);
+      }
+      window.setTimeout(function () { updateScrollThumb(false); }, 20);
+    }
+
+    function setDoctorBusy(busy) {
+      var button = document.getElementById("doctor-run");
+      button.disabled = busy;
+      button.className = "accordion-header-action" + (busy ? " busy" : "");
+      button.title = busy ? "Running diagnostic..." : "Run diagnostic";
+      button.setAttribute("aria-label", button.title);
+      button.setAttribute("aria-busy", busy ? "true" : "false");
+    }
+
+    function setDoctorSummary(message, kind) {
+      var summary = document.getElementById("doctor-summary");
+      summary.className = "doctor-summary" + (kind ? " " + kind : "");
+      summary.innerText = message || "Ready to check this device.";
+    }
+
+    function runDoctor() {
+      setAccordionOpen("doctor-accordion", true);
+      doctorPollCount = 0;
+      doctorRequestId = null;
+      document.getElementById("doctor-copy").style.display = "none";
+      setDoctorBusy(true);
+      setDoctorSummary("Running automated compatibility checks...", "");
+      renderDoctorChecks(doctorDefaultChecks);
+      handleDoctorState(invokeHost("BeginCompatibilityCheck"));
+    }
+
+    function handleDoctorState(state) {
+      if (!state.success) {
+        setDoctorBusy(false);
+        setDoctorSummary(state.message || "The compatibility check could not run.", "fail");
+        if (state.checks && state.checks.length) renderDoctorChecks(state.checks);
+        return;
+      }
+
+      doctorRequestId = state.requestId || doctorRequestId;
+      renderDoctorChecks(state.checks || doctorDefaultChecks);
+      if (!state.completed) {
+        setDoctorSummary(state.message || "Running automated compatibility checks...", "");
+        window.setTimeout(function () { pollDoctor(doctorRequestId); }, 500);
+        return;
+      }
+
+      setDoctorBusy(false);
+      var summary = state.summary || { passed: 0, warnings: 0, failed: 0 };
+      var summaryText = summary.passed + " passed · " + summary.warnings + " warning" + (summary.warnings === 1 ? "" : "s")
+        + " · " + summary.failed + " issue" + (summary.failed === 1 ? "" : "s");
+      setDoctorSummary(
+        summaryText + ". " + (state.message || "Checkup complete."),
+        summary.failed > 0 ? "fail" : summary.warnings > 0 ? "warning" : "pass");
+      if (doctorRequestId) document.getElementById("doctor-copy").style.display = "inline-block";
+    }
+
+    function pollDoctor(requestId) {
+      doctorPollCount++;
+      if (!requestId || doctorPollCount > 50) {
+        setDoctorBusy(false);
+        setDoctorSummary("The checkup timed out. Check the connection and try again.", "fail");
+        return;
+      }
+
+      handleDoctorState(invokeHost("GetCompatibilityCheckStatus", requestId));
+    }
+
+    function copyDoctorResults() {
+      if (!doctorRequestId) return;
+      var state = invokeHost("CopyCompatibilityCheckResults", doctorRequestId);
+      showNotice(state.message, !state.success);
+    }
+
     function updateScrollThumb(show) {
       var viewport = document.getElementById("app-scroll");
       var thumb = document.getElementById("scroll-thumb");
@@ -1278,6 +1544,7 @@
     document.getElementById("app-scroll").onscroll = function () { updateScrollThumb(true); };
     window.onresize = function () { updateScrollThumb(false); };
     updateReportCounters();
+    renderDoctorChecks(doctorDefaultChecks);
     refreshState();
   </script>
 </body>

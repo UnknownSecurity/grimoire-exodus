@@ -21,12 +21,22 @@ namespace Grimoire.Tools
 
         private readonly int _hookId;
 
+        private volatile bool suppressHotkeyEvents;
+
         public static KeyboardHook Instance
         {
             get;
         } = new KeyboardHook();
 
         public event Action<Keys> KeyDown;
+
+        public event Action<HotkeyGesture> GestureDown;
+
+        public bool SuppressHotkeyEvents
+        {
+            get { return suppressHotkeyEvents; }
+            set { suppressHotkeyEvents = value; }
+        }
 
         [DllImport("user32", CallingConvention = CallingConvention.StdCall)]
         private static extern int SetWindowsHookEx(int idHook, CallbackDelegate lpfn, int hInstance, int threadId);
@@ -36,6 +46,9 @@ namespace Grimoire.Tools
 
         [DllImport("user32", CallingConvention = CallingConvention.StdCall)]
         private static extern int CallNextHookEx(int idHook, int nCode, int wParam, int lParam);
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int virtualKey);
 
         private KeyboardHook()
         {
@@ -53,12 +66,30 @@ namespace Grimoire.Tools
             if (wParam == 256 || wParam == 260)
             {
                 Keys keys = (Keys)Marshal.ReadInt32((IntPtr)lParam);
-                if (TargetedKeys.Contains(keys))
+                if (!suppressHotkeyEvents && TargetedKeys.Contains(keys))
                 {
+                    GestureDown?.Invoke(new HotkeyGesture(keys, GetCurrentModifiers()));
                     this.KeyDown?.Invoke(keys);
                 }
             }
             return CallNextHookEx(_hookId, code, wParam, lParam);
+        }
+
+        private static Keys GetCurrentModifiers()
+        {
+            Keys modifiers = Keys.None;
+            if (IsKeyDown(Keys.ControlKey) || IsKeyDown(Keys.LControlKey) || IsKeyDown(Keys.RControlKey))
+                modifiers |= Keys.Control;
+            if (IsKeyDown(Keys.ShiftKey) || IsKeyDown(Keys.LShiftKey) || IsKeyDown(Keys.RShiftKey))
+                modifiers |= Keys.Shift;
+            if (IsKeyDown(Keys.Menu) || IsKeyDown(Keys.LMenu) || IsKeyDown(Keys.RMenu))
+                modifiers |= Keys.Alt;
+            return modifiers;
+        }
+
+        private static bool IsKeyDown(Keys key)
+        {
+            return (GetAsyncKeyState((int)key) & 0x8000) != 0;
         }
 
         public void Dispose()
