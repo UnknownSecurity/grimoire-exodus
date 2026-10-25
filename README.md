@@ -4,7 +4,7 @@
 
 Grimoire Exodus is a maintained AQW automation client based on Grimlite Rev. It is developed and maintained by **dsenin**.
 
-Version 1.4.0 introduces an opt-in experimental desktop multi-client preview with isolated client, bot, game, and proxy state. When enabled, one Grimoire window can host up to six AQW clients with an advanced override, compact client-tab navigation, opt-in rendering and FPS controls, and preserved legacy `.gbot` compatibility.
+Version 1.5.0 adds Grimoire Doctor compatibility checks, a searchable Quick Load GBot window, compact right-aligned toolbar access, and customizable single-key or multi-key shortcuts while preserving legacy `.gbot` compatibility.
 
 > [!WARNING]
 > Only download Grimoire Exodus from the [official GitHub Releases page](https://github.com/UnknownSecurity/grimoire-exodus/releases). Third-party mirrors, repacks, and unofficial installers are not maintained or verified by this project and may contain malware, credential stealers, cryptocurrency miners, or other unwanted modifications.
@@ -40,9 +40,9 @@ Use the dedicated Exodus developer CLI from PowerShell:
 
 Builds are written to `app\bin\<Configuration>\Grimoire Exodus.exe`. The CLI verifies and copies `Flash.ocx` beside the executable; Windows activates it through the embedded registration-free COM manifest, without changing the system Flash registration. The CLI preserves the legacy internal `Grimoire` assembly identity required by existing dependencies, while leaving only the branded executable in the final output. `dev` performs a verbose Debug build and launches it directly. `plugin` creates a standalone starter workspace under `plugin-workspaces` unless `-OutputDirectory` is supplied.
 
-`installer` builds Release in an isolated staging directory and creates `dist\Grimoire-Exodus-Setup-1.4.0.msi` with WiX Toolset 3.14.1. Setup offers an optional desktop shortcut and a **Launch Grimoire Exodus** checkbox on its final page. Writable settings, hotkeys, sets, plugins, and the encrypted account vault live under `%LOCALAPPDATA%\Grimoire Exodus`, while user-managed GBots live under `Documents\Grimoire\Bot`, so an installation under Program Files runs without administrator rights. Both WiX and the Flash archive are downloaded into the ignored `.tools` cache and verified with pinned SHA-256 hashes. Tagged GitHub releases publish both the native MSI and a portable ZIP made from the same validated payload.
+`installer` builds Release in an isolated staging directory and creates `dist\Grimoire-Exodus-Setup-1.5.0.msi` with WiX Toolset 3.14.1. Setup offers an optional desktop shortcut and a **Launch Grimoire Exodus** checkbox on its final page. Writable settings, hotkeys, sets, plugins, and the encrypted account vault live under `%LOCALAPPDATA%\Grimoire Exodus`, while user-managed GBots live under `Documents\Grimoire\Bot`, so an installation under Program Files runs without administrator rights. Both WiX and the Flash archive are downloaded into the ignored `.tools` cache and verified with pinned SHA-256 hashes. Tagged GitHub releases publish both the native MSI and a portable ZIP made from the same validated payload.
 
-The toolbar's quick-load menu combines official GBots bundled in the release `Bot` directory with user-managed GBots in `Documents\Grimoire\Bot` and sorts them by name. Existing bots from the previous `%LOCALAPPDATA%\Grimoire Exodus\Bots` or portable `Bots` locations are copied into the Documents folder on first use without overwriting files already there.
+The compact **Quick Load** toolbar button opens a searchable, scrollable selector that combines official GBots bundled in the release `Bot` directory with user-managed GBots in `Documents\Grimoire\Bot` and sorts them by name. Existing bots from the previous `%LOCALAPPDATA%\Grimoire Exodus\Bots` or portable `Bots` locations are copied into the Documents folder on first use without overwriting files already there.
 
 Startup logs and crash reports are stored under `%LOCALAPPDATA%\Grimoire Exodus`. After an unclean exit, Grimoire can offer to reload the last bot for review, but it never starts that bot automatically. Recovery data is kept separately and does not modify the `.gbot` format, preserving compatibility with older bot files.
 
@@ -56,7 +56,7 @@ The existing Windows project paths and build remain unchanged. Android uses the 
 
 ## Embedded Flash design
 
-Grimoire's game bridge depends on the original ActiveX `ExternalInterface` contract and synchronous `CallFunction`/`FlashCall` behavior. It also loads the live AQW AVM2 client, which opens the SmartFox connection used by the proxy and packet hooks. A web-hosted emulator would require replacing that host ABI and its socket integration. Version 1.4.0 continues to use the proven native player ABI while deploying the 32-bit runtime privately: `Flash.ocx` is loaded from Grimoire's own directory through registration-free COM and is never registered system-wide.
+Grimoire's game bridge depends on the original ActiveX `ExternalInterface` contract and synchronous `CallFunction`/`FlashCall` behavior. It also loads the live AQW AVM2 client, which opens the SmartFox connection used by the proxy and packet hooks. A web-hosted emulator would require replacing that host ABI and its socket integration. Version 1.5.0 continues to use the proven native player ABI while deploying the 32-bit runtime privately: `Flash.ocx` is loaded from Grimoire's own directory through registration-free COM and is never registered system-wide.
 
 The runtime is pinned to Clean Flash build 34.0.0.376 and is third-party legacy software. Do not use it to open untrusted SWFs.
 

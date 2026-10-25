@@ -29,7 +29,9 @@ namespace Grimoire.UI
     public partial class Root : GrimoireForm
     {
         private static readonly Color ToolboxBackgroundColor = Color.FromArgb(28, 32, 40);
+        private static readonly Color QuickBotBackgroundColor = Color.FromArgb(36, 40, 50);
         private static readonly Color QuickBotHoverColor = Color.FromArgb(57, 48, 68);
+        private const string QuickBotButtonText = "Quick Load";
 
         private IContainer components;
 
@@ -78,6 +80,7 @@ namespace Grimoire.UI
         private Bitmap headerHiddenIcon;
         private Bitmap settingsIcon;
         private Bitmap updateAvailableIcon;
+        private Bitmap quickBotsIcon;
         private ToolStripMenuItem updateToolStripMenuItem;
         private ToolStripButton quickBotsButton;
         private readonly List<FileSystemWatcher> quickBotWatchers = new List<FileSystemWatcher>();
@@ -459,27 +462,37 @@ namespace Grimoire.UI
 
         private void InitializeQuickBots()
         {
-            quickBotsButton = new ToolStripButton
-            {
-                AccessibleDescription = "Opens a scrollable list of bundled and user-managed GBots.",
-                AccessibleName = "Quick load GBot",
-                Alignment = ToolStripItemAlignment.Right,
-                AutoSize = false,
-                AutoToolTip = true,
-                BackColor = ToolboxBackgroundColor,
-                DisplayStyle = ToolStripItemDisplayStyle.Text,
-                ForeColor = Color.Gainsboro,
-                Name = "quickBotsButton",
-                Padding = new Padding(8, 0, 4, 0),
-                Size = new Size(235, 23),
-                Text = "Quick load GBot...",
-                TextAlign = ContentAlignment.MiddleLeft,
-                ToolTipText = "Open the Quick Load GBot list"
-            };
+            quickBotsIcon = CreateStatusIcon(StatusIcon.QuickLoad, Color.MediumPurple);
+            quickBotsButton = CreateQuickBotsButton(quickBotsIcon);
             quickBotsButton.Click += quickBotsButton_Click;
             MenuStrip1.Items.Add(quickBotsButton);
             InitializeQuickBotWatchers();
             RefreshQuickBots();
+        }
+
+        private static ToolStripButton CreateQuickBotsButton(Image icon)
+        {
+            return new ToolStripButton
+            {
+                AccessibleDescription = "Opens a scrollable list of bundled and user-managed GBots.",
+                AccessibleName = "Quick load GBot",
+                Alignment = ToolStripItemAlignment.Right,
+                AutoSize = true,
+                AutoToolTip = true,
+                BackColor = QuickBotBackgroundColor,
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                ForeColor = Color.MediumPurple,
+                Image = icon,
+                ImageAlign = ContentAlignment.MiddleCenter,
+                ImageScaling = ToolStripItemImageScaling.None,
+                Margin = Padding.Empty,
+                Name = "quickBotsButton",
+                Padding = new Padding(7, 0, 8, 0),
+                Text = QuickBotButtonText,
+                TextAlign = ContentAlignment.MiddleCenter,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                ToolTipText = "Open the Quick Load GBot list"
+            };
         }
 
         private void RefreshQuickBots()
@@ -558,14 +571,15 @@ namespace Grimoire.UI
             {
                 lastQuickBotPath = null;
             }
-            quickBotsButton.Text = currentExists
-                ? Path.GetFileNameWithoutExtension(lastQuickBotPath)
-                : "Quick load GBot...";
+            quickBotsButton.Text = QuickBotButtonText;
             quickBotsButton.ToolTipText = indexing
                 ? "Refreshing the GBot list..."
                 : bots.Count == 0
                     ? "Add .gbot files to Documents\\Grimoire\\Bot"
-                    : "Open the Quick Load GBot list";
+                    : currentExists
+                        ? "Open the Quick Load GBot list (selected: "
+                            + Path.GetFileNameWithoutExtension(lastQuickBotPath) + ")"
+                        : "Open the Quick Load GBot list";
         }
 
         private static IEnumerable<string> GetQuickBots(string directory)
@@ -733,7 +747,7 @@ namespace Grimoire.UI
                 if (BotManager.Instance.LoadBotFromFile(path, true, false))
                 {
                     lastQuickBotPath = path;
-                    quickBotsButton.Text = Path.GetFileNameWithoutExtension(path);
+                    RenderQuickBots(quickBotCache, false);
                     ShowForm(BotManager.Instance);
                 }
             }
@@ -760,9 +774,7 @@ namespace Grimoire.UI
 
             bool isQuickBot = IsQuickBotPath(path);
             lastQuickBotPath = isQuickBot ? path : null;
-            quickBotsButton.Text = string.IsNullOrWhiteSpace(lastQuickBotPath)
-                ? "Quick load GBot..."
-                : Path.GetFileNameWithoutExtension(lastQuickBotPath);
+            RenderQuickBots(quickBotCache, quickBotIndexing);
         }
 
         private static bool IsQuickBotPath(string path)
@@ -799,7 +811,8 @@ namespace Grimoire.UI
             EyeOpen,
             EyeClosed,
             Settings,
-            UpdateAvailable
+            UpdateAvailable,
+            QuickLoad
         }
 
         private static Bitmap CreateStatusIcon(StatusIcon icon, Color color)
@@ -881,6 +894,15 @@ namespace Grimoire.UI
                             float outerX = 8f + (float)Math.Cos(radians) * 7f;
                             float outerY = 8f + (float)Math.Sin(radians) * 7f;
                             graphics.DrawLine(pen, innerX, innerY, outerX, outerY);
+                        }
+                        break;
+
+                    case StatusIcon.QuickLoad:
+                        graphics.DrawRectangle(pen, 2.5f, 2f, 11f, 12f);
+                        for (int y = 5; y <= 11; y += 3)
+                        {
+                            graphics.FillEllipse(brush, 4f, y - 0.75f, 1.5f, 1.5f);
+                            graphics.DrawLine(pen, 7f, y, 11.5f, y);
                         }
                         break;
                 }
@@ -1088,10 +1110,20 @@ namespace Grimoire.UI
 
                 Color background = e.Item.Selected || e.Item.Pressed
                     ? QuickBotHoverColor
-                    : ToolboxBackgroundColor;
+                    : QuickBotBackgroundColor;
                 using (SolidBrush brush = new SolidBrush(background))
+                using (Pen border = new Pen(
+                    e.Item.Selected || e.Item.Pressed
+                        ? Color.MediumPurple
+                        : Color.FromArgb(75, 63, 89)))
                 {
                     e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
+                    e.Graphics.DrawRectangle(
+                        border,
+                        0,
+                        0,
+                        Math.Max(0, e.Item.Width - 1),
+                        Math.Max(0, e.Item.Height - 1));
                 }
             }
 
@@ -1757,6 +1789,7 @@ namespace Grimoire.UI
                 headerHiddenIcon?.Dispose();
                 settingsIcon?.Dispose();
                 updateAvailableIcon?.Dispose();
+                quickBotsIcon?.Dispose();
                 updateCancellation.Cancel();
                 updateCancellation.Dispose();
                 quickBotRefreshCancellation?.Cancel();

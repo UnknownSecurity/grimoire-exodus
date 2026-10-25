@@ -23,6 +23,26 @@ internal static class QuickBotSelectorSmoke
             Require(quickBotButton != null, "Quick Bot toolbar button field was not found.");
             Require(typeof(ToolStripButton).IsAssignableFrom(quickBotButton.FieldType), "Quick Bot toolbar control is still a drop-down.");
             Require(rootType.GetField("quickBotsMenuItem", BindingFlags.Instance | BindingFlags.NonPublic) == null, "Legacy Quick Bot drop-down field remains.");
+            MethodInfo buttonFactory = rootType.GetMethod(
+                "CreateQuickBotsButton",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Require(buttonFactory != null, "Quick Bot toolbar button factory was not found.");
+            using (Bitmap icon = new Bitmap(16, 16))
+            using (ToolStripButton button = (ToolStripButton)buttonFactory.Invoke(null, new object[] { icon }))
+            using (MenuStrip toolbar = new MenuStrip())
+            {
+                toolbar.Size = new Size(960, 24);
+                toolbar.Items.Add(new ToolStripMenuItem("Home"));
+                toolbar.Items.Add(button);
+                toolbar.PerformLayout();
+
+                Require(button.Alignment == ToolStripItemAlignment.Right, "Quick Bot toolbar button is not right-aligned.");
+                Require(button.AutoSize, "Quick Bot toolbar button should size to its compact content.");
+                Require(button.DisplayStyle == ToolStripItemDisplayStyle.ImageAndText, "Quick Bot toolbar button does not show an icon and label.");
+                Require(button.Image != null, "Quick Bot toolbar button icon is missing.");
+                Require(button.Text == "Quick Load", "Quick Bot toolbar button label is not stable.");
+                Require(button.Bounds.Right == toolbar.ClientSize.Width, "Quick Bot toolbar button is not flush with the right edge.");
+            }
             ConstructorInfo constructor = selectorType.GetConstructor(
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
                 null,

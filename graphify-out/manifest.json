@@ -1608,9 +1608,9 @@
     "semantic_hash": "757df9fc9733d17459d5da63546476fe"
   },
   "app/Grimoire.UI/Root.cs": {
-    "mtime": 1792633821.1309159,
-    "seen": 1792633879.0734017,
-    "ast_hash": "81a5a739ed7fc036194c46c27b437d53",
+    "mtime": 1792934954.6511748,
+    "seen": 1792934996.9582791,
+    "ast_hash": "4d179382e167002ac6280db8787f1628",
     "semantic_hash": ""
   },
   "app/Grimoire.UI/Set.Designer.cs": {
@@ -1650,9 +1650,9 @@
     "semantic_hash": "b4d79afd962708a4321b55053a025989"
   },
   "app/Grimoire.Updater/Properties/AssemblyInfo.cs": {
-    "mtime": 1792229601.2561398,
-    "seen": 1792235869.9616244,
-    "ast_hash": "dfbb34627882ea8c58cb5863695d56af",
+    "mtime": 1792935171.7731147,
+    "seen": 1792935503.5069466,
+    "ast_hash": "f42481f63dcb5318f99ace50ec4293f7",
     "semantic_hash": ""
   },
   "app/Grimoire.Utils/AppPaths.cs": {
@@ -1722,21 +1722,21 @@
     "semantic_hash": ""
   },
   "app/Grimoire.csproj": {
-    "mtime": 1792633642.3025541,
-    "seen": 1792633879.0734506,
-    "ast_hash": "79168cb5772d52610b781b321512f97b",
+    "mtime": 1792935171.7819571,
+    "seen": 1792935503.506993,
+    "ast_hash": "3138d317765a993bee9625165c5cf7b7",
     "semantic_hash": ""
   },
   "app/Grimoire/Program.cs": {
-    "mtime": 1792229636.0336907,
-    "seen": 1792235869.9616745,
-    "ast_hash": "07905aaf0b38c87aec23b95537189d5e",
+    "mtime": 1792935171.816963,
+    "seen": 1792935503.5069954,
+    "ast_hash": "f66800da47d14f80205ab68775b61444",
     "semantic_hash": ""
   },
   "app/Properties/AssemblyInfo.cs": {
-    "mtime": 1792229601.2531376,
-    "seen": 1792235869.9616778,
-    "ast_hash": "48a37384bf234426a276e39405de32a0",
+    "mtime": 1792935171.769574,
+    "seen": 1792935503.5069978,
+    "ast_hash": "0f9e437305831f1cf0a46c07c0c9abc8",
     "semantic_hash": ""
   },
   "app/Properties/Resources.Designer.cs": {
@@ -1872,9 +1872,9 @@
     "semantic_hash": "21e3745319381db7c0cf2259dae244f3"
   },
   "README.md": {
-    "mtime": 1792456277.91854,
-    "seen": 1792456312.7472856,
-    "ast_hash": "38aac44299930947f4c9a124f5a085c2",
+    "mtime": 1792935211.944904,
+    "seen": 1792935503.5072398,
+    "ast_hash": "010cc820514d88a29a9687bd0be66524",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -2538,9 +2538,9 @@
     "semantic_hash": ""
   },
   "tests/QuickBotSelectorSmoke.cs": {
-    "mtime": 1792633754.020448,
-    "seen": 1792633879.0735364,
-    "ast_hash": "6b7b3bc0eb8193399bf9f08563b9f315",
+    "mtime": 1792934934.714691,
+    "seen": 1792934996.9584649,
+    "ast_hash": "3341246454e490c70aa5bc76b6ff6c1b",
     "semantic_hash": ""
   },
   "tests/Test-QuickBotSelector.ps1": {
@@ -2559,6 +2559,12 @@
     "mtime": 1792744964.6816213,
     "seen": 1792745156.79836,
     "ast_hash": "07b35376d5206739ad0fc655dfc6bb13",
+    "semantic_hash": ""
+  },
+  "docs/releases/v1.5.0.md": {
+    "mtime": 1792935212.550848,
+    "seen": 1792935503.5072784,
+    "ast_hash": "202484d23568037352a317c225c5fe2a",
     "semantic_hash": ""
   }
 }
