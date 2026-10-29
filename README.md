@@ -4,7 +4,7 @@
 
 Grimoire Exodus is a maintained AQW automation client based on Grimlite Rev. It is developed and maintained by **dsenin**.
 
-Version 1.5.0 adds Grimoire Doctor compatibility checks, a searchable Quick Load GBot window, compact right-aligned toolbar access, and customizable single-key or multi-key shortcuts while preserving legacy `.gbot` compatibility.
+Version 1.5.0 adds Grimoire Doctor compatibility checks, a searchable Quick Load GBot window, customizable shortcut combinations, corrected multi-client launch behavior, themed settings scrolling, and an opt-in experimental Ruffle engine while preserving Flash.ocx and legacy `.gbot` compatibility.
 
 > [!WARNING]
 > Only download Grimoire Exodus from the [official GitHub Releases page](https://github.com/UnknownSecurity/grimoire-exodus/releases). Third-party mirrors, repacks, and unofficial installers are not maintained or verified by this project and may contain malware, credential stealers, cryptocurrency miners, or other unwanted modifications.

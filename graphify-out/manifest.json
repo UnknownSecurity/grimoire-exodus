@@ -1872,9 +1872,9 @@
     "semantic_hash": "21e3745319381db7c0cf2259dae244f3"
   },
   "README.md": {
-    "mtime": 1793237839.7306168,
-    "seen": 1793238370.597881,
-    "ast_hash": "aaecb2d713d6ab8e9673347866e7a3da",
+    "mtime": 1793291898.7429938,
+    "seen": 1793291942.0833166,
+    "ast_hash": "b1a053bc1833d8d2c27933a555f23000",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -2370,10 +2370,10 @@
     "semantic_hash": "07b35376d5206739ad0fc655dfc6bb13"
   },
   "docs/releases/v1.5.0.md": {
-    "mtime": 1792935212.550848,
-    "seen": 1792977126.4481761,
-    "ast_hash": "202484d23568037352a317c225c5fe2a",
-    "semantic_hash": "202484d23568037352a317c225c5fe2a"
+    "mtime": 1793291897.3500452,
+    "seen": 1793291942.0834026,
+    "ast_hash": "bb47c7b09f097bfbd6a833704d59ed43",
+    "semantic_hash": ""
   },
   "app/Grimoire.Clients/GameEngineKind.cs": {
     "mtime": 1792940226.623157,
