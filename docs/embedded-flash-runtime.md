@@ -1,80 +1,71 @@
-# Embedded Flash runtime research
+# Desktop game-engine architecture
 
-## Requirements found in Grimoire
+## Compatibility requirements
 
-Grimoire is not just displaying a SWF. The checked-in ActionScript 3 bridge:
+Grimoire does more than render a SWF. Its checked-in ActionScript bridge loads
+the current AQW AVM2 client, calls the desktop host synchronously through
+`ExternalInterface`, exposes the bot API back to C#, and observes SmartFox
+traffic so packet handlers and each session's game model remain current.
 
-- loads the current AQW AVM2 game client at runtime;
-- calls C# synchronously through Flash `ExternalInterface`;
-- exposes hundreds of callbacks back to C# through `CallFunction` and
-  `FlashCall` XML values;
-- observes the game's SmartFox events so the proxy, packet logger, and bot
-  engine receive the same network state as the visible client.
+Every engine therefore has to preserve rendering, AVM2 execution, raw TCP game
+networking, synchronous callback return values, packet observation, and
+per-client ownership. Legacy `.gbot` models remain above this boundary and do
+not change with the selected engine.
 
-Any replacement therefore has to preserve rendering, AVM2 behavior, raw game
-networking, and the bidirectional host ABI at the same time.
+## Flash.ocx (default)
 
-## Options evaluated
+The default engine uses the app-local 32-bit ActiveX runtime through
+registration-free COM. `app/Grimoire.manifest` maps the Flash CLSID and type
+library to `Flash.ocx` beside the application, so Grimoire never registers or
+replaces system Flash. `exodus.ps1` verifies the pinned archive and extracted
+OCX independently, and `tests/Test-FlashActivation.ps1` verifies that the real
+control loads the application-local module.
 
-### Ruffle in WebView2
+This remains the recommended compatibility path and the automatic fallback.
+The legacy runtime is only for the trusted bundled AQW bridge and must never be
+used as a general-purpose player for untrusted SWFs.
 
-Ruffle is the strongest open-source Flash emulator and is worth revisiting.
-Its web build is not a drop-in host here, however: a browser WebView cannot
-open the AQW client's raw SmartFox TCP connection without an additional
-WebSocket-to-TCP service, and Grimoire's ActiveX event/call bridge would have
-to be replaced with an asynchronous JavaScript bridge.
+## Ruffle in WebView2 (experimental)
 
-### Ruffle desktop/custom host
+The optional engine uses the official self-hosted Ruffle 0.7.1 web package in
+an isolated WebView2 control. It is opt-in under Settings → Performance and is
+used only for clients created after the setting is saved. Running clients and
+bots are never hot-switched.
 
-Ruffle core has AVM2 socket and ExternalInterface implementations, but its
-stock desktop host does not expose Grimoire's callbacks: its desktop
-`on_callback_available` handler is empty and unknown host calls return
-`Undefined`. A viable Ruffle migration would therefore be a separate project:
-build a custom Rust host/FFI surface, port the synchronous bridge, validate the
-complete AQW client, and re-test every automation API.
+Each Ruffle client owns:
 
-Relevant upstream source:
+- its WebView2 surface and writable profile below application-owned data;
+- a random-token, loopback-only HTTP origin serving an exact file allowlist;
+- a same-origin proxy restricted to `https://game.aq.com/game/`;
+- a server map that replaces AQW server destinations with synthetic slots;
+- bounded WebSocket-to-TCP tunnels for those slots; and
+- a synchronous WebView2 host object that preserves `modifyServers` and the
+  existing C#-to-ActionScript bot calls.
 
-- <https://github.com/ruffle-rs/ruffle/blob/master/desktop/src/backends/external_interface.rs>
-- <https://github.com/ruffle-rs/ruffle/blob/master/core/src/avm2/globals/flash/net/socket.rs>
+The adapter never records HTTP bodies, credentials, packets, server payloads,
+room names, or account details. It rejects missing tokens, traversal, general
+proxy destinations, private socket destinations, oversized requests/frames,
+and unknown static files. All adapter state is owned by one `ClientSession`, so
+multi-client packet and bot state stays separated.
 
-### System-wide Clean Flash
+The build downloads a pinned Ruffle archive, validates the archive SHA-256,
+extracts only the required runtime and license files, then validates every
+file independently. WebView2 SDK binaries and their license/notice are staged
+with both MSI and portable packages. If either the verified Ruffle payload or
+the Microsoft WebView2 Runtime is unavailable, only the requested new client
+falls back to Flash.ocx.
 
-This preserves behavior but keeps the existing external prerequisite, writes
-global COM registration, can conflict with other Flash versions, and requires
-a separate install/update lifecycle. It does not meet the v1.1.0 goal.
+## Upstream boundaries
 
-### Private registration-free ActiveX runtime (selected)
+Stock Ruffle desktop was not selected because its host does not expose
+Grimoire's callback ABI. The web runtime provides JavaScript
+`ExternalInterface`, `callExternalInterface`, URL rewriting, and socket-proxy
+configuration, while WebView2 supplies the synchronous host-object boundary.
 
-Windows side-by-side manifests support registration-free COM activation. By
-declaring the Flash CLSID under the app's private `Flash.ocx`, the existing
-`AxShockwaveFlash` host and all of its events remain unchanged while no global
-Flash registration is needed. The file travels with Grimoire and is serviced
-only when Grimoire is updated.
+- Ruffle: <https://github.com/ruffle-rs/ruffle>
+- WebView2: <https://developer.microsoft.com/microsoft-edge/webview2/>
+- Registration-free COM: <https://learn.microsoft.com/windows/win32/sbscs/registration-free-com>
+- App-local Flash source: <https://github.com/darktohka/clean-flash-builds/releases/tag/v1.54>
 
-Microsoft references:
-
-- <https://learn.microsoft.com/windows/win32/sbscs/registration-free-com>
-- <https://learn.microsoft.com/windows/win32/sbscs/comclass>
-- <https://learn.microsoft.com/windows/win32/sbscs/typelib>
-
-Runtime source:
-
-- <https://github.com/darktohka/clean-flash-builds/releases/tag/v1.54>
-
-## Implementation and safeguards
-
-- `app/Grimoire.manifest` maps the Flash CLSID and type library to the private
-  `Flash.ocx` next to the application executable.
-- `exodus.ps1 runtime` downloads a fixed release URL, verifies the archive,
-  extracts only the 32-bit release ActiveX control, and verifies that file too.
-- The archive and OCX hashes are pinned independently.
-- The native installer includes the already-verified OCX but does not register
-  it. Uninstalling Grimoire therefore cannot disturb another Flash consumer.
-- `tests/Test-FlashActivation.ps1` instantiates the real
-  `AxShockwaveFlashObjects.AxShockwaveFlash` control and fails unless the loaded
-  OCX module path is the application-local file.
-
-This is a compatibility solution for trusted AQW content, not a restoration of
-general-purpose browser Flash. The legacy runtime must not be used for
-untrusted SWFs.
+The detailed decision record, repeated design reviews, failure rules, and live
+validation matrix are in [desktop-ruffle-engine-plan.md](desktop-ruffle-engine-plan.md).

@@ -36,6 +36,22 @@ function New-TestPayload([string]$Directory, [string]$Marker) {
     foreach ($name in @("Grimoire Exodus.exe", "Grimoire.Updater.exe", "Flash.ocx", "grimoire-exodus.swf")) {
         Set-TestFile (Join-Path $Directory $name) "${Marker}-$name"
     }
+    foreach ($name in @(
+        "Microsoft.Web.WebView2.Core.dll",
+        "Microsoft.Web.WebView2.WinForms.dll",
+        "Ruffle\ruffle.js",
+        "Ruffle\core.ruffle.16d61072ac7fdc4d5013.js",
+        "Ruffle\core.ruffle.994eeef0a471a88cd0e3.js",
+        "Ruffle\172de42e6619eac8f371.wasm",
+        "Ruffle\878d548199cddef07035.wasm",
+        "Ruffle\LICENSE_APACHE",
+        "Ruffle\LICENSE_MIT",
+        "Resources\Ruffle\index.html",
+        "ThirdParty\WebView2.LICENSE.txt",
+        "ThirdParty\WebView2.NOTICE.txt",
+        "runtimes\win-x86\native\WebView2Loader.dll")) {
+        Set-TestFile (Join-Path $Directory $name) "${Marker}-$name"
+    }
     Set-TestFile (Join-Path $Directory "a-overwrite.txt") "${Marker}-overwrite"
     Set-TestFile (Join-Path $Directory "new-file.dll") "${Marker}-new"
 }

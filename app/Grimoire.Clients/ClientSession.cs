@@ -48,6 +48,8 @@ namespace Grimoire.Clients
 
             ActiveXFlashBridge activeXBridge = flashBridge as ActiveXFlashBridge;
             activeXBridge?.BindSession(this);
+            RuffleFlashBridge ruffleBridge = flashBridge as RuffleFlashBridge;
+            ruffleBridge?.BindSession(this);
             Bot bot = botEngine as Bot;
             bot?.BindSession(this);
             if (BotEngine != null)

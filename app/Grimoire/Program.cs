@@ -22,42 +22,34 @@ namespace Grimoire
             {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(defaultValue: false);
-                using (SingleInstanceBroker instanceBroker = SingleInstanceBroker.CreateForCurrentUser())
+                AppPreferenceSnapshot startupPreferences = AppPreferences.Load();
+                SingleInstanceBroker instanceBroker = null;
+                try
                 {
-                    if (!instanceBroker.IsPrimaryInstance)
+                    if (ShouldCreateSingleInstanceBroker(startupPreferences.EnableMultiClient))
                     {
-                        if (!instanceBroker.ForwardLaunchRequest(TimeSpan.FromSeconds(5)))
+                        instanceBroker = SingleInstanceBroker.CreateForCurrentUser();
+                        if (ShouldForwardAdditionalLaunch(
+                            startupPreferences.EnableMultiClient,
+                            instanceBroker.IsPrimaryInstance))
                         {
-                            DarkMessageBox.Show(
-                                new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen },
-                                "Grimoire Exodus is already running, but it did not answer the new-client request. Restore the existing window from the tray and try again.",
-                                "Grimoire Exodus is already open",
-                                MessageBoxIcon.Information);
+                            if (!instanceBroker.ForwardLaunchRequest(TimeSpan.FromSeconds(5)))
+                            {
+                                DarkMessageBox.Show(
+                                    new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen },
+                                    "Grimoire Exodus is already running, but it did not answer the new-client request. Restore the existing window from the tray and try again.",
+                                    "Grimoire Exodus is already open",
+                                    MessageBoxIcon.Information);
+                            }
+                            return;
                         }
-                        return;
                     }
 
-                    StartupDiagnostics.StartSession();
-                    StartupDiagnostics.SetStage("Runtime");
-                    flashVersion = FlashVersion();
-                    GrimoireForm.InitializeNativeTitleBarTheming();
-                    Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-                    Application.ThreadException += (sender, args) => ReportUnhandledException(args.Exception, "Windows Forms", false);
-                    TaskScheduler.UnobservedTaskException += (sender, args) =>
-                    {
-                        ReportUnhandledException(args.Exception, "Background task", false);
-                        args.SetObserved();
-                    };
-                    AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
-                        ReportUnhandledException(args.ExceptionObject as Exception, "Application domain", args.IsTerminating);
-
-                    StartupDiagnostics.SetStage("UI construction");
-                    Root root = new Root();
-                    if (root.Handle == IntPtr.Zero)
-                        throw new InvalidOperationException("The main window handle could not be created.");
-                    instanceBroker.StartListening(root.HandleAdditionalLaunchRequest);
-                    Application.Run(root);
-                    StartupDiagnostics.MarkCleanShutdown();
+                    RunApplication(instanceBroker);
+                }
+                finally
+                {
+                    instanceBroker?.Dispose();
                 }
             }
             catch (Exception exception)
@@ -76,6 +68,43 @@ namespace Grimoire
                 {
                 }
             }
+        }
+
+        internal static bool ShouldCreateSingleInstanceBroker(bool multiClientEnabled)
+        {
+            return multiClientEnabled;
+        }
+
+        internal static bool ShouldForwardAdditionalLaunch(
+            bool multiClientEnabled,
+            bool isPrimaryInstance)
+        {
+            return multiClientEnabled && !isPrimaryInstance;
+        }
+
+        private static void RunApplication(SingleInstanceBroker instanceBroker)
+        {
+            StartupDiagnostics.StartSession();
+            StartupDiagnostics.SetStage("Runtime");
+            flashVersion = FlashVersion();
+            GrimoireForm.InitializeNativeTitleBarTheming();
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (sender, args) => ReportUnhandledException(args.Exception, "Windows Forms", false);
+            TaskScheduler.UnobservedTaskException += (sender, args) =>
+            {
+                ReportUnhandledException(args.Exception, "Background task", false);
+                args.SetObserved();
+            };
+            AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+                ReportUnhandledException(args.ExceptionObject as Exception, "Application domain", args.IsTerminating);
+
+            StartupDiagnostics.SetStage("UI construction");
+            Root root = new Root();
+            if (root.Handle == IntPtr.Zero)
+                throw new InvalidOperationException("The main window handle could not be created.");
+            instanceBroker?.StartListening(root.HandleAdditionalLaunchRequest);
+            Application.Run(root);
+            StartupDiagnostics.MarkCleanShutdown();
         }
 
         private static void ReportUnhandledException(Exception exception, string context, bool isTerminating)

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -137,6 +138,8 @@ namespace Grimoire.Utils
             report.AppendLine("Process architecture: " + (Environment.Is64BitProcess ? "64-bit" : "32-bit"));
             report.AppendLine("OS architecture: " + (Environment.Is64BitOperatingSystem ? "64-bit" : "32-bit"));
             report.AppendLine("Logical processors: " + Environment.ProcessorCount.ToString(CultureInfo.InvariantCulture));
+            report.AppendLine("Selected game engine: " + GetSelectedGameEngine());
+            report.AppendLine("WebView2 Runtime: " + GetWebView2Version());
 
             try
             {
@@ -156,6 +159,57 @@ namespace Grimoire.Utils
         {
             Version version = typeof(SupportDiagnostics).Assembly.GetName().Version;
             return version == null ? "Unknown" : version.ToString();
+        }
+
+        private static string GetSelectedGameEngine()
+        {
+            try
+            {
+                Type preferencesType = Type.GetType("Grimoire.Utils.AppPreferences, Grimoire", false);
+                if (preferencesType == null)
+                    return "Unknown";
+                MethodInfo load = preferencesType.GetMethod("Load", BindingFlags.Static | BindingFlags.Public);
+                if (load == null)
+                    return "Unknown";
+                object preferences = load.Invoke(null, null);
+                if (preferences == null)
+                    return "Unknown";
+                PropertyInfo engine = preferences.GetType().GetProperty("GameEngine", BindingFlags.Instance | BindingFlags.Public);
+                if (engine == null)
+                    return "Unknown";
+                object value = engine.GetValue(preferences, null);
+                return value == null ? "Unknown" : value.ToString();
+            }
+            catch
+            {
+                return "Unknown";
+            }
+        }
+
+        private static string GetWebView2Version()
+        {
+            try
+            {
+                Type environmentType = Type.GetType(
+                    "Microsoft.Web.WebView2.Core.CoreWebView2Environment, Microsoft.Web.WebView2.Core",
+                    false);
+                if (environmentType == null)
+                    return "unavailable";
+                MethodInfo getVersion = environmentType.GetMethod(
+                    "GetAvailableBrowserVersionString",
+                    BindingFlags.Static | BindingFlags.Public,
+                    null,
+                    Type.EmptyTypes,
+                    null);
+                if (getVersion == null)
+                    return "unavailable";
+                string version = getVersion.Invoke(null, null) as string;
+                return string.IsNullOrWhiteSpace(version) ? "unavailable" : version;
+            }
+            catch
+            {
+                return "unavailable";
+            }
         }
 
         private static List<DiagnosticFile> FindDiagnosticFiles(

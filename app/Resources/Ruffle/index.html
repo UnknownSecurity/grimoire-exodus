@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Grimoire Ruffle Client</title>
+  <style>
+    html,body,#game{width:100%;height:100%;margin:0;overflow:hidden;background:#000}
+    ruffle-player{width:100%;height:100%;display:block}
+  </style>
+  <script>
+    "use strict";
+    const grimoireBase = "__BASE_URL__";
+    const socketBase = grimoireBase.replace("http://", "ws://");
+    const host = () => window.chrome.webview.hostObjects.sync.grimoire;
+    const outboundCalls = [
+      "progress", "modifyServers", "disconnect", "openWebsite",
+      "packetFromClient", "packetFromServer", "xtPacket", "packet",
+      "ping", "loadError", "chatCommand", "debug", "pext"
+    ];
+    for (const name of outboundCalls) {
+      window[name] = (...args) => host().Dispatch(name, JSON.stringify(args));
+    }
+
+    window.RufflePlayer = window.RufflePlayer || {};
+    window.RufflePlayer.config = {
+      publicPath: grimoireBase + "ruffle/",
+      allowScriptAccess: true,
+      allowNetworking: "all",
+      autoplay: "on",
+      unmuteOverlay: "hidden",
+      contextMenu: "off",
+      openUrlMode: "deny",
+      logLevel: "error",
+      preloader: false,
+      splashScreen: false,
+      maxExecutionDuration: 30,
+      backgroundExecutionMode: "mainThread"
+    };
+
+    let grimoirePlayer = null;
+    window.grimoireInvoke = envelopeJson => {
+      try {
+        if (!grimoirePlayer) {
+          return JSON.stringify({ ok: false, error: "Ruffle is not ready." });
+        }
+        const envelope = JSON.parse(envelopeJson);
+        const value = grimoirePlayer.ruffle().callExternalInterface(
+          envelope.name,
+          ...(Array.isArray(envelope.args) ? envelope.args : [])
+        );
+        return JSON.stringify({ ok: true, value: value === undefined ? null : value });
+      } catch (_) {
+        return JSON.stringify({ ok: false, error: "The game callback failed." });
+      }
+    };
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const source = window.RufflePlayer.newest();
+        grimoirePlayer = source.createPlayer();
+        document.getElementById("game").appendChild(grimoirePlayer);
+        const socketProxy = [];
+        for (let slot = 0; slot < 64; slot++) {
+          socketProxy.push({
+            host: "127.0.0.1",
+            port: 41000 + slot,
+            proxyUrl: socketBase + "socket/" + slot
+          });
+        }
+        await grimoirePlayer.ruffle().load({
+          url: grimoireBase + "client.swf",
+          base: "https://game.aq.com/game/",
+          allowScriptAccess: true,
+          socketProxy,
+          urlRewriteRules: [[
+            /^https:\/\/game\.aq\.com\/game\/(.*)$/i,
+            grimoireBase + "game/$1"
+          ]]
+        });
+        host().Dispatch("bridgeReady", "[]");
+      } catch (_) {
+        host().Dispatch("loadError", JSON.stringify(["Ruffle could not initialize the AQW client."]));
+      }
+    });
+  </script>
+  <script src="__BASE_URL__ruffle/ruffle.js"></script>
+</head>
+<body><div id="game"></div></body>
+</html>

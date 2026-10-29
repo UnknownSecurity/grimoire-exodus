@@ -267,7 +267,20 @@ namespace Grimoire.Updater
                 "Grimoire Exodus.exe",
                 "Grimoire.Updater.exe",
                 "Flash.ocx",
-                "grimoire-exodus.swf"
+                "grimoire-exodus.swf",
+                "Microsoft.Web.WebView2.Core.dll",
+                "Microsoft.Web.WebView2.WinForms.dll",
+                Path.Combine("Ruffle", "ruffle.js"),
+                Path.Combine("Ruffle", "core.ruffle.16d61072ac7fdc4d5013.js"),
+                Path.Combine("Ruffle", "core.ruffle.994eeef0a471a88cd0e3.js"),
+                Path.Combine("Ruffle", "172de42e6619eac8f371.wasm"),
+                Path.Combine("Ruffle", "878d548199cddef07035.wasm"),
+                Path.Combine("Ruffle", "LICENSE_APACHE"),
+                Path.Combine("Ruffle", "LICENSE_MIT"),
+                Path.Combine("Resources", "Ruffle", "index.html"),
+                Path.Combine("ThirdParty", "WebView2.LICENSE.txt"),
+                Path.Combine("ThirdParty", "WebView2.NOTICE.txt"),
+                Path.Combine("runtimes", "win-x86", "native", "WebView2Loader.dll")
             };
             foreach (string requiredFile in requiredFiles)
             {

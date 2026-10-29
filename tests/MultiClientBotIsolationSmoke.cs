@@ -227,11 +227,19 @@ internal static class MultiClientBotIsolationSmoke
             get { return null; }
         }
 
+        public GameEngineKind Engine { get { return GameEngineKind.FlashActiveX; } }
+
+        public System.Windows.Forms.Control HostControl { get { return null; } }
+
         public event Action<int> SwfLoadProgress;
 
         public event FlashBridgeCallHandler FlashCall;
 
         public event FlashBridgeErrorHandler FlashError;
+
+        public void LoadMovie(byte[] swf)
+        {
+        }
 
         public T Call<T>(string function, params object[] args)
         {

@@ -1,7 +1,6 @@
 ﻿//grimoire.Root
 package grimoire
 {
-	import flash.display.DisplayObject;
 	import flash.display.MovieClip;
     import flash.display.Loader;
     import flash.display.Shape;
@@ -25,7 +24,6 @@ package grimoire
     import flash.system.ApplicationDomain;
     import flash.system.Security;
     import flash.utils.getQualifiedClassName;
-	import flash.utils.getDefinitionByName;
 	import flash.utils.ByteArray;
 	import flash.utils.Timer;
     import flash.ui.Keyboard;
@@ -62,11 +60,9 @@ package grimoire
 		private var brandingLoader:Loader;
 		private var loadingBar:Shape;
 		private var loadingLabel:TextField;
-		// Kept dynamic so the desktop Flash Player bridge does not link AIR-only
-		// filesystem and application classes. The Android build explicitly
-		// includes MobileShell and constructs it only without ExternalInterface.
-		private var mobileShell:*;
 		private var lastReportedProgress:int = -1;
+		private var isRuffleHost:Boolean;
+		private var useByteLoadedGame:Boolean;
         private var doSignup:Boolean;
         private var isEU:Boolean;
         private var isWeb:Boolean;
@@ -97,20 +93,19 @@ package grimoire
         private function onAddedToStage(e:Event):void
         {
             removeEventListener(Event.ADDED_TO_STAGE, this.onAddedToStage);
-			stage.align = StageAlign.TOP_LEFT;
+			this.isRuffleHost = String(this.loaderInfo.parameters.grimoireRuffle) == "1";
+			this.useByteLoadedGame = !HostBridge.hasExternalHost || this.isRuffleHost;
 			if (HostBridge.hasExternalHost)
 			{
+				stage.align = StageAlign.TOP_LEFT;
 				stage.scaleMode = StageScaleMode.SHOW_ALL;
 			}
 			else
 			{
-				// Let AIR own the physical-to-logical transform. AQW continues to
-				// see its native 960x550 Stage coordinate plane, so Android touches
-				// land on the same coordinates used by the legacy client.
-				stage.scaleMode = StageScaleMode.EXACT_FIT;
+				stage.align = StageAlign.TOP_LEFT;
+				stage.scaleMode = StageScaleMode.SHOW_ALL;
 				stage.frameRate = 30;
 				stage.addEventListener(Event.RESIZE, this.onStageResize);
-				stage.addEventListener(KeyboardEvent.KEY_DOWN, this.onMobileStageKeyboard, true, 1000);
 			}
 			this.showLoadingProgress(0, "Checking AQW version");
 			if (HostBridge.hasExternalHost)
@@ -139,7 +134,7 @@ package grimoire
         private function loadGame():void
         {
 			var request:URLRequest = new URLRequest(((this.sURL + "gamefiles/") + this.sFile));
-			if (!HostBridge.hasExternalHost)
+			if (this.useByteLoadedGame)
 			{
 				// AIR application content cannot import a remote SWF directly into
 				// its security domain. Downloading the bytes first and explicitly
@@ -210,7 +205,7 @@ package grimoire
             Game.params.doSignup = this.doSignup;
 			Game.params.test = false;
 			Game.params.loginURL = this.loginURL;
-			if (!HostBridge.hasExternalHost)
+			if (this.useByteLoadedGame)
 			{
 				// loadBytes gives the remote AQW client an app:/[[DYNAMIC]] URL.
 				// AQW derives its post-login Assets_*.swf and API locations from
@@ -223,7 +218,7 @@ package grimoire
 				gameDefinition.serverGamePath = this.sURL;
 				trace("[Grimoire AIR] AQW asset origin restored: " + gameFilePath);
 			}
-			if (HostBridge.hasExternalHost)
+			if (HostBridge.hasExternalHost && !this.isRuffleHost)
 			{
 				if (this.parent != null)
 				{
@@ -234,17 +229,9 @@ package grimoire
 			{
 				this.removeLoadingSurface();
 			}
-			// AQW relies on the display hierarchy it uses in the desktop client.
-			// Keep the live game directly on Stage and place the AIR chrome in
-			// this Root overlay instead of reparenting or masking the game.
+			// AQW relies on the display hierarchy used by the desktop client.
+			// Keep the live game directly on the host Stage.
 			this.stg.addChildAt(Game, 0);
-			if (!HostBridge.hasExternalHost)
-			{
-				var mobileShellClass:Class = getDefinitionByName("grimoire.MobileShell") as Class;
-				this.mobileShell = new mobileShellClass(DisplayObject(Game));
-				addChild(this.mobileShell);
-				this.mobileShell.layout(stage.stageWidth, stage.stageHeight);
-			}
 			Game.addEventListener(MouseEvent.CLICK, this.onGameClick);
 			Game.addEventListener(KeyboardEvent.KEY_DOWN, this.onGameKeyboard);
 			Game.loginLoader.addEventListener(Event.COMPLETE, this.onLoginComplete);
@@ -256,16 +243,11 @@ package grimoire
 			Game.sfc.debug = true;
 			this.external = new Externalizer();
 			this.external.init(this);
-			trace("[Grimoire AIR] AQW client initialized");
+			trace("[Grimoire] AQW client initialized");
         }
 		
         private function onDisconnect(e:*):void
         {
-			if (this.mobileShell != null)
-			{
-				this.mobileShell.setConnected(false);
-				this.mobileShell.resetPlayerProfile();
-			}
             HostBridge.call("disconnect");
         }
 
@@ -428,6 +410,7 @@ package grimoire
 			}
 
 			var raw:String = String(e.params.message);
+			this.updateSessionFromPacket(raw);
 			var packet:String = this.filter(raw);
 			if (packet.length == 0 || packet.indexOf("%xt%zm%hi%") > -1 || packet.indexOf("Please slow down. Last action was too soon!") > -1)
 			{
@@ -448,6 +431,7 @@ package grimoire
 		
 		public function onPacketResponse(e:*):void
         {
+			this.updateSessionFromPacket(e.params.message);
 			if (e.params.message.indexOf("%xt%zm%hi%") > -1)
 			{
 				return;
@@ -461,84 +445,36 @@ package grimoire
             {
 				grimoire.game.Bank.loaded = false;
 			}
-			else if (e.params.message.indexOf('"cmd":"loadInventoryBig"') > -1)
-			{
-				isLoggedIn = true;
-				grimoire.game.Client.shouldPing = true;
-				if (this.mobileShell != null)
-				{
-					this.refreshMobileProfile();
-					this.mobileShell.setConnected(true);
-				}
-			}
-			else if (e.params.message.indexOf("<msg t='sys'><body action='logout' r='0'></body></msg>") > -1)
-			{
-				isLoggedIn = false;
-				grimoire.game.Client.shouldPing = false;
-				if (this.mobileShell != null)
-				{
-					this.mobileShell.setConnected(false);
-					this.mobileShell.resetPlayerProfile();
-				}
-			}
 			HostBridge.call("packet", this.filter(e.params.message));
         }
 
-		private function refreshMobileProfile():void
+		private function updateSessionFromPacket(value:*):void
 		{
-			if (this.mobileShell == null)
+			if (value == null)
 			{
 				return;
 			}
 
-			var authenticatedName:String = "";
-			var level:* = null;
-			var characterClass:String = "";
-			var avatarData:*;
-			var gameDefinition:Object;
-
-			try
+			var message:String = String(value);
+			if (this.isInventoryLoadedPacket(message))
 			{
-				if (Game.world != null && Game.world.myAvatar != null && Game.world.myAvatar.objData != null)
-				{
-					avatarData = Game.world.myAvatar.objData;
-					if (avatarData.strUsername != null)
-					{
-						authenticatedName = String(avatarData.strUsername);
-					}
-					if (avatarData.intLevel != null)
-					{
-						level = avatarData.intLevel;
-					}
-					if (avatarData.strClassName != null)
-					{
-						characterClass = String(avatarData.strClassName);
-					}
-				}
+				isLoggedIn = true;
+				grimoire.game.Client.shouldPing = true;
 			}
-			catch (avatarError:Error)
+			else if (message.indexOf("<msg t='sys'><body action='logout' r='0'></body></msg>") > -1)
 			{
-				// The inventory packet can precede avatar display construction.
+				isLoggedIn = false;
+				grimoire.game.Client.shouldPing = false;
 			}
-
-			if (authenticatedName.replace(/^\s+|\s+$/g, "").length == 0)
-			{
-				try
-				{
-					gameDefinition = gameDomain.getDefinition("Game");
-					if (gameDefinition.loginInfo != null && gameDefinition.loginInfo.strUsername != null)
-					{
-						authenticatedName = String(gameDefinition.loginInfo.strUsername);
-					}
-				}
-				catch (loginInfoError:Error)
-				{
-				}
-			}
-
-			this.mobileShell.setPlayerProfile(authenticatedName, level, characterClass);
 		}
-		
+
+		private function isInventoryLoadedPacket(message:String):Boolean
+		{
+			var normalized:String = message.split("&quot;").join('"');
+			normalized = normalized.replace(/\s+/g, "");
+			return normalized.indexOf('"cmd":"loadInventoryBig"') > -1;
+		}
+
 		public function onExtensionResponse(packet:*):void
         {
             if (packet.params.type == "str")
@@ -607,7 +543,7 @@ package grimoire
 			if (percentage != this.lastReportedProgress)
 			{
 				this.lastReportedProgress = percentage;
-				trace("[Grimoire AIR] " + message + " " + percentage + "%");
+				trace("[Grimoire] " + message + " " + percentage + "%");
 			}
 			this.loadingLabel.text = message + "  " + percentage + "%";
 			this.loadingBar.graphics.clear();
@@ -666,28 +602,6 @@ package grimoire
 			}
 
 			this.layoutLoadingSurface();
-			if (this.mobileShell != null)
-			{
-				this.mobileShell.layout(stage.stageWidth, stage.stageHeight);
-			}
-		}
-
-		private function onMobileStageKeyboard(e:KeyboardEvent):void
-		{
-			if (this.mobileShell == null)
-			{
-				return;
-			}
-			if (e.keyCode == Keyboard.BACK)
-			{
-				if (this.mobileShell.handleBack())
-				{
-					e.preventDefault();
-					e.stopImmediatePropagation();
-				}
-				return;
-			}
-			this.mobileShell.handleKey(e.keyCode);
 		}
 
 		private function layoutLoadingSurface():void

@@ -1,5 +1,6 @@
 using AxShockwaveFlashObjects;
 using System;
+using System.Windows.Forms;
 
 namespace Grimoire.Clients
 {
@@ -14,13 +15,26 @@ namespace Grimoire.Clients
     /// </summary>
     public interface IFlashBridge : IDisposable
     {
+        GameEngineKind Engine { get; }
+
+        /// <summary>
+        /// Legacy ActiveX control. Ruffle bridges deliberately return null so
+        /// old plug-ins fail closed instead of receiving an incompatible host.
+        /// </summary>
         AxShockwaveFlash Control { get; }
+
+        /// <summary>
+        /// Engine-neutral WinForms surface owned by this bridge.
+        /// </summary>
+        Control HostControl { get; }
 
         event Action<int> SwfLoadProgress;
 
         event FlashBridgeCallHandler FlashCall;
 
         event FlashBridgeErrorHandler FlashError;
+
+        void LoadMovie(byte[] swf);
 
         T Call<T>(string function, params object[] args);
 

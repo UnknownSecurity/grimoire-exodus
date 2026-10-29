@@ -1,3 +1,4 @@
+using Grimoire.Clients;
 using Grimoire.Tools;
 using Grimoire.Utils;
 using Newtonsoft.Json;
@@ -245,6 +246,13 @@ namespace Grimoire.UI
                     // Resource headroom remains useful even if this metric is unavailable.
                 }
 
+                string gameEngineAvailabilityError = null;
+                if (preferences.GameEngine == GameEngineKind.Ruffle
+                    && RuffleEngineAvailability.TryGetFailure(out string engineFailure))
+                {
+                    gameEngineAvailabilityError = engineFailure;
+                }
+
                 CompatibilityCheckOperation operation = compatibilityChecks.Begin(
                     new CompatibilityCheckContext
                     {
@@ -258,6 +266,8 @@ namespace Grimoire.UI
                         GameLoadProgress = root.GameLoadProgress,
                         OpenClientCount = root.OpenClientCount,
                         MultiClientEnabled = preferences.EnableMultiClient,
+                        GameEngine = preferences.GameEngine.ToString(),
+                        GameEngineAvailabilityError = gameEngineAvailabilityError,
                         RenderingProfile = preferences.RenderingProfile.ToString(),
                         WorkingSetBytes = workingSetBytes
                     });

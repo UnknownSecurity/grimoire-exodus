@@ -42,6 +42,7 @@ namespace Grimoire.UI
         private bool pendingAdditionalLaunchRequest;
         private byte[] clientSwfBytes;
         private AppPreferenceSnapshot desktopPreferences;
+        private bool ruffleFallbackWarningShown;
 
         private static int GetConfiguredMaximumDesktopClients()
         {
@@ -56,6 +57,7 @@ namespace Grimoire.UI
         {
             public ClientSession Session;
             public Panel Host;
+            public Control ClientControl;
             public AxShockwaveFlash FlashControl;
             public Label Placeholder;
             public Button TabButton;
@@ -447,6 +449,32 @@ namespace Grimoire.UI
 
         private ClientSession CreateClientSession(string displayName, bool openWhenReady)
         {
+            GameEngineKind requestedEngine = GetDesktopPreferences().GameEngine;
+            if (requestedEngine == GameEngineKind.Ruffle
+                && RuffleEngineAvailability.TryGetFailure(out string unavailableReason))
+            {
+                ShowRuffleFallbackWarning(unavailableReason);
+                requestedEngine = GameEngineKind.FlashActiveX;
+            }
+
+            try
+            {
+                return CreateClientSessionCore(displayName, openWhenReady, requestedEngine);
+            }
+            catch (Exception exception) when (requestedEngine == GameEngineKind.Ruffle)
+            {
+                StartupDiagnostics.RecordException("Ruffle initialization", exception, false);
+                ShowRuffleFallbackWarning(
+                    "Ruffle could not initialize this client. Grimoire will use Flash.ocx for it instead.");
+                return CreateClientSessionCore(displayName, openWhenReady, GameEngineKind.FlashActiveX);
+            }
+        }
+
+        private ClientSession CreateClientSessionCore(
+            string displayName,
+            bool openWhenReady,
+            GameEngineKind engine)
+        {
             if (clientSessions.Sessions.Count >= clientSessions.MaximumSessions)
                 throw new InvalidOperationException("The current client limit has been reached.");
 
@@ -466,30 +494,46 @@ namespace Grimoire.UI
                 Text = displayName + " · Loading AQW 0%",
                 TextAlign = ContentAlignment.MiddleCenter
             };
-            AxShockwaveFlash flashControl = new AxShockwaveFlash();
-            ActiveXFlashBridge bridge = null;
+            AxShockwaveFlash flashControl = null;
+            Control clientControl = null;
+            IFlashBridge bridge = null;
             ClientSession session = null;
             ClientWorkspaceState workspace = null;
 
             try
             {
-                flashControl.BeginInit();
-                flashControl.Name = "Flash" + displayName.Replace(" ", string.Empty);
-                flashControl.Dock = DockStyle.Fill;
-                flashControl.TabIndex = 0;
-                host.Controls.Add(flashControl);
-                flashControl.EndInit();
+                if (engine == GameEngineKind.Ruffle)
+                {
+                    bridge = new RuffleFlashBridge();
+                    clientControl = bridge.HostControl;
+                    clientControl.Name = "Ruffle" + displayName.Replace(" ", string.Empty);
+                    host.Controls.Add(clientControl);
+                }
+                else
+                {
+                    flashControl = new AxShockwaveFlash();
+                    flashControl.BeginInit();
+                    flashControl.Name = "Flash" + displayName.Replace(" ", string.Empty);
+                    flashControl.Dock = DockStyle.Fill;
+                    flashControl.TabIndex = 0;
+                    host.Controls.Add(flashControl);
+                    flashControl.EndInit();
+                    ApplyFlashPresentationSettings(flashControl, GetDesktopPreferences());
+                    bridge = new ActiveXFlashBridge(flashControl);
+                    clientControl = flashControl;
+                }
+                clientControl.Dock = DockStyle.Fill;
+                clientControl.TabIndex = 0;
                 host.Controls.Add(placeholder);
                 placeholder.BringToFront();
                 GamePanel.Controls.Add(host);
-                ApplyFlashPresentationSettings(flashControl, GetDesktopPreferences());
 
-                bridge = new ActiveXFlashBridge(flashControl);
                 session = new ClientSession(displayName, bridge, new Bot());
                 workspace = new ClientWorkspaceState
                 {
                     Session = session,
                     Host = host,
+                    ClientControl = clientControl,
                     FlashControl = flashControl,
                     Placeholder = placeholder,
                     OpenRequested = openWhenReady,
@@ -502,10 +546,10 @@ namespace Grimoire.UI
 
                 if (primarySession == null || primarySession.IsDisposed)
                     primarySession = session;
-                Game = clientSessions.ActiveSession?.FlashBridge.Control ?? flashControl;
+                Game = clientSessions.ActiveSession?.FlashBridge.Control;
                 Flash.flash = Game;
 
-                ApplyClientSwfState(flashControl);
+                ApplyClientSwfState(bridge);
                 RestoreWorkspaceZOrder();
                 UpdateClientStripButtons();
                 return session;
@@ -523,12 +567,18 @@ namespace Grimoire.UI
                     }
                     bridge?.Dispose();
                     if (bridge == null)
-                        flashControl.Dispose();
+                    {
+                        clientControl?.Dispose();
+                        if (clientControl == null)
+                            flashControl?.Dispose();
+                    }
                     host.Dispose();
                 }
 
-                StartupDiagnostics.RecordException("Flash initialization", exception, false);
-                if (!Program.CheckFlashVersion())
+                StartupDiagnostics.RecordException(engine == GameEngineKind.Ruffle
+                    ? "Ruffle initialization"
+                    : "Flash initialization", exception, false);
+                if (engine == GameEngineKind.FlashActiveX && !Program.CheckFlashVersion())
                 {
                     DarkMessageBox.Show(
                         new Form { TopMost = true, StartPosition = FormStartPosition.CenterScreen },
@@ -540,7 +590,7 @@ namespace Grimoire.UI
             }
         }
 
-        private void ApplyClientSwfState(AxShockwaveFlash flashControl)
+        private void ApplyClientSwfState(IFlashBridge bridge)
         {
             if (clientSwfBytes == null)
             {
@@ -550,16 +600,19 @@ namespace Grimoire.UI
                 clientSwfBytes = File.ReadAllBytes(swfPath);
             }
 
-            using (MemoryStream stream = new MemoryStream())
-            using (BinaryWriter writer = new BinaryWriter(stream))
-            {
-                writer.Write(8 + clientSwfBytes.Length);
-                writer.Write(1432769894);
-                writer.Write(clientSwfBytes.Length);
-                writer.Write(clientSwfBytes);
-                writer.Seek(0, SeekOrigin.Begin);
-                flashControl.OcxState = new AxHost.State(stream, 1, false, null);
-            }
+            bridge.LoadMovie(clientSwfBytes);
+        }
+
+        private void ShowRuffleFallbackWarning(string reason)
+        {
+            if (ruffleFallbackWarningShown)
+                return;
+            ruffleFallbackWarningShown = true;
+            DarkMessageBox.Show(
+                this,
+                reason + "\r\n\r\nFlash.ocx remains available and will be used for this client. Existing clients were not changed.",
+                "Ruffle is unavailable",
+                MessageBoxIcon.Warning);
         }
 
         private AppPreferenceSnapshot GetDesktopPreferences()
@@ -868,7 +921,7 @@ namespace Grimoire.UI
                 homeWorkspaceVisible = false;
                 UpdateClientSurfaceVisibility();
                 workspace.Host.BringToFront();
-                workspace.FlashControl.Focus();
+                workspace.ClientControl.Focus();
             }
 
             workspace.ShowWhileLoading = false;
@@ -975,7 +1028,7 @@ namespace Grimoire.UI
             {
                 currentWorkspace.Host.BringToFront();
                 if (current.IsReady)
-                    currentWorkspace.FlashControl.Focus();
+                    currentWorkspace.ClientControl.Focus();
                 else
                     currentWorkspace.Placeholder.BringToFront();
                 EnsureClientTabVisible(currentWorkspace.TabButton);
@@ -996,10 +1049,13 @@ namespace Grimoire.UI
                 bool isActive = ReferenceEquals(activeSession, workspace.Session);
                 bool botRunning = workspace.Session.BotEngine != null
                     && workspace.Session.BotEngine.IsRunning;
+                bool requiresVisibleInitialization = workspace.Session.FlashBridge.Engine == GameEngineKind.Ruffle
+                    && workspace.Session.State == ClientSessionState.Initializing;
                 bool shouldRender = ClientSurfacePolicy.ShouldRenderClientSurface(
                     homeWorkspaceVisible,
                     isActive,
-                    botRunning);
+                    botRunning,
+                    requiresVisibleInitialization);
                 if (workspace.Host.Visible != shouldRender)
                     workspace.Host.Visible = shouldRender;
             }

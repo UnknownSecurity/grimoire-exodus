@@ -1,19 +1,18 @@
-# Game client build targets
+# Desktop game client
 
-The ActionScript sources under `AS3/` are shared by the Windows and Android
-clients, but their compiled SWF files are not interchangeable.
+The ActionScript sources under `AS3/` and `grimoire-exodus.swf` belong to the
+Windows desktop client. The checked-in SWF is loaded by the app-local ActiveX
+Flash Player and must remain a Flash Player-compatible publish output.
 
-- `grimoire-exodus.swf` is the Windows desktop bootstrap loaded by the app-local
-  ActiveX Flash Player. It must remain a Flash Player-compatible publish output.
-- `../mobile/air-client/build-air.ps1` compiles an AIR bootstrap into its own
-  ignored staging directory for Android packaging.
-
-Never copy the AIR compiler output over `grimoire-exodus.swf`. An AIR-targeted
-SWF can report a valid ActiveX ready state while executing none of the bootstrap
-callbacks, which leaves the Windows Home screen at `Loading AQW 0%`.
+Android source and AIR packaging now live in
+[`UnknownSecurity/grimoire-mobile`](https://github.com/UnknownSecurity/grimoire-mobile).
+Never copy a mobile AIR compiler output over the desktop SWF: an AIR-targeted
+artifact can report a valid ActiveX ready state while executing none of the
+desktop bootstrap callbacks, leaving Home at `Loading AQW 0%`.
 
 The desktop artifact is SHA-256 pinned by `exodus.ps1`. An intentional desktop
-publish must update that pin in the same change; an Android AIR build must not.
+publish must update that pin in the same change. Mobile releases are versioned
+and built independently in the mobile repository.
 
 After intentionally replacing the desktop SWF, build the Windows client and run:
 

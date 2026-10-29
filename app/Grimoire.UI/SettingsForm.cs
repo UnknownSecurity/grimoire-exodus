@@ -1,5 +1,6 @@
 using DarkUI.Controls;
 using DarkUI.Forms;
+using Grimoire.Clients;
 using Grimoire.Tools;
 using Grimoire.Utils;
 using System;
@@ -7,6 +8,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -85,8 +87,8 @@ namespace Grimoire.UI
             tabs.TabPages.Add(CreateGeneralTab());
             tabs.TabPages.Add(CreatePerformanceTab());
             tabs.TabPages.Add(CreateKeyBindingsTab());
-            tabs.TabPages.Add(CreateLogsTab());
             tabs.TabPages.Add(CreateAdvancedTab());
+            tabs.TabPages.Add(CreateLogsTab());
 
             FlowLayoutPanel footer = new FlowLayoutPanel
             {
@@ -145,13 +147,13 @@ namespace Grimoire.UI
             ConfigurePreferenceCheckBox(
                 chkEnableMultiClient,
                 "Enable multi-client mode (experimental)",
-                "Shows the client switcher and allows up to six independent AQW clients. Extra clients increase CPU and memory use.");
+                "Shows the client switcher and allows up to six independent AQW clients. While enabled, later launches join the first window; while disabled, every launch opens separately. Restart after changing this mode.");
             chkEnableMultiClient.CheckedChanged += delegate
             {
                 chkUnlimitedClients.Enabled = chkEnableMultiClient.Checked;
             };
             content.Controls.Add(chkEnableMultiClient);
-            page.Controls.Add(content);
+            page.Controls.Add(CreateThemedScrollHost(content));
             return page;
         }
 
@@ -161,11 +163,10 @@ namespace Grimoire.UI
             FlowLayoutPanel content = CreateVerticalContent();
 
             content.Controls.Add(CreateHeading("Game engine"));
-            ConfigureDropDown(cmbGameEngine, "Flash.ocx (current)", "Ruffle (planned)");
-            cmbGameEngine.Enabled = false;
+            ConfigureDropDown(cmbGameEngine, "Flash.ocx (recommended)", "Ruffle (experimental)");
             content.Controls.Add(CreatePreferenceRow(
                 "AQW engine",
-                "Flash.ocx is the current compatible engine. Ruffle switching is planned and remains unavailable until the bot bridge is supported safely.",
+                "Flash.ocx is the compatibility default. Ruffle uses WebView2 and an isolated local bridge; changes apply only to newly created clients.",
                 cmbGameEngine));
 
             content.Controls.Add(CreateHeading("Rendering"));
@@ -225,7 +226,7 @@ namespace Grimoire.UI
                 "A conservative 15 FPS target reduces background rendering while keeping the session connected.",
                 numInactiveClientFrameRate));
 
-            page.Controls.Add(content);
+            page.Controls.Add(CreateThemedScrollHost(content));
             return page;
         }
 
@@ -292,7 +293,7 @@ namespace Grimoire.UI
             content.Controls.Add(defaults, 1, row);
 
             content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            page.Controls.Add(content);
+            page.Controls.Add(CreateThemedScrollHost(content));
             return page;
         }
 
@@ -357,7 +358,7 @@ namespace Grimoire.UI
                 "Check now",
                 CheckForUpdate_Click);
 
-            page.Controls.Add(content);
+            page.Controls.Add(CreateThemedScrollHost(content));
             return page;
         }
 
@@ -391,9 +392,9 @@ namespace Grimoire.UI
             txtSupportReport.ForeColor = Color.Gainsboro;
             txtSupportReport.Multiline = true;
             txtSupportReport.ReadOnly = true;
-            txtSupportReport.ScrollBars = ScrollBars.Both;
+            txtSupportReport.ScrollBars = ScrollBars.None;
             txtSupportReport.Text = "Collecting diagnostics...";
-            txtSupportReport.WordWrap = false;
+            txtSupportReport.WordWrap = true;
 
             FlowLayoutPanel actions = new FlowLayoutPanel
             {
@@ -413,7 +414,7 @@ namespace Grimoire.UI
             actions.Controls.Add(btnOpenDiagnosticsFolder);
 
             content.Controls.Add(note, 0, 0);
-            content.Controls.Add(txtSupportReport, 0, 1);
+            content.Controls.Add(CreateThemedLogHost(txtSupportReport), 0, 1);
             content.Controls.Add(actions, 0, 2);
             page.Controls.Add(content);
             return page;
@@ -552,6 +553,7 @@ namespace Grimoire.UI
             chkUnlimitedClients.Checked = preferences.AllowUnlimitedClients;
             chkUnlimitedClients.Enabled = preferences.EnableMultiClient;
             chkPrereleaseUpdates.Checked = preferences.UsePrereleaseUpdates;
+            cmbGameEngine.SelectedIndex = (int)preferences.GameEngine;
             cmbRenderingProfile.SelectedIndex = (int)preferences.RenderingProfile;
             cmbRenderQuality.SelectedIndex = (int)preferences.RenderQuality;
             chkUseActiveClientFrameRate.Checked = preferences.UseActiveClientFrameRate;
@@ -612,6 +614,21 @@ namespace Grimoire.UI
                         return;
                 }
 
+                GameEngineKind selectedEngine = (GameEngineKind)Math.Max(0, cmbGameEngine.SelectedIndex);
+                if (selectedEngine == GameEngineKind.Ruffle
+                    && previousPreferences.GameEngine != GameEngineKind.Ruffle)
+                {
+                    DialogResult confirmation = DarkMessageBox.Show(
+                        this,
+                        "Enable the experimental Ruffle engine?\r\n\r\nRuffle can improve rendering performance, but AQW and bot compatibility may differ from Flash.ocx. The change applies only to clients created after saving; no running client or bot will be restarted. If Ruffle is unavailable, Grimoire safely falls back to Flash.ocx.",
+                        "Enable experimental Ruffle?",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2);
+                    if (confirmation != DialogResult.Yes)
+                        return;
+                }
+
                 Hotkeys.SaveSettingsBindings(
                     new Dictionary<int, HotkeyGesture?>(bindingValues));
                 AppPreferenceSnapshot preferences = new AppPreferenceSnapshot
@@ -623,6 +640,7 @@ namespace Grimoire.UI
                     EnableMultiClient = chkEnableMultiClient.Checked,
                     AllowUnlimitedClients = chkEnableMultiClient.Checked && chkUnlimitedClients.Checked,
                     UsePrereleaseUpdates = chkPrereleaseUpdates.Checked,
+                    GameEngine = selectedEngine,
                     RenderingProfile = (FlashRenderingProfile)Math.Max(0, cmbRenderingProfile.SelectedIndex),
                     RenderQuality = (FlashRenderQuality)Math.Max(0, cmbRenderQuality.SelectedIndex),
                     UseActiveClientFrameRate = chkUseActiveClientFrameRate.Checked,
@@ -630,14 +648,18 @@ namespace Grimoire.UI
                     ThrottleInactiveClients = chkThrottleInactiveClients.Checked,
                     InactiveClientFramesPerSecond = Decimal.ToInt32(numInactiveClientFrameRate.Value)
                 };
+                bool engineChanged = previousPreferences.GameEngine != preferences.GameEngine;
+                bool multiClientChanged = previousPreferences.EnableMultiClient != preferences.EnableMultiClient;
                 bool renderingChanged = previousPreferences.RenderingProfile != preferences.RenderingProfile
                     || previousPreferences.RenderQuality != preferences.RenderQuality;
                 AppPreferences.Save(preferences);
                 root.ApplyPreferences();
                 bool updateChannelChanged = previousPreferences.UsePrereleaseUpdates != preferences.UsePrereleaseUpdates;
-                string message = renderingChanged
+                string message = renderingChanged || engineChanged
                     ? "Your settings were saved. Rendering changes apply to new AQW clients. Restart Grimoire to apply them to every client. Current clients were not interrupted."
                     : "Your settings were saved.";
+                if (multiClientChanged)
+                    message += " Restart Grimoire once so future launches use the new multi-client window behavior.";
                 if (updateChannelChanged)
                     message += " The selected release channel will be used on the next update check.";
                 DarkMessageBox.Show(this, message, "Settings", MessageBoxIcon.Information);
@@ -868,6 +890,55 @@ namespace Grimoire.UI
             };
         }
 
+        private static Control CreateThemedScrollHost(ScrollableControl content)
+        {
+            Panel host = new Panel
+            {
+                BackColor = BackgroundColor,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty
+            };
+            DarkScrollBar scrollBar = CreateVerticalScrollBar();
+            content.Dock = DockStyle.Fill;
+            host.Controls.Add(content);
+            host.Controls.Add(scrollBar);
+            scrollBar.SendToBack();
+            new ScrollableControlThemeAdapter(host, content, scrollBar);
+            return host;
+        }
+
+        private static Control CreateThemedLogHost(DarkTextBox textBox)
+        {
+            Panel host = new Panel
+            {
+                BackColor = CardColor,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty
+            };
+            DarkScrollBar scrollBar = CreateVerticalScrollBar();
+            textBox.Dock = DockStyle.Fill;
+            host.Controls.Add(textBox);
+            host.Controls.Add(scrollBar);
+            scrollBar.SendToBack();
+            new TextBoxThemeAdapter(host, textBox, scrollBar);
+            return host;
+        }
+
+        private static DarkScrollBar CreateVerticalScrollBar()
+        {
+            return new DarkScrollBar
+            {
+                Dock = DockStyle.Right,
+                Margin = Padding.Empty,
+                Minimum = 0,
+                ScrollOrientation = DarkScrollOrientation.Vertical,
+                TabStop = false,
+                Visible = false,
+                ViewSize = 1,
+                Width = 11
+            };
+        }
+
         private static Label CreateHeading(string text)
         {
             return new Label
@@ -917,6 +988,251 @@ namespace Grimoire.UI
             button.Height = 27;
             button.Text = text;
             button.Width = width;
+        }
+
+        private static class NativeScrollBars
+        {
+            private const int SbBoth = 3;
+            private const int SbVertical = 1;
+            private const uint EmGetFirstVisibleLine = 0x00CE;
+            private const uint EmGetLineCount = 0x00BA;
+            private const uint EmLineScroll = 0x00B6;
+
+            [DllImport("user32.dll", ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            private static extern bool ShowScrollBar(
+                IntPtr window,
+                int bar,
+                [MarshalAs(UnmanagedType.Bool)] bool show);
+
+            [DllImport(
+                "user32.dll",
+                EntryPoint = "SendMessageW",
+                ExactSpelling = true,
+                CallingConvention = CallingConvention.Winapi)]
+            private static extern IntPtr SendMessage(
+                IntPtr window,
+                uint message,
+                IntPtr wParam,
+                IntPtr lParam);
+
+            public static void HideBoth(Control control)
+            {
+                if (control != null && control.IsHandleCreated)
+                    ShowScrollBar(control.Handle, SbBoth, false);
+            }
+
+            public static void HideVertical(Control control)
+            {
+                if (control != null && control.IsHandleCreated)
+                    ShowScrollBar(control.Handle, SbVertical, false);
+            }
+
+            public static int GetFirstVisibleLine(TextBoxBase textBox)
+            {
+                return textBox == null || !textBox.IsHandleCreated
+                    ? 0
+                    : SendMessage(textBox.Handle, EmGetFirstVisibleLine, IntPtr.Zero, IntPtr.Zero).ToInt32();
+            }
+
+            public static int GetLineCount(TextBoxBase textBox)
+            {
+                return textBox == null || !textBox.IsHandleCreated
+                    ? 1
+                    : Math.Max(1, SendMessage(textBox.Handle, EmGetLineCount, IntPtr.Zero, IntPtr.Zero).ToInt32());
+            }
+
+            public static void ScrollLines(TextBoxBase textBox, int lines)
+            {
+                if (textBox != null && textBox.IsHandleCreated && lines != 0)
+                    SendMessage(textBox.Handle, EmLineScroll, IntPtr.Zero, new IntPtr(lines));
+            }
+        }
+
+        private sealed class ScrollableControlThemeAdapter
+        {
+            private readonly Control host;
+            private readonly ScrollableControl content;
+            private readonly DarkScrollBar scrollBar;
+            private bool syncScheduled;
+            private bool synchronizing;
+
+            public ScrollableControlThemeAdapter(
+                Control host,
+                ScrollableControl content,
+                DarkScrollBar scrollBar)
+            {
+                this.host = host;
+                this.content = content;
+                this.scrollBar = scrollBar;
+                content.HandleCreated += delegate { ScheduleSync(); };
+                content.Layout += delegate { ScheduleSync(); };
+                content.Resize += delegate { ScheduleSync(); };
+                content.Scroll += delegate { SyncFromContent(); };
+                scrollBar.ValueChanged += ScrollBar_ValueChanged;
+                host.Resize += delegate { ScheduleSync(); };
+                ScheduleSync();
+            }
+
+            private void ScrollBar_ValueChanged(object sender, ScrollValueEventArgs e)
+            {
+                if (synchronizing || !content.IsHandleCreated)
+                    return;
+
+                int maximum = GetMaximumScrollValue();
+                int value = Math.Max(0, Math.Min(e.Value, maximum));
+                try
+                {
+                    content.AutoScrollPosition = new Point(
+                        Math.Abs(content.AutoScrollPosition.X),
+                        value);
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                }
+                NativeScrollBars.HideBoth(content);
+            }
+
+            private void ScheduleSync()
+            {
+                if (!content.IsHandleCreated || content.IsDisposed)
+                    return;
+                NativeScrollBars.HideBoth(content);
+                if (syncScheduled)
+                    return;
+                syncScheduled = true;
+                try
+                {
+                    content.BeginInvoke(new Action(delegate
+                    {
+                        syncScheduled = false;
+                        SyncFromContent();
+                    }));
+                }
+                catch (InvalidOperationException)
+                {
+                    syncScheduled = false;
+                }
+            }
+
+            private void SyncFromContent()
+            {
+                if (content.IsDisposed || !content.IsHandleCreated)
+                    return;
+
+                synchronizing = true;
+                try
+                {
+                    int viewportHeight = Math.Max(1, content.ClientSize.Height);
+                    int contentHeight = Math.Max(viewportHeight, content.DisplayRectangle.Height);
+                    int maximumValue = Math.Max(0, contentHeight - viewportHeight);
+                    scrollBar.Minimum = 0;
+                    scrollBar.Maximum = Math.Max(1, contentHeight);
+                    scrollBar.ViewSize = Math.Min(contentHeight, viewportHeight);
+                    scrollBar.Value = Math.Min(
+                        Math.Abs(content.AutoScrollPosition.Y),
+                        maximumValue);
+                    bool wasVisible = scrollBar.Visible;
+                    scrollBar.Visible = maximumValue > 0;
+                    if (wasVisible != scrollBar.Visible)
+                        host.PerformLayout();
+                    NativeScrollBars.HideBoth(content);
+                }
+                finally
+                {
+                    synchronizing = false;
+                }
+            }
+
+            private int GetMaximumScrollValue()
+            {
+                return Math.Max(
+                    0,
+                    content.DisplayRectangle.Height - Math.Max(1, content.ClientSize.Height));
+            }
+        }
+
+        private sealed class TextBoxThemeAdapter
+        {
+            private readonly Control host;
+            private readonly DarkTextBox textBox;
+            private readonly DarkScrollBar scrollBar;
+            private bool syncScheduled;
+            private bool synchronizing;
+
+            public TextBoxThemeAdapter(Control host, DarkTextBox textBox, DarkScrollBar scrollBar)
+            {
+                this.host = host;
+                this.textBox = textBox;
+                this.scrollBar = scrollBar;
+                textBox.HandleCreated += delegate { ScheduleSync(); };
+                textBox.TextChanged += delegate { ScheduleSync(); };
+                textBox.Resize += delegate { ScheduleSync(); };
+                textBox.MouseWheel += delegate { ScheduleSync(); };
+                textBox.KeyUp += delegate { ScheduleSync(); };
+                scrollBar.ValueChanged += ScrollBar_ValueChanged;
+                host.Resize += delegate { ScheduleSync(); };
+                ScheduleSync();
+            }
+
+            private void ScrollBar_ValueChanged(object sender, ScrollValueEventArgs e)
+            {
+                if (synchronizing || !textBox.IsHandleCreated)
+                    return;
+                int current = NativeScrollBars.GetFirstVisibleLine(textBox);
+                NativeScrollBars.ScrollLines(textBox, e.Value - current);
+                NativeScrollBars.HideVertical(textBox);
+                ScheduleSync();
+            }
+
+            private void ScheduleSync()
+            {
+                if (!textBox.IsHandleCreated || textBox.IsDisposed)
+                    return;
+                NativeScrollBars.HideVertical(textBox);
+                if (syncScheduled)
+                    return;
+                syncScheduled = true;
+                try
+                {
+                    textBox.BeginInvoke(new Action(delegate
+                    {
+                        syncScheduled = false;
+                        SyncFromTextBox();
+                    }));
+                }
+                catch (InvalidOperationException)
+                {
+                    syncScheduled = false;
+                }
+            }
+
+            private void SyncFromTextBox()
+            {
+                if (textBox.IsDisposed || !textBox.IsHandleCreated)
+                    return;
+
+                synchronizing = true;
+                try
+                {
+                    int lineCount = NativeScrollBars.GetLineCount(textBox);
+                    int visibleLines = Math.Max(1, textBox.ClientSize.Height / Math.Max(1, textBox.Font.Height));
+                    int maximumValue = Math.Max(0, lineCount - visibleLines);
+                    scrollBar.Minimum = 0;
+                    scrollBar.Maximum = Math.Max(1, lineCount);
+                    scrollBar.ViewSize = Math.Min(lineCount, visibleLines);
+                    scrollBar.Value = Math.Min(NativeScrollBars.GetFirstVisibleLine(textBox), maximumValue);
+                    bool wasVisible = scrollBar.Visible;
+                    scrollBar.Visible = maximumValue > 0;
+                    if (wasVisible != scrollBar.Visible)
+                        host.PerformLayout();
+                    NativeScrollBars.HideVertical(textBox);
+                }
+                finally
+                {
+                    synchronizing = false;
+                }
+            }
         }
     }
 }

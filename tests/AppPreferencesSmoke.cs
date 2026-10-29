@@ -1,4 +1,5 @@
 using Grimoire.Botting;
+using Grimoire.Clients;
 using Grimoire.Utils;
 using System;
 using System.Collections.Generic;
@@ -28,6 +29,7 @@ internal static class AppPreferencesSmoke
             AssertEqual(15, defaults.InactiveClientFramesPerSecond, "The inactive-client FPS default changed.");
             AssertEqual(false, defaults.UsePrereleaseUpdates, "Prerelease updates must remain opt-in.");
             AssertEqual(false, defaults.EnableMultiClient, "Multi-client mode must remain opt-in.");
+            AssertEqual(GameEngineKind.FlashActiveX, defaults.GameEngine, "Flash.ocx must remain the default game engine.");
 
             AppPreferences.Save(new AppPreferenceSnapshot
             {
@@ -41,7 +43,8 @@ internal static class AppPreferencesSmoke
                 ActiveClientFramesPerSecond = 144,
                 ThrottleInactiveClients = true,
                 InactiveClientFramesPerSecond = 12,
-                UsePrereleaseUpdates = true
+                UsePrereleaseUpdates = true,
+                GameEngine = GameEngineKind.Ruffle
             });
             AppPreferenceSnapshot saved = AppPreferences.Load();
             AssertEqual(FlashRenderingProfile.Gpu, saved.RenderingProfile, "The rendering profile was not persisted.");
@@ -53,18 +56,21 @@ internal static class AppPreferencesSmoke
             AssertEqual(true, saved.UsePrereleaseUpdates, "The prerelease update preference was not persisted.");
             AssertEqual(true, saved.EnableMultiClient, "The multi-client preference was not persisted.");
             AssertEqual(true, saved.AllowUnlimitedClients, "The unlimited-client preference was not persisted.");
+            AssertEqual(GameEngineKind.Ruffle, saved.GameEngine, "The Ruffle engine preference was not persisted.");
 
             Config.Instance.Set("settings.renderingProfile", "unsupported");
             Config.Instance.Set("settings.renderQuality", "unsupported");
             Config.Instance.Set("settings.activeClientFramesPerSecond", "999");
             Config.Instance.Set("settings.inactiveClientFramesPerSecond", "0");
+            Config.Instance.Set("settings.gameEngine", "unsupported");
             AppPreferenceSnapshot sanitized = AppPreferences.Load();
             AssertEqual(FlashRenderingProfile.Automatic, sanitized.RenderingProfile, "An unknown rendering profile did not fall back safely.");
             AssertEqual(FlashRenderQuality.Automatic, sanitized.RenderQuality, "An unknown render quality did not fall back safely.");
             AssertEqual(240, sanitized.ActiveClientFramesPerSecond, "The active-client FPS was not clamped.");
             AssertEqual(1, sanitized.InactiveClientFramesPerSecond, "The inactive-client FPS was not clamped.");
+            AssertEqual(GameEngineKind.FlashActiveX, sanitized.GameEngine, "An unknown game engine did not fall back to Flash.ocx.");
 
-            Console.WriteLine("PASS: rendering, FPS, client-limit, and update-channel preferences keep compatibility defaults and persist safely.");
+            Console.WriteLine("PASS: engine, rendering, FPS, client-limit, and update-channel preferences keep compatibility defaults and persist safely.");
             return 0;
         }
         catch (Exception exception)

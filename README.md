@@ -21,7 +21,7 @@ Requirements:
 
 - Windows
 - Visual Studio 2022 Build Tools with the .NET desktop build tools workload
-- An internet connection for the first build so the hash-pinned app-local Flash runtime can be acquired
+- An internet connection for the first build so the hash-pinned app-local Flash and Ruffle runtimes plus NuGet dependencies can be acquired
 
 Use the dedicated Exodus developer CLI from PowerShell:
 
@@ -38,7 +38,7 @@ Use the dedicated Exodus developer CLI from PowerShell:
 .\exodus.ps1 man
 ```
 
-Builds are written to `app\bin\<Configuration>\Grimoire Exodus.exe`. The CLI verifies and copies `Flash.ocx` beside the executable; Windows activates it through the embedded registration-free COM manifest, without changing the system Flash registration. The CLI preserves the legacy internal `Grimoire` assembly identity required by existing dependencies, while leaving only the branded executable in the final output. `dev` performs a verbose Debug build and launches it directly. `plugin` creates a standalone starter workspace under `plugin-workspaces` unless `-OutputDirectory` is supplied.
+Builds are written to `app\bin\<Configuration>\Grimoire Exodus.exe`. The CLI verifies and copies `Flash.ocx` beside the executable; Windows activates it through the embedded registration-free COM manifest, without changing the system Flash registration. It also downloads and verifies the allowlisted official Ruffle 0.7.1 web runtime used by the opt-in experimental engine. The CLI preserves the legacy internal `Grimoire` assembly identity required by existing dependencies, while leaving only the branded executable in the final output. `dev` performs a verbose Debug build and launches it directly. `plugin` creates a standalone starter workspace under `plugin-workspaces` unless `-OutputDirectory` is supplied.
 
 `installer` builds Release in an isolated staging directory and creates `dist\Grimoire-Exodus-Setup-1.5.0.msi` with WiX Toolset 3.14.1. Setup offers an optional desktop shortcut and a **Launch Grimoire Exodus** checkbox on its final page. Writable settings, hotkeys, sets, plugins, and the encrypted account vault live under `%LOCALAPPDATA%\Grimoire Exodus`, while user-managed GBots live under `Documents\Grimoire\Bot`, so an installation under Program Files runs without administrator rights. Both WiX and the Flash archive are downloaded into the ignored `.tools` cache and verified with pinned SHA-256 hashes. Tagged GitHub releases publish both the native MSI and a portable ZIP made from the same validated payload.
 
@@ -48,15 +48,22 @@ Startup logs and crash reports are stored under `%LOCALAPPDATA%\Grimoire Exodus`
 
 When a newer official GitHub release is available, Grimoire shows a download icon in the toolbar with the new version in its tooltip. Selecting it downloads the appropriate portable package or installer in the background, verifies GitHub's SHA-256 digest, then asks before closing and restarting to apply the update. User bots, settings, recovery data, and the legacy `.gbot` format remain untouched.
 
-## Android foundation
+Experimental multi-client mode is off by default under **Settings → General**. While it is off, every Grimoire launch opens an independent desktop window. While it is on, later launches send an add-client request to the first Grimoire window instead of opening another shell. Restart Grimoire once after changing this mode so the selected startup behavior is active.
 
-Android development is isolated under [`mobile/`](mobile/README.md), with language-neutral schemas and privacy-safe fixtures under [`shared/`](shared/README.md). The 0.4.4 development milestone adds a standalone HARMAN AIR client that owns the game surface, downloads the current AQW SWF from AQW's live endpoint, displays byte progress, and draws a collapsible Grimoire top menu and compact overlay drawer above the direct-stage game. AIR now owns the physical-to-logical 960×550 transform so Android touches and AQW targets use the same coordinates. The mobile Bot Manager safely imports and inspects legacy GBots, runs a fail-closed foundational command subset, and packages repository-controlled Community bots. Persistent General, Key Bindings, and Advanced settings cover focus mode, status visibility, exit confirmation, reduced motion, screen wake behavior, FPS/quality, shortcuts, credential-field clearing, reset, and official release checks. The authenticated profile and 30 FPS standard-density defaults remain intact.
+## Mobile client
 
-The existing Windows project paths and build remain unchanged. Android uses the same ActionScript callback vocabulary through a dual desktop/AIR host abstraction and does not depend on another installed AQW application. The full architecture, security, compatibility, and UI plan is in [`docs/android-port-plan.md`](docs/android-port-plan.md).
+Android development now lives in the independent
+[`UnknownSecurity/grimoire-mobile`](https://github.com/UnknownSecurity/grimoire-mobile)
+repository. It has its own version history, build pipeline, documentation, and
+releases, so mobile changes no longer affect the Windows desktop package. This
+repository retains only the language-neutral legacy GBot fixtures used by the
+desktop compatibility suite.
 
-## Embedded Flash design
+## Game engines
 
-Grimoire's game bridge depends on the original ActiveX `ExternalInterface` contract and synchronous `CallFunction`/`FlashCall` behavior. It also loads the live AQW AVM2 client, which opens the SmartFox connection used by the proxy and packet hooks. A web-hosted emulator would require replacing that host ABI and its socket integration. Version 1.5.0 continues to use the proven native player ABI while deploying the 32-bit runtime privately: `Flash.ocx` is loaded from Grimoire's own directory through registration-free COM and is never registered system-wide.
+Flash.ocx remains the recommended default and compatibility fallback. Settings → Performance now offers an explicit **Ruffle (experimental)** choice for newly created clients. The Ruffle path hosts the official self-hosted runtime in an isolated WebView2 surface, preserves the synchronous bot callback API, forwards AQW assets through a tokenized loopback-only origin, and maps each client's SmartFox sockets through separate bounded WebSocket-to-TCP tunnels. Existing clients are never hot-switched or restarted when the preference changes.
+
+If the verified Ruffle payload or Microsoft Edge WebView2 Runtime is unavailable, Grimoire warns once and creates that client with Flash.ocx. Ruffle is still experimental: use Flash.ocx if a game update exposes an emulator compatibility difference.
 
 The runtime is pinned to Clean Flash build 34.0.0.376 and is third-party legacy software. Do not use it to open untrusted SWFs.
 
@@ -76,6 +83,10 @@ Flash Player is third-party software and is not covered by Grimoire Exodus's CC0
 ### WiX Toolset
 
 The installer build uses [WiX Toolset 3.14.1](https://github.com/wixtoolset/wix3). WiX is downloaded only as a build tool, is not installed with Grimoire Exodus, and is licensed under the Microsoft Reciprocal License (MS-RL).
+
+### Ruffle and WebView2
+
+The experimental engine includes the official [Ruffle](https://github.com/ruffle-rs/ruffle) 0.7.1 self-hosted runtime under its MIT or Apache-2.0 license. Its license files are shipped beside the runtime. The host uses the [Microsoft Edge WebView2 SDK](https://developer.microsoft.com/microsoft-edge/webview2/) 1.0.4314.35; its license and notice are included in release packages. The WebView2 Runtime itself is supplied and serviced by Microsoft.
 
 ## Community
 
@@ -97,9 +108,8 @@ The installer build uses [WiX Toolset 3.14.1](https://github.com/wixtoolset/wix3
 | ✅ Completed | Opt-in Direct/GPU Flash presentation requests, render-quality controls, active-client FPS, and bot-safe inactive-client throttling |
 | ✅ Completed | Verified in-app updates from official GitHub releases |
 | ✅ Completed | Startup diagnostics, conservative orphan-state cleanup, tray controls, and crash recovery |
-| Planned | A Flash.ocx / Ruffle engine switcher after the synchronous bot bridge is supported safely |
-| 🧪 In development | Standalone HARMAN AIR Android client and cross-platform compatibility contracts |
-| 🧪 In development | Local AIR host bridge, device login validation, and native control integration |
+| 🧪 Experimental | An opt-in Flash.ocx / Ruffle engine switcher with a per-client bot bridge and socket adapter |
+| ↗ Separate project | Android client development and releases in [`grimoire-mobile`](https://github.com/UnknownSecurity/grimoire-mobile) |
 | Planned | A community-maintained bot script repository |
 
 ## Credits

@@ -8,6 +8,7 @@ using System.Security;
 using System.Text;
 using System.Threading;
 using System.Web;
+using System.Windows.Forms;
 using System.Xml.Linq;
 
 namespace Grimoire.Clients
@@ -31,11 +32,33 @@ namespace Grimoire.Clients
 
         public AxShockwaveFlash Control => control;
 
+        public Control HostControl => control;
+
+        public GameEngineKind Engine => GameEngineKind.FlashActiveX;
+
         public event Action<int> SwfLoadProgress;
 
         public event FlashBridgeCallHandler FlashCall;
 
         public event FlashBridgeErrorHandler FlashError;
+
+        public void LoadMovie(byte[] swf)
+        {
+            if (swf == null || swf.Length == 0)
+                throw new ArgumentException("The AQW client SWF is empty.", nameof(swf));
+
+            ThrowIfDisposed();
+            using (System.IO.MemoryStream stream = new System.IO.MemoryStream())
+            using (System.IO.BinaryWriter writer = new System.IO.BinaryWriter(stream))
+            {
+                writer.Write(8 + swf.Length);
+                writer.Write(1432769894);
+                writer.Write(swf.Length);
+                writer.Write(swf);
+                writer.Seek(0, System.IO.SeekOrigin.Begin);
+                control.OcxState = new AxHost.State(stream, 1, false, null);
+            }
+        }
 
         internal void BindSession(ClientSession value)
         {

@@ -534,6 +534,17 @@ namespace Grimoire.Utils
             List<string> enabled = new List<string>();
             if (context.MultiClientEnabled)
                 enabled.Add("multi-client mode");
+            if (string.Equals(context.GameEngine, "Ruffle", StringComparison.OrdinalIgnoreCase))
+            {
+                enabled.Add("Ruffle engine");
+                if (!string.IsNullOrWhiteSpace(context.GameEngineAvailabilityError))
+                {
+                    return Warning(
+                        "experimental-settings",
+                        "Experimental settings",
+                        "Ruffle is selected but unavailable: " + context.GameEngineAvailabilityError + " Grimoire will fall back to Flash.ocx for new clients.");
+                }
+            }
             if (string.Equals(context.RenderingProfile, "Gpu", StringComparison.OrdinalIgnoreCase))
                 enabled.Add("GPU presentation");
             else if (string.Equals(context.RenderingProfile, "Direct", StringComparison.OrdinalIgnoreCase))
@@ -644,6 +655,8 @@ namespace Grimoire.Utils
                     GameLoadProgress = Math.Max(0, Math.Min(100, context.GameLoadProgress)),
                     OpenClientCount = Math.Max(0, context.OpenClientCount),
                     MultiClientEnabled = context.MultiClientEnabled,
+                    GameEngine = NormalizeInline(context.GameEngine, 32),
+                    GameEngineAvailabilityError = NormalizeInline(context.GameEngineAvailabilityError, 160),
                     RenderingProfile = NormalizeInline(context.RenderingProfile, 32),
                     WorkingSetBytes = Math.Max(0L, context.WorkingSetBytes)
                 };
@@ -812,6 +825,10 @@ namespace Grimoire.Utils
         public int OpenClientCount { get; set; }
 
         public bool MultiClientEnabled { get; set; }
+
+        public string GameEngine { get; set; }
+
+        public string GameEngineAvailabilityError { get; set; }
 
         public string RenderingProfile { get; set; }
 

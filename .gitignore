@@ -21,6 +21,7 @@ plugin-workspaces/
 **/.dev.vars
 **/.dev.vars.*
 !**/.dev.vars.example
+logs/
 
 # Node.js (dev tooling only - commitlint, husky)
 node_modules/
@@ -31,19 +32,11 @@ website/.wrangler-dist/
 website/worker/.wrangler/
 website/worker/**/.wrangler-dist/
 
-# Android and Gradle (the wrapper remains tracked)
-.gradle/
-**/build/
-local.properties
-*.jks
-*.keystore
-mobile/.idea/
-mobile/.kotlin/
-mobile/captures/
-
 # Downloaded build tools and the redistributable app-local Flash runtime
 .tools/
 app/Runtime/Flash/Flash.ocx
+app/Runtime/Ruffle/*
+!app/Runtime/Ruffle/README.md
 installer/obj/
 dist/
 

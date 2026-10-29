@@ -11,7 +11,25 @@ namespace Grimoire.Clients
             bool isActive,
             bool botRunning)
         {
-            return botRunning || (!homeWorkspaceVisible && isActive);
+            return ShouldRenderClientSurface(
+                homeWorkspaceVisible,
+                isActive,
+                botRunning,
+                false);
+        }
+
+        public static bool ShouldRenderClientSurface(
+            bool homeWorkspaceVisible,
+            bool isActive,
+            bool botRunning,
+            bool requiresVisibleInitialization)
+        {
+            // WebView2 suspends Ruffle when every native ancestor is hidden.
+            // Keep an initializing Ruffle surface alive behind Home or its
+            // loading placeholder, then return to the normal compositor policy.
+            return requiresVisibleInitialization
+                || botRunning
+                || (!homeWorkspaceVisible && isActive);
         }
     }
 }

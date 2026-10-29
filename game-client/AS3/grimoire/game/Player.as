@@ -400,7 +400,25 @@ package grimoire.game
 		// This function returns a boolean for whether the player's avatar has loaded or not.
 		public static function isAvatarLoaded():String
 		{
-			return (((game.world.myAvatar.invLoaded) || (game.world.myAvatar.pMC.artLoaded())) ? Root.trueString : Root.falseString);
+			if (game == null)
+			{
+				game = Root.Game;
+			}
+			if (game == null || game.world == null || game.world.myAvatar == null)
+			{
+				return Root.falseString;
+			}
+			try
+			{
+				var avatar:* = game.world.myAvatar;
+				return ((avatar.invLoaded ||
+					(avatar.pMC != null && avatar.pMC.artLoaded()))
+					? Root.trueString : Root.falseString);
+			}
+			catch (error:Error)
+			{
+				return Root.falseString;
+			}
 		}
 		
     }

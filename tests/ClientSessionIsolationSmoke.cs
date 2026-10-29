@@ -52,6 +52,10 @@ internal static class ClientSessionIsolationSmoke
             true,
             ClientSurfacePolicy.ShouldRenderClientSurface(true, false, true),
             "A bot-owned AQW surface was hidden behind Home and could lose legacy timing behavior.");
+        AssertEqual(
+            true,
+            ClientSurfacePolicy.ShouldRenderClientSurface(true, false, false, true),
+            "An initializing Ruffle surface was hidden behind Home and could not make progress.");
 
         ClientSessionManager manager = new ClientSessionManager(2, true);
         FakeFlashBridge firstBridge = new FakeFlashBridge("first");
@@ -455,6 +459,10 @@ internal static class ClientSessionIsolationSmoke
             get { return null; }
         }
 
+        public GameEngineKind Engine { get { return GameEngineKind.FlashActiveX; } }
+
+        public System.Windows.Forms.Control HostControl { get { return null; } }
+
         public bool Disposed { get; private set; }
 
         public int GameFunctionCallCount
@@ -476,6 +484,10 @@ internal static class ClientSessionIsolationSmoke
         public event FlashBridgeCallHandler FlashCall;
 
         public event FlashBridgeErrorHandler FlashError;
+
+        public void LoadMovie(byte[] swf)
+        {
+        }
 
         public void ReportProgress(int progress)
         {

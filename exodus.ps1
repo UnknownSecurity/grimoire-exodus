@@ -24,6 +24,18 @@ $script:FlashRuntimeUrl = "https://github.com/darktohka/clean-flash-builds/relea
 $script:FlashArchiveHash = "19A8D1036110AF024DC877CA96A9184835C3E944FB14CA8D509662F00BF1BD31"
 $script:FlashOcxHash = "4E1CAA0B6805E5D4E4F737C4389B8E94E92CA49E7D7AEF17C3773A9D744DCC42"
 $script:FlashRuntimePath = Join-Path $script:RootDirectory "app\Runtime\Flash\Flash.ocx"
+$script:RuffleRuntimeUrl = "https://registry.npmjs.org/@ruffle-rs/ruffle/-/ruffle-0.7.1.tgz"
+$script:RuffleArchiveHash = "DC9E7407549A91ACCC41A14932B0B9D9A9D51A3742CE6F020888C8A76682B157"
+$script:RuffleRuntimePath = Join-Path $script:RootDirectory "app\Runtime\Ruffle"
+$script:RuffleRuntimeFiles = [ordered]@{
+    "ruffle.js" = "26036A94567088DFB3DE88A759E8ED10A4CEA07B29500AF36F345EEF42420098"
+    "core.ruffle.16d61072ac7fdc4d5013.js" = "D27C6BDCE2A34AFB32E8DFA40970BC7E86CBCB912F92DB7EB3E1AC70E943BD82"
+    "core.ruffle.994eeef0a471a88cd0e3.js" = "D89E507EE60D550629E9229AA1E4DD4F9E75EC7DB271E0135CBC87DAB042EA51"
+    "172de42e6619eac8f371.wasm" = "1ED33B9B71A6B01B9AAFAFED660BE343FFEB2D246C5D79E6425A32BF93E38207"
+    "878d548199cddef07035.wasm" = "AF9B6A13A8F5E8D305BC3CE28A4EDF3F6242DF1183E8576AD4CA086E9F21EAEA"
+    "LICENSE_APACHE" = "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A"
+    "LICENSE_MIT" = "4DE9338A7879C68E911742A7D691F0797FF1EF8D8A6FB978B0C711E258FE959C"
+}
 $script:DesktopSwfPath = Join-Path $script:RootDirectory "game-client\grimoire-exodus.swf"
 $script:DesktopSwfHash = "39E5689398AF0DB32854BB55F281683A8B0B0E085817D91102A54C0186762BE6"
 $script:WixUrl = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
@@ -209,6 +221,72 @@ function Get-BundledFlashRuntime {
     return $script:FlashRuntimePath
 }
 
+function Get-BundledRuffleRuntime {
+    $runtimeReady = $true
+    foreach ($entry in $script:RuffleRuntimeFiles.GetEnumerator()) {
+        $path = Join-Path $script:RuffleRuntimePath $entry.Key
+        try {
+            Assert-FileHash $path $entry.Value "Bundled Ruffle file $($entry.Key)"
+        }
+        catch {
+            $runtimeReady = $false
+            break
+        }
+    }
+    if ($runtimeReady) {
+        Write-Host "Ruffle runtime: verified official 0.7.1 package" -ForegroundColor DarkGray
+        return $script:RuffleRuntimePath
+    }
+
+    $cacheDirectory = Join-Path $script:RootDirectory ".tools\cache"
+    $archive = Join-Path $cacheDirectory "ruffle-0.7.1.tgz"
+    if (Test-Path -LiteralPath $archive) {
+        try {
+            Assert-FileHash $archive $script:RuffleArchiveHash "Ruffle runtime archive"
+        }
+        catch {
+            Remove-Item -LiteralPath $archive -Force
+        }
+    }
+    if (-not (Test-Path -LiteralPath $archive)) {
+        Invoke-VerifiedDownload $script:RuffleRuntimeUrl $archive $script:RuffleArchiveHash "Ruffle runtime archive"
+    }
+
+    $tar = Get-Command tar.exe -ErrorAction SilentlyContinue
+    if (-not $tar) {
+        throw "tar.exe is required to extract the pinned Ruffle runtime archive."
+    }
+
+    $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+    $extractDirectory = Join-Path $temporaryRoot ("grimoire-ruffle-" + [Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $extractDirectory | Out-Null
+    try {
+        $archiveMembers = @($script:RuffleRuntimeFiles.Keys | ForEach-Object { "package/$_" })
+        & $tar.Source -xf $archive -C $extractDirectory @archiveMembers
+        if ($LASTEXITCODE -ne 0) {
+            throw "Extracting the Ruffle runtime failed with exit code $LASTEXITCODE."
+        }
+
+        New-Item -ItemType Directory -Path $script:RuffleRuntimePath -Force | Out-Null
+        foreach ($entry in $script:RuffleRuntimeFiles.GetEnumerator()) {
+            $source = Join-Path (Join-Path $extractDirectory "package") $entry.Key
+            Assert-FileHash $source $entry.Value "Extracted Ruffle file $($entry.Key)"
+            Copy-Item -LiteralPath $source -Destination (Join-Path $script:RuffleRuntimePath $entry.Key) -Force
+            Assert-FileHash (Join-Path $script:RuffleRuntimePath $entry.Key) $entry.Value "Bundled Ruffle file $($entry.Key)"
+        }
+    }
+    finally {
+        $resolvedExtractDirectory = [IO.Path]::GetFullPath($extractDirectory)
+        if ($resolvedExtractDirectory.StartsWith($temporaryRoot, [StringComparison]::OrdinalIgnoreCase) -and
+            (Test-Path -LiteralPath $resolvedExtractDirectory)) {
+            Remove-Item -LiteralPath $resolvedExtractDirectory -Recurse -Force
+        }
+    }
+
+    Write-Host "Ruffle runtime ready: official 0.7.1 package" -ForegroundColor Green
+    return $script:RuffleRuntimePath
+}
+
 function Get-MSBuildPath {
     $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
     $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
@@ -287,6 +365,7 @@ function Complete-BrandedOutput([string]$BuildConfiguration, [string]$RequestedO
 
 function Invoke-ExodusBuild([string]$BuildConfiguration, [string]$Verbosity = "minimal", [string]$RequestedOutputDirectory) {
     Get-BundledFlashRuntime | Out-Null
+    Get-BundledRuffleRuntime | Out-Null
     Assert-FileHash $script:DesktopSwfPath $script:DesktopSwfHash "Desktop Flash Player bootstrap"
     $msbuild = Get-MSBuildPath
     Invoke-NuGetRestore $msbuild
@@ -379,6 +458,13 @@ function New-InstallerStage([string]$SourceDirectory, [string]$StageDirectory) {
     if (Test-Path -LiteralPath $resources) {
         Copy-Item -LiteralPath $resources -Destination $StageDirectory -Recurse
     }
+    foreach ($runtimeDirectoryName in @("Ruffle", "runtimes", "ThirdParty")) {
+        $runtimeDirectory = Join-Path $SourceDirectory $runtimeDirectoryName
+        if (-not (Test-Path -LiteralPath $runtimeDirectory)) {
+            throw "Release output is missing required runtime directory: $runtimeDirectoryName"
+        }
+        Copy-Item -LiteralPath $runtimeDirectory -Destination $StageDirectory -Recurse
+    }
     $communityBots = Join-Path $SourceDirectory "Bot"
     if (-not (Test-Path -LiteralPath $communityBots)) {
         throw "Release output is missing the bundled Community Bot directory."
@@ -390,6 +476,24 @@ function New-InstallerStage([string]$SourceDirectory, [string]$StageDirectory) {
     foreach ($requiredFile in @("Grimoire Exodus.exe", "Grimoire.Updater.exe", "Flash.ocx", "grimoire-exodus.swf")) {
         if (-not (Test-Path -LiteralPath (Join-Path $StageDirectory $requiredFile))) {
             throw "Installer staging is missing required file: $requiredFile"
+        }
+    }
+    foreach ($requiredRuntimeFile in @(
+        "Microsoft.Web.WebView2.Core.dll",
+        "Microsoft.Web.WebView2.WinForms.dll",
+        "Ruffle\ruffle.js",
+        "Ruffle\core.ruffle.16d61072ac7fdc4d5013.js",
+        "Ruffle\core.ruffle.994eeef0a471a88cd0e3.js",
+        "Ruffle\172de42e6619eac8f371.wasm",
+        "Ruffle\878d548199cddef07035.wasm",
+        "Ruffle\LICENSE_MIT",
+        "Ruffle\LICENSE_APACHE",
+        "ThirdParty\WebView2.LICENSE.txt",
+        "ThirdParty\WebView2.NOTICE.txt",
+        "runtimes\win-x86\native\WebView2Loader.dll",
+        "Resources\Ruffle\index.html")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $StageDirectory $requiredRuntimeFile))) {
+            throw "Installer staging is missing required Ruffle file: $requiredRuntimeFile"
         }
     }
 }
@@ -621,6 +725,7 @@ switch ($Command) {
     "runtime" {
         Show-ExodusBanner
         Get-BundledFlashRuntime | Out-Null
+        Get-BundledRuffleRuntime | Out-Null
     }
     "installer" {
         Show-ExodusBanner

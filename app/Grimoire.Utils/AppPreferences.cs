@@ -1,4 +1,5 @@
 using Grimoire.Botting;
+using Grimoire.Clients;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -36,6 +37,8 @@ namespace Grimoire.Utils
 
         public bool UsePrereleaseUpdates { get; set; }
 
+        public GameEngineKind GameEngine { get; set; }
+
         public FlashRenderingProfile RenderingProfile { get; set; }
 
         public FlashRenderQuality RenderQuality { get; set; }
@@ -63,6 +66,7 @@ namespace Grimoire.Utils
         private const string EnableMultiClientKey = "settings.enableMultiClient";
         private const string AllowUnlimitedClientsKey = "settings.allowUnlimitedClients";
         private const string UsePrereleaseUpdatesKey = "settings.usePrereleaseUpdates";
+        private const string GameEngineKey = "settings.gameEngine";
         private const string RenderingProfileKey = "settings.renderingProfile";
         private const string RenderQualityKey = "settings.renderQuality";
         private const string UseActiveClientFrameRateKey = "settings.useActiveClientFrameRate";
@@ -81,6 +85,7 @@ namespace Grimoire.Utils
                 EnableMultiClient = GetBoolean(EnableMultiClientKey, false),
                 AllowUnlimitedClients = GetBoolean(AllowUnlimitedClientsKey, false),
                 UsePrereleaseUpdates = GetBoolean(UsePrereleaseUpdatesKey, false),
+                GameEngine = GetEnum(GameEngineKey, GameEngineKind.FlashActiveX),
                 RenderingProfile = GetEnum(RenderingProfileKey, FlashRenderingProfile.Automatic),
                 RenderQuality = GetEnum(RenderQualityKey, FlashRenderQuality.Automatic),
                 UseActiveClientFrameRate = GetBoolean(UseActiveClientFrameRateKey, false),
@@ -102,6 +107,7 @@ namespace Grimoire.Utils
             Config.Instance.Set(EnableMultiClientKey, preferences.EnableMultiClient.ToString());
             Config.Instance.Set(AllowUnlimitedClientsKey, preferences.AllowUnlimitedClients.ToString());
             Config.Instance.Set(UsePrereleaseUpdatesKey, preferences.UsePrereleaseUpdates.ToString());
+            Config.Instance.Set(GameEngineKey, preferences.GameEngine.ToString());
             Config.Instance.Set(RenderingProfileKey, preferences.RenderingProfile.ToString());
             Config.Instance.Set(RenderQualityKey, preferences.RenderQuality.ToString());
             Config.Instance.Set(UseActiveClientFrameRateKey, preferences.UseActiveClientFrameRate.ToString());

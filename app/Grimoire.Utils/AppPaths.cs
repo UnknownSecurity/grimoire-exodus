@@ -48,6 +48,8 @@ namespace Grimoire.Utils
 
         public static string UpdatesDirectory => GetUserDirectory("Updates");
 
+        public static string RuffleWebViewDataDirectory => GetUserDirectory("Ruffle WebView2");
+
         private static string GetExternalBotsDirectory()
         {
             string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);

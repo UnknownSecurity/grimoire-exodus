@@ -73,13 +73,41 @@ package grimoire.game
 		// This function returns a boolean for whether the game has loaded or not.
 		public static function inGame():String
 		{
-			if (game.intChatMode)
+			if (game == null)
 			{
-				return (game.ui.mcInterface.ncText.visible ? Root.trueString : Root.falseString);
+				game = Root.Game;
 			}
-			else
+			if (game == null)
 			{
-				return (game.ui.mcInterface.te.visible ? Root.trueString : Root.falseString);
+				return Root.falseString;
+			}
+			try
+			{
+				// Current AQW builds no longer keep every legacy chat/interface
+				// field visible after entering the world.  The connected Game
+				// timeline plus a live local avatar is the stable session signal;
+				// retain the older visibility checks below for legacy clients.
+				if (game.sfc != null && game.sfc.isConnected &&
+					game.currentLabel == "Game" && game.world != null &&
+					game.world.myAvatar != null)
+				{
+					return Root.trueString;
+				}
+				if (game.ui == null || game.ui.mcInterface == null)
+				{
+					return Root.falseString;
+				}
+				if (game.intChatMode)
+				{
+					return ((game.ui.mcInterface.ncText != null && game.ui.mcInterface.ncText.visible)
+						? Root.trueString : Root.falseString);
+				}
+				return ((game.ui.mcInterface.te != null && game.ui.mcInterface.te.visible)
+					? Root.trueString : Root.falseString);
+			}
+			catch (error:Error)
+			{
+				return Root.falseString;
 			}
 		}
 		

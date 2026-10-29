@@ -94,16 +94,24 @@ internal static class ClientLimitSmoke
 
     private sealed class FakeFlashBridge : IFlashBridge
     {
+        public GameEngineKind Engine { get { return GameEngineKind.FlashActiveX; } }
+
         public AxShockwaveFlash Control
         {
             get { return null; }
         }
+
+        public System.Windows.Forms.Control HostControl { get { return null; } }
 
         public event Action<int> SwfLoadProgress;
 
         public event FlashBridgeCallHandler FlashCall;
 
         public event FlashBridgeErrorHandler FlashError;
+
+        public void LoadMovie(byte[] swf)
+        {
+        }
 
         public T Call<T>(string function, params object[] args)
         {

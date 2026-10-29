@@ -11,6 +11,7 @@ internal static class SingleInstanceBrokerSmoke
     {
         try
         {
+            TestLaunchPolicy();
             if (args.Length == 1 && args[0] == "--secondary")
             {
                 using (SingleInstanceBroker secondary = SingleInstanceBroker.CreateForCurrentUser())
@@ -63,5 +64,40 @@ internal static class SingleInstanceBrokerSmoke
             Console.Error.WriteLine(exception);
             return 1;
         }
+    }
+
+    private static void TestLaunchPolicy()
+    {
+        Type programType = typeof(SingleInstanceBroker).Assembly.GetType("Grimoire.Program", true);
+        System.Reflection.MethodInfo policy = programType.GetMethod(
+            "ShouldForwardAdditionalLaunch",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        System.Reflection.MethodInfo createBroker = programType.GetMethod(
+            "ShouldCreateSingleInstanceBroker",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        if (policy == null || createBroker == null)
+            throw new InvalidOperationException("The launch coordination policy was not found.");
+
+        if ((bool)createBroker.Invoke(null, new object[] { false }))
+            throw new InvalidOperationException("Multi-client disabled should not acquire a single-instance lease.");
+        if (!(bool)createBroker.Invoke(null, new object[] { true }))
+            throw new InvalidOperationException("Multi-client enabled should acquire a single-instance lease.");
+
+        AssertPolicy(policy, false, true, false, "disabled primary");
+        AssertPolicy(policy, false, false, false, "disabled secondary");
+        AssertPolicy(policy, true, true, false, "enabled primary");
+        AssertPolicy(policy, true, false, true, "enabled secondary");
+    }
+
+    private static void AssertPolicy(
+        System.Reflection.MethodInfo policy,
+        bool enabled,
+        bool primary,
+        bool expected,
+        string scenario)
+    {
+        bool actual = (bool)policy.Invoke(null, new object[] { enabled, primary });
+        if (actual != expected)
+            throw new InvalidOperationException("Unexpected launch policy for " + scenario + ".");
     }
 }

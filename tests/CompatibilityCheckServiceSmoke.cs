@@ -51,6 +51,8 @@ namespace Grimoire.Utils
                     GameLoadProgress = 0,
                     OpenClientCount = 1,
                     MultiClientEnabled = true,
+                    GameEngine = "Ruffle",
+                    GameEngineAvailabilityError = "The verified Ruffle runtime is unavailable.",
                     RenderingProfile = "Gpu",
                     WorkingSetBytes = 128L * 1024L * 1024L
                 };
@@ -79,6 +81,8 @@ namespace Grimoire.Utils
                 context.GameReady = true;
                 context.GameLoadProgress = 100;
                 context.MultiClientEnabled = false;
+                context.GameEngine = "FlashActiveX";
+                context.GameEngineAvailabilityError = null;
                 context.RenderingProfile = "Automatic";
 
                 List<CompatibilityCheckResult> passing =
