@@ -76,6 +76,8 @@ namespace Grimoire.Clients
 
         public ClientLoginState LoginState { get; }
 
+        internal string AssignedAccountId => assignedAccountId;
+
         public Spammer PacketSpammer { get; }
 
         public Proxy PacketDispatcher { get; private set; }

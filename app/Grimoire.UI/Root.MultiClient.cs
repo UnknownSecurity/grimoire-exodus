@@ -13,6 +13,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -67,6 +68,9 @@ namespace Grimoire.UI
             public int CredentialFillAttempts;
             public System.Windows.Forms.Timer CredentialFillTimer;
             public System.Windows.Forms.Timer FrameRateReadyTimer;
+            public System.Windows.Forms.Timer AccountProfileTimer;
+            public int AccountProfileAttempts;
+            public string CompletedAccountProfileIdentity;
             public bool FrameRatePolicyInitialized;
             public EventHandler StateChanged;
             public EventHandler LoadProgressChanged;
@@ -758,6 +762,8 @@ namespace Grimoire.UI
             if (ready)
                 ScheduleInitialFrameRatePolicy(workspace);
 
+            UpdateAccountProfileRefresh(workspace);
+
             UpdateClientSurfaceVisibility();
             UpdateClientTab(workspace);
             RefreshHomeState();
@@ -880,6 +886,7 @@ namespace Grimoire.UI
                 workspace.Placeholder.BringToFront();
             EnsureClientTabVisible(workspace.TabButton);
             UpdateClientStripButtons();
+            UpdateAccountProfileRefresh(workspace);
         }
 
         private void RequestGameOpen(ClientSession session, AccountCredentials credentials, bool showWhileLoading)
@@ -988,6 +995,143 @@ namespace Grimoire.UI
             if (clearCredentials)
                 workspace.PendingCredentials = null;
             workspace.CredentialFillAttempts = 0;
+        }
+
+        private void UpdateAccountProfileRefresh(ClientWorkspaceState workspace)
+        {
+            ClientSession session = workspace?.Session;
+            if (session == null
+                || session.IsDisposed
+                || !session.GameState.IsLoggedIn
+                || string.IsNullOrWhiteSpace(session.AssignedAccountId))
+            {
+                StopAccountProfileRefresh(workspace, true);
+                return;
+            }
+
+            string identity = session.AssignedAccountId + "|" + (session.GameState.Username ?? string.Empty);
+            if (string.Equals(workspace.CompletedAccountProfileIdentity, identity, StringComparison.OrdinalIgnoreCase)
+                || workspace.AccountProfileTimer != null)
+            {
+                return;
+            }
+
+            workspace.AccountProfileAttempts = 0;
+            workspace.AccountProfileTimer = new System.Windows.Forms.Timer { Interval = 750 };
+            workspace.AccountProfileTimer.Tick += delegate { TryRefreshAccountProfile(workspace, identity); };
+            workspace.AccountProfileTimer.Start();
+            TryRefreshAccountProfile(workspace, identity);
+        }
+
+        private void TryRefreshAccountProfile(ClientWorkspaceState workspace, string identity)
+        {
+            ClientSession session = workspace?.Session;
+            if (session == null
+                || session.IsDisposed
+                || !session.GameState.IsLoggedIn
+                || !string.Equals(
+                    identity,
+                    session.AssignedAccountId + "|" + (session.GameState.Username ?? string.Empty),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                StopAccountProfileRefresh(workspace, true);
+                return;
+            }
+
+            workspace.AccountProfileAttempts++;
+            try
+            {
+                string className;
+                int level;
+                using (ClientSessionContext.Push(session))
+                {
+                    if (!Player.HasLoadedAvatar())
+                    {
+                        FinishAccountProfileAttemptIfNeeded(workspace);
+                        return;
+                    }
+                    className = Player.Class;
+                    level = Player.Level;
+                }
+
+                AccountSummary account = AccountVault.GetAccounts().FirstOrDefault(item =>
+                    string.Equals(item.Id, session.AssignedAccountId, StringComparison.OrdinalIgnoreCase));
+                if (account == null)
+                {
+                    StopAccountProfileRefresh(workspace, true);
+                    return;
+                }
+
+                byte[] portrait = account.HasPortrait
+                    ? null
+                    : AccountCharacterVisual.TryCapture(workspace.ClientControl);
+                bool changed = AccountVault.UpdateCharacterProfile(
+                    account.Id,
+                    account.Username,
+                    session.GameState.Username,
+                    className,
+                    level,
+                    portrait);
+                if (changed)
+                    RefreshHomeAccounts();
+
+                AccountProfileCaptureDisposition disposition = AccountProfileCapturePolicy.Evaluate(
+                    account.HasPortrait,
+                    portrait != null,
+                    workspace.AccountProfileAttempts);
+                if (disposition == AccountProfileCaptureDisposition.Complete)
+                {
+                    workspace.CompletedAccountProfileIdentity = identity;
+                    StopAccountProfileRefresh(workspace, false);
+                    return;
+                }
+                if (disposition == AccountProfileCaptureDisposition.Pause)
+                {
+                    StopAccountProfileRefresh(workspace, false);
+                    return;
+                }
+            }
+            catch (Exception exception) when (
+                exception is InvalidOperationException
+                || exception is ArgumentException
+                || exception is IOException
+                || exception is UnauthorizedAccessException
+                || exception is ExternalException)
+            {
+                // The game bridge and visual surface can become ready on
+                // different frames. Bounded retries avoid blocking login.
+            }
+
+            FinishAccountProfileAttemptIfNeeded(workspace);
+        }
+
+        private static void FinishAccountProfileAttemptIfNeeded(ClientWorkspaceState workspace)
+        {
+            if (AccountProfileCapturePolicy.Evaluate(
+                    false,
+                    false,
+                    workspace.AccountProfileAttempts) != AccountProfileCaptureDisposition.Pause)
+            {
+                return;
+            }
+            StopAccountProfileRefresh(workspace, false);
+        }
+
+        private static void StopAccountProfileRefresh(
+            ClientWorkspaceState workspace,
+            bool clearCompletedIdentity)
+        {
+            if (workspace == null)
+                return;
+            if (workspace.AccountProfileTimer != null)
+            {
+                workspace.AccountProfileTimer.Stop();
+                workspace.AccountProfileTimer.Dispose();
+                workspace.AccountProfileTimer = null;
+            }
+            workspace.AccountProfileAttempts = 0;
+            if (clearCompletedIdentity)
+                workspace.CompletedAccountProfileIdentity = null;
         }
 
         private void ShowHomeWorkspace()
@@ -1203,6 +1347,7 @@ namespace Grimoire.UI
 
         private void DetachClientWorkspace(ClientWorkspaceState workspace)
         {
+            StopAccountProfileRefresh(workspace, true);
             if (workspace.FrameRateReadyTimer != null)
             {
                 workspace.FrameRateReadyTimer.Stop();
@@ -1331,6 +1476,10 @@ namespace Grimoire.UI
                 id = account.Id,
                 label = account.Label,
                 username = account.Username,
+                characterName = account.CharacterName,
+                characterClass = account.CharacterClass,
+                characterLevel = account.CharacterLevel,
+                portraitDataUri = account.PortraitDataUri,
                 active = clientSessions != null && clientSessions.Sessions.Any(session =>
                     !session.IsDisposed && session.IsAssignedToAccount(account.Id, account.Username))
             })

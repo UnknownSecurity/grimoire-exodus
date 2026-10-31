@@ -56,6 +56,14 @@ function New-TestPayload([string]$Directory, [string]$Marker) {
     Set-TestFile (Join-Path $Directory "new-file.dll") "${Marker}-new"
 }
 
+function New-LegacyTestPayload([string]$Directory, [string]$Marker) {
+    New-Item -ItemType Directory -Path $Directory -Force | Out-Null
+    foreach ($name in @("Grimoire Exodus.exe", "Grimoire.Updater.exe", "Flash.ocx", "grimoire-exodus.swf")) {
+        Set-TestFile (Join-Path $Directory $name) "${Marker}-$name"
+    }
+    Set-TestFile (Join-Path $Directory "legacy-file.dll") "${Marker}-legacy"
+}
+
 function Invoke-TestUpdater([string[]]$UpdaterArguments) {
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $updater
@@ -72,6 +80,46 @@ function Invoke-TestUpdater([string[]]$UpdaterArguments) {
 }
 
 try {
+    $legacyInstall = Join-Path $testDirectory "legacy-install"
+    $legacyPayload = Join-Path $testDirectory "legacy-cache\1.4.0\payload"
+    New-LegacyTestPayload $legacyPayload "legacy"
+    Set-TestFile (Join-Path $legacyInstall "Grimoire Exodus.exe") "current-exe"
+    Set-TestFile (Join-Path $legacyInstall "user-owned.txt") "preserve-me"
+    $legacyLog = Join-Path $testDirectory "legacy.log"
+
+    $legacyExitCode = Invoke-TestUpdater @(
+        "--process-id", ([int]::MaxValue).ToString(),
+        "--target", $legacyInstall,
+        "--restart", (Join-Path $legacyInstall "Grimoire Exodus.exe"),
+        "--log", $legacyLog,
+        "--source", $legacyPayload,
+        "--target-version", "1.4.0.0",
+        "--no-restart", "--no-ui")
+    if ($legacyExitCode -ne 0) {
+        throw "The pre-Ruffle portable downgrade test failed with exit code $legacyExitCode."
+    }
+    if ([IO.File]::ReadAllText((Join-Path $legacyInstall "Grimoire Exodus.exe")) -ne "legacy-Grimoire Exodus.exe") {
+        throw "The updater did not apply the pre-Ruffle portable downgrade."
+    }
+    if ([IO.File]::ReadAllText((Join-Path $legacyInstall "user-owned.txt")) -ne "preserve-me") {
+        throw "The pre-Ruffle portable downgrade modified an unrelated user-owned file."
+    }
+
+    $incompleteModernInstall = Join-Path $testDirectory "incomplete-modern-install"
+    Set-TestFile (Join-Path $incompleteModernInstall "Grimoire Exodus.exe") "current-exe"
+    $incompleteModernLog = Join-Path $testDirectory "incomplete-modern.log"
+    $incompleteModernExitCode = Invoke-TestUpdater @(
+        "--process-id", ([int]::MaxValue).ToString(),
+        "--target", $incompleteModernInstall,
+        "--restart", (Join-Path $incompleteModernInstall "Grimoire Exodus.exe"),
+        "--log", $incompleteModernLog,
+        "--source", $legacyPayload,
+        "--target-version", "1.5.0.0",
+        "--no-restart", "--no-ui")
+    if ($incompleteModernExitCode -eq 0) {
+        throw "The updater accepted an incomplete modern portable payload."
+    }
+
     $successInstall = Join-Path $testDirectory "success-install"
     $successPayload = Join-Path $testDirectory "success-cache\1.2.0\payload"
     New-TestPayload $successPayload "new"
@@ -136,7 +184,7 @@ try {
         throw "The updater did not remove a newly created file during rollback."
     }
 
-    Write-Host "Portable merge, legacy-file preservation, and rollback passed."
+    Write-Host "Portable downgrade, merge, legacy-file preservation, and rollback passed."
 }
 finally {
     if (Test-Path -LiteralPath $testDirectory) {

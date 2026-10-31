@@ -46,6 +46,162 @@ namespace Grimoire.Networking.Handlers
         }
     }
 
+    public sealed class HandlerUserData : IJsonMessageHandler
+    {
+        public string[] HandledCommands { get; } =
+        {
+            "initUserData",
+            "initUserDatas",
+            "updateClass"
+        };
+
+        public void Handle(JsonMessage message)
+        {
+            if (message?.DataObject == null)
+                return;
+
+            switch (message.Command)
+            {
+                case "initUserDatas":
+                    ReplacePlayers(message.DataObject["a"] as JArray);
+                    break;
+                case "initUserData":
+                    UpsertPlayer(message.DataObject);
+                    break;
+                case "updateClass":
+                    UpdateClass(message.DataObject);
+                    break;
+            }
+        }
+
+        private static void ReplacePlayers(JArray entries)
+        {
+            if (entries == null)
+                return;
+
+            Dictionary<string, PlayerInfo> players = new Dictionary<string, PlayerInfo>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (JToken entry in entries)
+            {
+                PlayerInfo player = CreatePlayer(entry);
+                string identity = GetIdentity(player);
+                if (!string.IsNullOrWhiteSpace(identity))
+                    players[identity] = player;
+            }
+
+            GameSessionState state = GameSessionState.Current;
+            lock (state.PlayersSyncRoot)
+                state.Players = players;
+        }
+
+        private static void UpsertPlayer(JToken entry)
+        {
+            PlayerInfo incoming = CreatePlayer(entry);
+            string identity = GetIdentity(incoming);
+            if (string.IsNullOrWhiteSpace(identity))
+                return;
+
+            GameSessionState state = GameSessionState.Current;
+            lock (state.PlayersSyncRoot)
+            {
+                if (state.Players == null)
+                    state.Players = new Dictionary<string, PlayerInfo>(StringComparer.OrdinalIgnoreCase);
+
+                PlayerInfo existing = FindPlayer(state.Players.Values, incoming);
+                if (existing == null)
+                    state.Players[identity] = incoming;
+                else
+                    MergePlayer(existing, incoming);
+            }
+        }
+
+        private static void UpdateClass(JToken data)
+        {
+            string className = data["sClassName"]?.Value<string>()
+                ?? data["strClassName"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(className))
+                return;
+
+            string username = data["strUsername"]?.Value<string>()
+                ?? data["uoName"]?.Value<string>();
+            int userId = data["uid"]?.Value<int?>() ?? 0;
+            GameSessionState state = GameSessionState.Current;
+            lock (state.PlayersSyncRoot)
+            {
+                PlayerInfo player = (state.Players ?? new Dictionary<string, PlayerInfo>())
+                    .Values
+                    .FirstOrDefault(value => value != null
+                        && ((!string.IsNullOrWhiteSpace(username)
+                                && IsSamePlayer(value, username))
+                            || (userId != 0 && value.UserID == userId)));
+                if (player != null)
+                    player.Class = className;
+            }
+        }
+
+        private static PlayerInfo CreatePlayer(JToken entry)
+        {
+            JToken data = entry?["data"] ?? entry;
+            PlayerInfo player = data?.ToObject<PlayerInfo>() ?? new PlayerInfo();
+            player.Class = data?["strClassName"]?.Value<string>()
+                ?? data?["sClassName"]?.Value<string>()
+                ?? player.Class;
+            player.UserID = entry?["uid"]?.Value<int?>()
+                ?? data?["uid"]?.Value<int?>()
+                ?? player.UserID;
+            return player;
+        }
+
+        private static PlayerInfo FindPlayer(IEnumerable<PlayerInfo> players, PlayerInfo candidate)
+        {
+            string identity = GetIdentity(candidate);
+            return players.FirstOrDefault(player => IsSamePlayer(player, identity)
+                || (candidate.UserID != 0 && player.UserID == candidate.UserID));
+        }
+
+        private static string GetIdentity(PlayerInfo player)
+        {
+            if (player == null)
+                return string.Empty;
+            return !string.IsNullOrWhiteSpace(player.Username) ? player.Username : player.Name;
+        }
+
+        private static bool IsSamePlayer(PlayerInfo player, string identity)
+        {
+            return player != null
+                && !string.IsNullOrWhiteSpace(identity)
+                && (string.Equals(player.Username, identity, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(player.Name, identity, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static void MergePlayer(PlayerInfo target, PlayerInfo source)
+        {
+            if (!string.IsNullOrWhiteSpace(source.Name))
+                target.Name = source.Name;
+            if (!string.IsNullOrWhiteSpace(source.Username))
+                target.Username = source.Username;
+            if (!string.IsNullOrWhiteSpace(source.Class))
+                target.Class = source.Class;
+            if (source.UserID != 0)
+                target.UserID = source.UserID;
+            if (source.EntID != 0)
+                target.EntID = source.EntID;
+            if (source.Level != 0)
+                target.Level = source.Level;
+            if (!string.IsNullOrWhiteSpace(source.Cell))
+                target.Cell = source.Cell;
+            if (!string.IsNullOrWhiteSpace(source.Pad))
+                target.Pad = source.Pad;
+            target.HP = source.HP;
+            target.MaxHP = source.MaxHP;
+            target.MP = source.MP;
+            target.AFK = source.AFK;
+            target.X = source.X;
+            target.Y = source.Y;
+            target.CurrentState = source.CurrentState;
+        }
+    }
+
     //public class HandlerUserData : IJsonMessageHandler
     //{
     //    public string[] HandledCommands

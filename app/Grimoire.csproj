@@ -26,7 +26,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.5.0.0</ApplicationVersion>
+    <ApplicationVersion>1.6.0.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
@@ -516,6 +516,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Grimoire.UI\GrimoireHomeBridge.cs" />
+    <Compile Include="Grimoire.UI\AccountCharacterVisual.cs" />
     <Compile Include="Grimoire.UI\GrimoireForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -534,6 +535,10 @@
     <Compile Include="Grimoire.UI\SettingsForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Grimoire.UI\UltraKitForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Grimoire.UI\UltraCharacterClassLookup.cs" />
     <Compile Include="Grimoire.UI\Set.cs">
       <SubType>Form</SubType>
     </Compile>

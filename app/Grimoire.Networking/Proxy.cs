@@ -121,6 +121,7 @@ namespace Grimoire.Networking
                 new HandlerBuyItem(),
                 new HandlerSkills(),
                 new HandlerArea(),
+                new HandlerUserData(),
                 new HandlerBotSkills()
             };
             proxy._handlersXt = new List<IXtMessageHandler>

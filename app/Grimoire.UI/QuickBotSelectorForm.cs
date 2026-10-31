@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace Grimoire.UI
@@ -20,8 +21,10 @@ namespace Grimoire.UI
         private readonly List<BotListItem> allBots;
         private readonly DarkTextBox filterBox = new DarkTextBox();
         private readonly DarkListBox botList;
+        private readonly DarkScrollBar botListScrollBar = new DarkScrollBar();
         private readonly DarkButton loadButton = new DarkButton();
         private readonly DarkButton cancelButton = new DarkButton();
+        private ListBoxThemeAdapter botListThemeAdapter;
 
         public QuickBotSelectorForm(IEnumerable<string> botPaths, string selectedBotPath)
         {
@@ -125,6 +128,26 @@ namespace Grimoire.UI
             botList.SelectedIndexChanged += BotList_SelectedIndexChanged;
             botList.DoubleClick += BotList_DoubleClick;
 
+            Panel botListHost = new Panel
+            {
+                BackColor = CardColor,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty
+            };
+            botListScrollBar.AccessibleName = "GBot list scrollbar";
+            botListScrollBar.Dock = DockStyle.Right;
+            botListScrollBar.Margin = Padding.Empty;
+            botListScrollBar.Minimum = 0;
+            botListScrollBar.ScrollOrientation = DarkScrollOrientation.Vertical;
+            botListScrollBar.TabStop = false;
+            botListScrollBar.Visible = false;
+            botListScrollBar.ViewSize = 1;
+            botListScrollBar.Width = 11;
+            botListHost.Controls.Add(botList);
+            botListHost.Controls.Add(botListScrollBar);
+            botListScrollBar.SendToBack();
+            botListThemeAdapter = new ListBoxThemeAdapter(botListHost, botList, botListScrollBar);
+
             TableLayoutPanel footer = new TableLayoutPanel
             {
                 BackColor = BackgroundColor,
@@ -164,7 +187,7 @@ namespace Grimoire.UI
 
             layout.Controls.Add(introduction, 0, 0);
             layout.Controls.Add(filterRow, 0, 1);
-            layout.Controls.Add(botList, 0, 2);
+            layout.Controls.Add(botListHost, 0, 2);
             layout.Controls.Add(footer, 0, 3);
             Controls.Add(layout);
 
@@ -219,6 +242,7 @@ namespace Grimoire.UI
                 botList.EndUpdate();
             }
             loadButton.Enabled = botList.SelectedItem is BotListItem;
+            botListThemeAdapter?.Refresh();
         }
 
         private void BotList_SelectedIndexChanged(object sender, EventArgs e)
@@ -254,6 +278,146 @@ namespace Grimoire.UI
                 components.Dispose();
             }
             base.Dispose(disposing);
+        }
+
+        private static class NativeScrollBars
+        {
+            private const int SbVertical = 1;
+
+            [DllImport("user32.dll", ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            private static extern bool ShowScrollBar(
+                IntPtr window,
+                int bar,
+                [MarshalAs(UnmanagedType.Bool)] bool show);
+
+            public static void HideVertical(Control control)
+            {
+                if (control != null && control.IsHandleCreated)
+                    ShowScrollBar(control.Handle, SbVertical, false);
+            }
+        }
+
+        private sealed class ListBoxThemeAdapter
+        {
+            private readonly Control host;
+            private readonly ListBox listBox;
+            private readonly DarkScrollBar scrollBar;
+            private bool syncScheduled;
+            private bool synchronizing;
+
+            public ListBoxThemeAdapter(Control host, ListBox listBox, DarkScrollBar scrollBar)
+            {
+                this.host = host;
+                this.listBox = listBox;
+                this.scrollBar = scrollBar;
+                listBox.HandleCreated += delegate { ScheduleSync(); };
+                listBox.Resize += delegate { ScheduleSync(); };
+                listBox.MouseWheel += delegate { ScheduleSync(); };
+                listBox.KeyUp += delegate { ScheduleSync(); };
+                listBox.SelectedIndexChanged += delegate { ScheduleSync(); };
+                scrollBar.ValueChanged += ScrollBar_ValueChanged;
+                scrollBar.MouseWheel += ScrollBar_MouseWheel;
+                host.Resize += delegate { ScheduleSync(); };
+                ScheduleSync();
+            }
+
+            public void Refresh()
+            {
+                ScheduleSync();
+            }
+
+            private void ScrollBar_MouseWheel(object sender, MouseEventArgs e)
+            {
+                if (!listBox.IsHandleCreated || e.Delta == 0)
+                    return;
+
+                int visibleItems = GetVisibleItemCount();
+                int lines = SystemInformation.MouseWheelScrollLines;
+                int step = lines < 0 ? visibleItems : Math.Max(1, lines);
+                int notches = e.Delta / SystemInformation.MouseWheelScrollDelta;
+                int value = listBox.TopIndex - (notches * step);
+                listBox.TopIndex = Math.Max(0, Math.Min(value, GetMaximumTopIndex()));
+                NativeScrollBars.HideVertical(listBox);
+                ScheduleSync();
+
+                HandledMouseEventArgs handled = e as HandledMouseEventArgs;
+                if (handled != null)
+                    handled.Handled = true;
+            }
+
+            private void ScrollBar_ValueChanged(object sender, ScrollValueEventArgs e)
+            {
+                if (synchronizing || !listBox.IsHandleCreated)
+                    return;
+
+                int maximum = GetMaximumTopIndex();
+                listBox.TopIndex = Math.Max(0, Math.Min(e.Value, maximum));
+                NativeScrollBars.HideVertical(listBox);
+                ScheduleSync();
+            }
+
+            private void ScheduleSync()
+            {
+                if (!listBox.IsHandleCreated || listBox.IsDisposed)
+                    return;
+
+                NativeScrollBars.HideVertical(listBox);
+                if (syncScheduled)
+                    return;
+                syncScheduled = true;
+                try
+                {
+                    listBox.BeginInvoke(new Action(delegate
+                    {
+                        syncScheduled = false;
+                        SyncFromListBox();
+                    }));
+                }
+                catch (InvalidOperationException)
+                {
+                    syncScheduled = false;
+                }
+            }
+
+            private void SyncFromListBox()
+            {
+                if (listBox.IsDisposed || !listBox.IsHandleCreated)
+                    return;
+
+                synchronizing = true;
+                try
+                {
+                    int itemCount = listBox.Items.Count;
+                    int visibleItems = GetVisibleItemCount();
+                    int maximum = Math.Max(0, itemCount - visibleItems);
+                    scrollBar.Minimum = 0;
+                    scrollBar.Maximum = Math.Max(1, itemCount);
+                    scrollBar.ViewSize = Math.Min(Math.Max(1, itemCount), visibleItems);
+                    scrollBar.Value = Math.Min(listBox.TopIndex, maximum);
+                    bool wasVisible = scrollBar.Visible;
+                    scrollBar.Visible = maximum > 0;
+                    if (wasVisible != scrollBar.Visible)
+                        host.PerformLayout();
+                    NativeScrollBars.HideVertical(listBox);
+                }
+                finally
+                {
+                    synchronizing = false;
+                }
+            }
+
+            private int GetMaximumTopIndex()
+            {
+                return Math.Max(0, listBox.Items.Count - GetVisibleItemCount());
+            }
+
+            private int GetVisibleItemCount()
+            {
+                return Math.Max(
+                    1,
+                    listBox.ClientSize.Height / Math.Max(1, listBox.ItemHeight));
+            }
         }
 
         private sealed class BotListItem

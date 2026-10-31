@@ -1,9 +1,12 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text;
 using Grimoire.Utils;
 
@@ -19,6 +22,21 @@ namespace Grimoire.Tools
 
         [JsonProperty("username")]
         public string Username { get; set; }
+
+        [JsonProperty("characterName")]
+        public string CharacterName { get; set; }
+
+        [JsonProperty("characterClass")]
+        public string CharacterClass { get; set; }
+
+        [JsonProperty("characterLevel")]
+        public int? CharacterLevel { get; set; }
+
+        [JsonProperty("portraitDataUri")]
+        public string PortraitDataUri { get; set; }
+
+        [JsonProperty("hasPortrait")]
+        public bool HasPortrait { get; set; }
     }
 
     public sealed class AccountCredentials
@@ -36,8 +54,11 @@ namespace Grimoire.Tools
     {
         private static readonly object SyncRoot = new object();
         private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("Grimoire Exodus account vault v1");
+        private const int MaximumPortraitBytes = 256 * 1024;
 
         private static string VaultDirectory => AppPaths.DataDirectory;
+
+        private static string VisualDirectory => AppPaths.AccountVisualsDirectory;
 
         private static string VaultPath => Path.Combine(VaultDirectory, "account-vault.json");
 
@@ -51,12 +72,7 @@ namespace Grimoire.Tools
             lock (SyncRoot)
             {
                 return LoadVault().Accounts
-                    .Select(account => new AccountSummary
-                    {
-                        Id = account.Id,
-                        Label = account.Label,
-                        Username = account.Username
-                    })
+                    .Select(CreateSummary)
                     .ToList();
             }
         }
@@ -104,12 +120,55 @@ namespace Grimoire.Tools
                 account.ProtectedPassword = Protect(password);
                 SaveVault(vault);
 
-                return new AccountSummary
+                return CreateSummary(account);
+            }
+        }
+
+        public static bool UpdateCharacterProfile(
+            string id,
+            string username,
+            string characterName,
+            string characterClass,
+            int level,
+            byte[] portraitPng)
+        {
+            id = Normalize(id, 64);
+            username = Normalize(username, 100);
+            characterName = Normalize(characterName, 100);
+            characterClass = Normalize(characterClass, 80);
+            if (id == null && username == null)
+                return false;
+            if (level < 1 || level > 1000)
+                level = 0;
+            if (portraitPng != null)
+                ValidatePortrait(portraitPng);
+
+            lock (SyncRoot)
+            {
+                AccountVaultFile vault = LoadVault();
+                AccountRecord account = id == null
+                    ? null
+                    : vault.Accounts.FirstOrDefault(item =>
+                        string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase));
+                if (account == null && username != null)
                 {
-                    Id = account.Id,
-                    Label = account.Label,
-                    Username = account.Username
-                };
+                    account = vault.Accounts.FirstOrDefault(item =>
+                        string.Equals(item.Username, username, StringComparison.OrdinalIgnoreCase));
+                }
+                if (account == null)
+                    return false;
+
+                bool metadataChanged = !string.Equals(account.CharacterName, characterName, StringComparison.Ordinal)
+                    || !string.Equals(account.CharacterClass, characterClass, StringComparison.Ordinal)
+                    || account.CharacterLevel != (level == 0 ? (int?)null : level);
+                account.CharacterName = characterName;
+                account.CharacterClass = characterClass;
+                account.CharacterLevel = level == 0 ? (int?)null : level;
+                if (metadataChanged)
+                    SaveVault(vault);
+                if (portraitPng != null)
+                    WritePortrait(account.Id, portraitPng);
+                return metadataChanged || portraitPng != null;
             }
         }
 
@@ -156,6 +215,7 @@ namespace Grimoire.Tools
                 if (removed > 0)
                 {
                     SaveVault(vault);
+                    DeletePortrait(id);
                 }
 
                 return removed > 0;
@@ -171,7 +231,128 @@ namespace Grimoire.Tools
                     File.Delete(LegacyVaultPath);
                 }
                 SaveVault(new AccountVaultFile());
+                if (Directory.Exists(VisualDirectory))
+                    Directory.Delete(VisualDirectory, true);
             }
+        }
+
+        private static AccountSummary CreateSummary(AccountRecord account)
+        {
+            string portraitDataUri = ReadPortraitDataUri(account.Id);
+            return new AccountSummary
+            {
+                Id = account.Id,
+                Label = account.Label,
+                Username = account.Username,
+                CharacterName = account.CharacterName,
+                CharacterClass = account.CharacterClass,
+                CharacterLevel = account.CharacterLevel,
+                PortraitDataUri = portraitDataUri,
+                HasPortrait = portraitDataUri != null
+            };
+        }
+
+        private static string Normalize(string value, int maximumLength)
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (normalized != null && normalized.Length > maximumLength)
+                normalized = normalized.Substring(0, maximumLength);
+            return normalized;
+        }
+
+        private static void ValidatePortrait(byte[] portraitPng)
+        {
+            if (portraitPng.Length == 0 || portraitPng.Length > MaximumPortraitBytes)
+                throw new ArgumentException("The account visual is empty or too large.", nameof(portraitPng));
+            try
+            {
+                using (MemoryStream stream = new MemoryStream(portraitPng, false))
+                using (Image image = Image.FromStream(stream, false, true))
+                {
+                    if (image.RawFormat.Guid != ImageFormat.Png.Guid
+                        || image.Width < 16
+                        || image.Height < 16
+                        || image.Width > 512
+                        || image.Height > 512)
+                    {
+                        throw new ArgumentException("The account visual must be a bounded PNG image.", nameof(portraitPng));
+                    }
+                }
+            }
+            catch (ArgumentException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (exception is OutOfMemoryException || exception is ExternalException)
+            {
+                throw new ArgumentException("The account visual is not a valid PNG image.", nameof(portraitPng), exception);
+            }
+        }
+
+        private static string GetPortraitPath(string id)
+        {
+            if (!Guid.TryParseExact(id, "N", out Guid accountId))
+                return null;
+            string root = Path.GetFullPath(VisualDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            string path = Path.GetFullPath(Path.Combine(root, accountId.ToString("N") + ".png"));
+            return path.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? path : null;
+        }
+
+        private static string ReadPortraitDataUri(string id)
+        {
+            string path = GetPortraitPath(id);
+            if (path == null || !File.Exists(path))
+                return null;
+            try
+            {
+                FileInfo file = new FileInfo(path);
+                if (file.Length <= 0 || file.Length > MaximumPortraitBytes)
+                    return null;
+                byte[] bytes = File.ReadAllBytes(path);
+                ValidatePortrait(bytes);
+                return "data:image/png;base64," + Convert.ToBase64String(bytes);
+            }
+            catch (Exception exception) when (
+                exception is IOException
+                || exception is UnauthorizedAccessException
+                || exception is ArgumentException)
+            {
+                return null;
+            }
+        }
+
+        private static void WritePortrait(string id, byte[] portraitPng)
+        {
+            string path = GetPortraitPath(id);
+            if (path == null)
+                throw new InvalidOperationException("The account identifier cannot own an account visual.");
+            string directory = Path.GetDirectoryName(path);
+            Directory.CreateDirectory(directory);
+            string temporaryPath = Path.Combine(
+                directory,
+                Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+            try
+            {
+                File.WriteAllBytes(temporaryPath, portraitPng);
+                if (File.Exists(path))
+                    File.Replace(temporaryPath, path, null, true);
+                else
+                    File.Move(temporaryPath, path);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
+        }
+
+        private static void DeletePortrait(string id)
+        {
+            string path = GetPortraitPath(id);
+            if (path != null && File.Exists(path))
+                File.Delete(path);
         }
 
         private static string Protect(string password)
@@ -238,6 +419,7 @@ namespace Grimoire.Tools
         private static void SaveVault(AccountVaultFile vault)
         {
             Directory.CreateDirectory(VaultDirectory);
+            vault.Version = 2;
             string temporaryPath = VaultPath + ".tmp";
             string json = JsonConvert.SerializeObject(vault, Formatting.Indented);
             File.WriteAllText(temporaryPath, json, new UTF8Encoding(false));
@@ -255,7 +437,7 @@ namespace Grimoire.Tools
         private sealed class AccountVaultFile
         {
             [JsonProperty("version")]
-            public int Version { get; set; } = 1;
+            public int Version { get; set; } = 2;
 
             [JsonProperty("accounts")]
             public List<AccountRecord> Accounts { get; set; } = new List<AccountRecord>();
@@ -274,6 +456,15 @@ namespace Grimoire.Tools
 
             [JsonProperty("protectedPassword")]
             public string ProtectedPassword { get; set; }
+
+            [JsonProperty("characterName", NullValueHandling = NullValueHandling.Ignore)]
+            public string CharacterName { get; set; }
+
+            [JsonProperty("characterClass", NullValueHandling = NullValueHandling.Ignore)]
+            public string CharacterClass { get; set; }
+
+            [JsonProperty("characterLevel", NullValueHandling = NullValueHandling.Ignore)]
+            public int? CharacterLevel { get; set; }
         }
     }
 }

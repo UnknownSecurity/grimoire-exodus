@@ -115,7 +115,8 @@ function Show-ExodusManual {
     Write-Host "      Name the generated plugin project and entry class."
     Write-Host ""
     Write-Host "  -OutputDirectory <path>"
-    Write-Host "      Override the default plugin-workspaces\<name> destination."
+    Write-Host "      Use an isolated build output, or override the default"
+    Write-Host "      plugin-workspaces\<name> destination for plugin scaffolding."
 }
 
 function Assert-FileHash([string]$Path, [string]$ExpectedHash, [string]$Description) {
@@ -326,9 +327,102 @@ function Invoke-NuGetRestore([string]$MSBuild) {
     }
 }
 
+function Get-DefaultBuildOutputDirectory([string]$BuildConfiguration) {
+    return Join-Path $script:RootDirectory "app\bin\$BuildConfiguration"
+}
+
+function Assert-DefaultBuildOutputAvailable([string]$OutputDirectory) {
+    if (-not (Test-Path -LiteralPath $OutputDirectory)) {
+        return
+    }
+
+    $outputItem = Get-Item -LiteralPath $OutputDirectory -Force
+    if (($outputItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "The default build output is a reparse point and cannot be replaced safely: $OutputDirectory"
+    }
+
+    foreach ($file in Get-ChildItem -LiteralPath $OutputDirectory -File -Recurse -Force) {
+        $stream = $null
+        try {
+            $stream = [IO.File]::Open(
+                $file.FullName,
+                [IO.FileMode]::Open,
+                [IO.FileAccess]::Read,
+                [IO.FileShare]::None)
+        }
+        catch {
+            throw "The $($outputItem.Name) build output is currently in use. Close the Grimoire instance running from that folder, or build safely to another folder with -OutputDirectory. No build files were changed."
+        }
+        finally {
+            if ($null -ne $stream) {
+                $stream.Dispose()
+            }
+        }
+    }
+}
+
+function Publish-DefaultBuildOutput([string]$StagingDirectory, [string]$OutputDirectory) {
+    $parentDirectory = Split-Path -Parent $OutputDirectory
+    $directoryName = Split-Path -Leaf $OutputDirectory
+    $backupDirectory = Join-Path $parentDirectory ".$directoryName.backup-$([Guid]::NewGuid().ToString('N'))"
+    $movedExistingOutput = $false
+    $published = $false
+
+    New-Item -ItemType Directory -Path $parentDirectory -Force | Out-Null
+    try {
+        if (Test-Path -LiteralPath $OutputDirectory) {
+            Move-Item -LiteralPath $OutputDirectory -Destination $backupDirectory
+            $movedExistingOutput = $true
+        }
+        Move-Item -LiteralPath $StagingDirectory -Destination $OutputDirectory
+        $published = $true
+    }
+    catch {
+        if (-not (Test-Path -LiteralPath $OutputDirectory) -and $movedExistingOutput -and (Test-Path -LiteralPath $backupDirectory)) {
+            Move-Item -LiteralPath $backupDirectory -Destination $OutputDirectory
+        }
+        throw "The completed build could not replace the default output safely. The previous output was restored. $($_.Exception.Message)"
+    }
+    finally {
+        if ($published -and (Test-Path -LiteralPath $backupDirectory)) {
+            try {
+                Remove-Item -LiteralPath $backupDirectory -Recurse -Force
+            }
+            catch {
+                Write-Warning "The build succeeded, but its temporary backup could not be removed: $backupDirectory"
+            }
+        }
+    }
+}
+
+function Assert-CompleteBuildOutput([string]$OutputDirectory) {
+    $requiredFiles = @(
+        "Grimoire Exodus.exe",
+        "Grimoire.Updater.exe",
+        "Flash.ocx",
+        "grimoire-exodus.swf",
+        "Microsoft.Web.WebView2.Core.dll",
+        "Microsoft.Web.WebView2.WinForms.dll",
+        "Ruffle\ruffle.js",
+        "Ruffle\172de42e6619eac8f371.wasm",
+        "Ruffle\878d548199cddef07035.wasm",
+        "runtimes\win-x86\native\WebView2Loader.dll",
+        "Resources\Home\index.html",
+        "Resources\Ruffle\index.html"
+    )
+    foreach ($requiredFile in $requiredFiles) {
+        if (-not (Test-Path -LiteralPath (Join-Path $OutputDirectory $requiredFile) -PathType Leaf)) {
+            throw "The build output is incomplete and was not published. Missing: $requiredFile"
+        }
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $OutputDirectory "Bot") -PathType Container)) {
+        throw "The build output is incomplete and was not published. Missing: Bot"
+    }
+}
+
 function Complete-BrandedOutput([string]$BuildConfiguration, [string]$RequestedOutputDirectory) {
     $outputDirectory = if ([string]::IsNullOrWhiteSpace($RequestedOutputDirectory)) {
-        Join-Path $script:RootDirectory "app\bin\$BuildConfiguration"
+        Get-DefaultBuildOutputDirectory $BuildConfiguration
     }
     else {
         $RequestedOutputDirectory
@@ -359,7 +453,6 @@ function Complete-BrandedOutput([string]$BuildConfiguration, [string]$RequestedO
         }
     }
 
-    Write-Host "Built: $brandedExecutable" -ForegroundColor Green
     return $brandedExecutable
 }
 
@@ -383,16 +476,47 @@ function Invoke-ExodusBuild([string]$BuildConfiguration, [string]$Verbosity = "m
 
     foreach ($configurationName in $configurations) {
         Write-Host "Building $configurationName..." -ForegroundColor Cyan
+        $defaultOutputDirectory = Get-DefaultBuildOutputDirectory $configurationName
+        $buildOutputDirectory = $resolvedOutputDirectory
+        $stagingDirectory = $null
+        if ([string]::IsNullOrWhiteSpace($resolvedOutputDirectory)) {
+            Assert-DefaultBuildOutputAvailable $defaultOutputDirectory
+            $stagingDirectory = Join-Path $script:RootDirectory "app\obj\exodus-build\$configurationName-$([Guid]::NewGuid().ToString('N'))"
+            New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
+            $buildOutputDirectory = $stagingDirectory
+        }
+
         $msbuildArguments = @($script:SolutionPath, "/p:Configuration=$configurationName", "/p:Platform=Any CPU", "/m", "/v:$Verbosity")
-        if (-not [string]::IsNullOrWhiteSpace($resolvedOutputDirectory)) {
-            $msbuildArguments += "/p:OutputPath=$resolvedOutputDirectory"
+        if (-not [string]::IsNullOrWhiteSpace($buildOutputDirectory)) {
+            $msbuildArguments += "/p:OutputPath=$buildOutputDirectory"
         }
-        & $msbuild @msbuildArguments |
-            ForEach-Object { Write-Host $_ }
-        if ($LASTEXITCODE -ne 0) {
-            throw "$configurationName build failed with exit code $LASTEXITCODE."
+
+        try {
+            & $msbuild @msbuildArguments |
+                ForEach-Object { Write-Host $_ }
+            if ($LASTEXITCODE -ne 0) {
+                throw "$configurationName build failed with exit code $LASTEXITCODE."
+            }
+
+            $builtExecutable = Complete-BrandedOutput $configurationName $buildOutputDirectory
+            Assert-CompleteBuildOutput $buildOutputDirectory
+            if ($null -ne $stagingDirectory) {
+                Publish-DefaultBuildOutput $stagingDirectory $defaultOutputDirectory
+                $publishedExecutable = Join-Path $defaultOutputDirectory (Split-Path -Leaf $builtExecutable)
+                Write-Host "Built: $publishedExecutable" -ForegroundColor Green
+                $outputs += $publishedExecutable
+                $stagingDirectory = $null
+            }
+            else {
+                Write-Host "Built: $builtExecutable" -ForegroundColor Green
+                $outputs += $builtExecutable
+            }
         }
-        $outputs += Complete-BrandedOutput $configurationName $resolvedOutputDirectory
+        finally {
+            if ($null -ne $stagingDirectory -and (Test-Path -LiteralPath $stagingDirectory)) {
+                Remove-Item -LiteralPath $stagingDirectory -Recurse -Force
+            }
+        }
     }
     return $outputs
 }
@@ -711,34 +835,36 @@ Plugin workspace generated by the Grimoire Exodus developer CLI.
     Write-Host "Plugin workspace created: $destination" -ForegroundColor Green
 }
 
-switch ($Command) {
-    "build" {
-        Show-ExodusBanner
-        Invoke-ExodusBuild $Configuration "minimal" $OutputDirectory | Out-Null
+if ($MyInvocation.InvocationName -ne '.') {
+    switch ($Command) {
+        "build" {
+            Show-ExodusBanner
+            Invoke-ExodusBuild $Configuration "minimal" $OutputDirectory | Out-Null
+        }
+        "dev" {
+            Show-ExodusBanner
+            $executable = Invoke-ExodusBuild "Debug" "detailed" $OutputDirectory | Select-Object -Last 1
+            Write-Host "Launching development client..." -ForegroundColor Cyan
+            Start-Process -FilePath $executable -WorkingDirectory (Split-Path -Parent $executable)
+        }
+        "runtime" {
+            Show-ExodusBanner
+            Get-BundledFlashRuntime | Out-Null
+            Get-BundledRuffleRuntime | Out-Null
+        }
+        "installer" {
+            Show-ExodusBanner
+            New-ExodusInstaller | Out-Null
+        }
+        "version" {
+            Show-ExodusBanner
+            Update-ExodusVersion $Part
+        }
+        "plugin" {
+            Show-ExodusBanner
+            New-PluginWorkspace $Name $OutputDirectory
+        }
+        "man" { Show-ExodusManual }
+        default { Show-ExodusHelp }
     }
-    "dev" {
-        Show-ExodusBanner
-        $executable = Invoke-ExodusBuild "Debug" "detailed" $OutputDirectory | Select-Object -Last 1
-        Write-Host "Launching development client..." -ForegroundColor Cyan
-        Start-Process -FilePath $executable -WorkingDirectory (Split-Path -Parent $executable)
-    }
-    "runtime" {
-        Show-ExodusBanner
-        Get-BundledFlashRuntime | Out-Null
-        Get-BundledRuffleRuntime | Out-Null
-    }
-    "installer" {
-        Show-ExodusBanner
-        New-ExodusInstaller | Out-Null
-    }
-    "version" {
-        Show-ExodusBanner
-        Update-ExodusVersion $Part
-    }
-    "plugin" {
-        Show-ExodusBanner
-        New-PluginWorkspace $Name $OutputDirectory
-    }
-    "man" { Show-ExodusManual }
-    default { Show-ExodusHelp }
 }

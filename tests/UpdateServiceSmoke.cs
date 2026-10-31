@@ -1,5 +1,8 @@
 using Grimoire.Utils;
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
 
 internal static class UpdateServiceSmoke
 {
@@ -40,6 +43,20 @@ internal static class UpdateServiceSmoke
             if (equalVersion != null)
                 return Fail("An equal release version was incorrectly offered as an update.");
 
+            IList<UpdateRelease> stableReleases = UpdateService.ParseAvailableReleases(releases, false);
+            if (stableReleases.Count != 1 || stableReleases[0].Version != new Version(1, 1, 0, 0))
+                return Fail("The stable version list did not retain the verified older release.");
+
+            IList<UpdateRelease> allReleases = UpdateService.ParseAvailableReleases(releases, true);
+            if (allReleases.Count != 2
+                || allReleases[0].Version != new Version(1, 2, 0, 0)
+                || allReleases[1].Version != new Version(1, 1, 0, 0))
+            {
+                return Fail("Verified releases were not returned in descending version order.");
+            }
+
+            VerifyVersionAwarePayloadValidation();
+
             Console.WriteLine("GitHub release selection and validation passed.");
             return 0;
         }
@@ -47,6 +64,40 @@ internal static class UpdateServiceSmoke
         {
             Console.Error.WriteLine(exception);
             return 1;
+        }
+    }
+
+    private static void VerifyVersionAwarePayloadValidation()
+    {
+        MethodInfo validate = typeof(UpdateService).GetMethod(
+            "ValidatePayload",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        if (validate == null)
+            throw new InvalidOperationException("The portable payload validator was not found.");
+
+        string directory = Path.Combine(Path.GetTempPath(), "grimoire-version-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            foreach (string file in new[]
+            {
+                "Grimoire Exodus.exe",
+                "Grimoire.Updater.exe",
+                "Flash.ocx",
+                "grimoire-exodus.swf"
+            })
+            {
+                File.WriteAllText(Path.Combine(directory, file), string.Empty);
+            }
+
+            bool legacyValid = (bool)validate.Invoke(null, new object[] { directory, new Version(1, 4, 0, 0) });
+            bool currentValid = (bool)validate.Invoke(null, new object[] { directory, new Version(1, 5, 0, 0) });
+            if (!legacyValid || currentValid)
+                throw new InvalidOperationException("Version-aware portable payload validation is not enforced.");
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
         }
     }
 

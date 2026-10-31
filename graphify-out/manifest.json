@@ -1176,10 +1176,10 @@
     "semantic_hash": "a1aa455a799c75a656b827596f05b794"
   },
   "app/Grimoire.Game/PlayerInfo.cs": {
-    "mtime": 1791942211.5591831,
-    "seen": 1792037626.3224082,
-    "ast_hash": "5229d1b6534448835a139cc6fa8fdc6b",
-    "semantic_hash": "5229d1b6534448835a139cc6fa8fdc6b"
+    "mtime": 1793374243.925532,
+    "seen": 1793374397.4090183,
+    "ast_hash": "f7d638f06ec1ce9f6c4cc5af7ed71128",
+    "semantic_hash": ""
   },
   "app/Grimoire.Game/World.cs": {
     "mtime": 1792179704.3856673,
@@ -1212,10 +1212,10 @@
     "semantic_hash": "7cbe9d1f8fca1c752393070f1a214f3a"
   },
   "app/Grimoire.Networking.Handlers/HandlerJSON.cs": {
-    "mtime": 1791942211.5643654,
-    "seen": 1792037626.3224154,
-    "ast_hash": "a3803667b9088e55c03f78eddc01404a",
-    "semantic_hash": "a3803667b9088e55c03f78eddc01404a"
+    "mtime": 1793374274.8488538,
+    "seen": 1793374397.4090245,
+    "ast_hash": "cb83d653131cad8ace9040faea8de775",
+    "semantic_hash": ""
   },
   "app/Grimoire.Networking.Handlers/HandlerLoadShop.cs": {
     "mtime": 1792180209.4404986,
@@ -1302,10 +1302,10 @@
     "semantic_hash": "05bd089a01ca0b1809f2d01074655f4d"
   },
   "app/Grimoire.Networking/Proxy.cs": {
-    "mtime": 1792370015.6228518,
-    "seen": 1792977126.4479873,
-    "ast_hash": "3b17280ea9911225c9b38ba03897a348",
-    "semantic_hash": "3b17280ea9911225c9b38ba03897a348"
+    "mtime": 1793374245.0723662,
+    "seen": 1793374397.409041,
+    "ast_hash": "d1b160cfd1ccc2115cfe7a200ac22f4e",
+    "semantic_hash": ""
   },
   "app/Grimoire.Networking/XmlMessage.cs": {
     "mtime": 1791942211.5756648,
@@ -1356,10 +1356,10 @@
     "semantic_hash": "b3faf615eeb713b5ce60850908155392"
   },
   "app/Grimoire.Tools/AccountVault.cs": {
-    "mtime": 1792114998.1845207,
-    "seen": 1792162093.0544894,
-    "ast_hash": "46da0424e92171fd7c921fe4567439e0",
-    "semantic_hash": "46da0424e92171fd7c921fe4567439e0"
+    "mtime": 1793293778.2658956,
+    "seen": 1793293837.1408846,
+    "ast_hash": "93c34b340e196f423790865b739a6469",
+    "semantic_hash": ""
   },
   "app/Grimoire.Tools/AutoRelogin.cs": {
     "mtime": 1792180314.7611978,
@@ -1608,10 +1608,10 @@
     "semantic_hash": "757df9fc9733d17459d5da63546476fe"
   },
   "app/Grimoire.UI/Root.cs": {
-    "mtime": 1792934954.6511748,
-    "seen": 1792977126.4480522,
-    "ast_hash": "4d179382e167002ac6280db8787f1628",
-    "semantic_hash": "4d179382e167002ac6280db8787f1628"
+    "mtime": 1793372348.1874976,
+    "seen": 1793372682.2912316,
+    "ast_hash": "090733cd635f705545e1534a1de4b038",
+    "semantic_hash": ""
   },
   "app/Grimoire.UI/Set.Designer.cs": {
     "mtime": 1791942211.6446743,
@@ -1644,22 +1644,22 @@
     "semantic_hash": "8752fd259d01fa9b64f1941d2cb018fe"
   },
   "app/Grimoire.Updater/Program.cs": {
-    "mtime": 1792941569.082017,
-    "seen": 1792977126.4480593,
-    "ast_hash": "9e579b48fbd6333b20f56d8217241d31",
-    "semantic_hash": "9e579b48fbd6333b20f56d8217241d31"
+    "mtime": 1793375818.7916164,
+    "seen": 1793375979.4665163,
+    "ast_hash": "c21d9610905fcff89ad7b0157764c62d",
+    "semantic_hash": ""
   },
   "app/Grimoire.Updater/Properties/AssemblyInfo.cs": {
-    "mtime": 1792935171.7731147,
-    "seen": 1792977126.4480608,
-    "ast_hash": "f42481f63dcb5318f99ace50ec4293f7",
-    "semantic_hash": "f42481f63dcb5318f99ace50ec4293f7"
+    "mtime": 1793293539.7329457,
+    "seen": 1793293704.5784395,
+    "ast_hash": "ca84993054094b9cbe39a662be6acfa7",
+    "semantic_hash": ""
   },
   "app/Grimoire.Utils/AppPaths.cs": {
-    "mtime": 1792940553.9322672,
-    "seen": 1792977126.4480617,
-    "ast_hash": "22377b98ba2ec9c8fb9c6eb76a905931",
-    "semantic_hash": "22377b98ba2ec9c8fb9c6eb76a905931"
+    "mtime": 1793293374.343565,
+    "seen": 1793293704.5784438,
+    "ast_hash": "901258d02b128a40240578ff89f28214",
+    "semantic_hash": ""
   },
   "app/Grimoire.Utils/AtomicFile.cs": {
     "mtime": 1792027942.452627,
@@ -1716,28 +1716,28 @@
     "semantic_hash": "b0df1b17a533ff47e38b69c7ce5a82bb"
   },
   "app/Grimoire.Utils/UpdateService.cs": {
-    "mtime": 1792941568.4150555,
-    "seen": 1792977126.4480772,
-    "ast_hash": "7869971d01f0a2d6f287042ec9f890a0",
-    "semantic_hash": "7869971d01f0a2d6f287042ec9f890a0"
+    "mtime": 1793375818.2329998,
+    "seen": 1793375979.4665368,
+    "ast_hash": "2613838909454892e1a8ef5135c2b816",
+    "semantic_hash": ""
   },
   "app/Grimoire.csproj": {
-    "mtime": 1792941012.0535827,
-    "seen": 1792977126.4480786,
-    "ast_hash": "22ffbc8cd20edf809f40a6788f8cbe61",
-    "semantic_hash": "22ffbc8cd20edf809f40a6788f8cbe61"
+    "mtime": 1793424800.2060938,
+    "seen": 1793425078.908204,
+    "ast_hash": "5f5bd025924c67378becfb18376d38a2",
+    "semantic_hash": ""
   },
   "app/Grimoire/Program.cs": {
-    "mtime": 1792995574.9875338,
-    "seen": 1792995758.8724515,
-    "ast_hash": "64cbabf4ba61caa4c3292b1ee8b59c60",
+    "mtime": 1793293539.798599,
+    "seen": 1793293704.5785117,
+    "ast_hash": "1203e54fd8cebf34be6bfe1143b5cc53",
     "semantic_hash": ""
   },
   "app/Properties/AssemblyInfo.cs": {
-    "mtime": 1792935171.769574,
-    "seen": 1792977126.4480803,
-    "ast_hash": "0f9e437305831f1cf0a46c07c0c9abc8",
-    "semantic_hash": "0f9e437305831f1cf0a46c07c0c9abc8"
+    "mtime": 1793293539.7284014,
+    "seen": 1793293704.5785158,
+    "ast_hash": "baebd2e0ec2a31e8fa594cd27237fc93",
+    "semantic_hash": ""
   },
   "app/Properties/Resources.Designer.cs": {
     "mtime": 1791942211.6633635,
@@ -1758,10 +1758,10 @@
     "semantic_hash": "4d00390b778718e2581391d9f5bcadff"
   },
   "exodus.ps1": {
-    "mtime": 1792941570.2949228,
-    "seen": 1792977126.4480846,
-    "ast_hash": "6b2c38165512e472a6d70f73c96d3687",
-    "semantic_hash": "6b2c38165512e472a6d70f73c96d3687"
+    "mtime": 1793377286.0150733,
+    "seen": 1793377361.712438,
+    "ast_hash": "038558ef16dc7d2f975df799ee197173",
+    "semantic_hash": ""
   },
   "package.json": {
     "mtime": 1792032402.4544508,
@@ -1812,16 +1812,16 @@
     "semantic_hash": "d78372097d2a372422236f40c32736cc"
   },
   "tests/Test-UpdaterMerge.ps1": {
-    "mtime": 1792941569.6803205,
-    "seen": 1792977126.4481525,
-    "ast_hash": "11cbb5710e28feb86a9f24baba8f115f",
-    "semantic_hash": "11cbb5710e28feb86a9f24baba8f115f"
+    "mtime": 1793375825.5697296,
+    "seen": 1793375979.4665961,
+    "ast_hash": "9475033bb0189161f8f45edc5a81ba2e",
+    "semantic_hash": ""
   },
   "tests/UpdateServiceSmoke.cs": {
-    "mtime": 1792028019.6123524,
-    "seen": 1792037626.322539,
-    "ast_hash": "97051e964fcfb97057cb2b237ce24169",
-    "semantic_hash": "97051e964fcfb97057cb2b237ce24169"
+    "mtime": 1793372400.9820395,
+    "seen": 1793372682.2913902,
+    "ast_hash": "c6af2e8532d334875996a07a16cd569d",
+    "semantic_hash": ""
   },
   ".github/ISSUE_TEMPLATE/bug_report.yml": {
     "mtime": 1791955076.009608,
@@ -1872,9 +1872,9 @@
     "semantic_hash": "21e3745319381db7c0cf2259dae244f3"
   },
   "README.md": {
-    "mtime": 1793291898.7429938,
-    "seen": 1793291942.0833166,
-    "ast_hash": "b1a053bc1833d8d2c27933a555f23000",
+    "mtime": 1793377129.0240517,
+    "seen": 1793377219.5905418,
+    "ast_hash": "aee069750716446a102242003ed21111",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -1890,10 +1890,10 @@
     "semantic_hash": "0a93c562383a99017a2c7e726f4ec59e"
   },
   "app/Resources/Home/index.html": {
-    "mtime": 1792941014.506611,
-    "seen": 1792977126.4481664,
-    "ast_hash": "77f958ce12703f6f6bc4367d387078d7",
-    "semantic_hash": "77f958ce12703f6f6bc4367d387078d7"
+    "mtime": 1793293442.927169,
+    "seen": 1793293704.5787845,
+    "ast_hash": "aa56d0cec629af6921309040e9a95c8a",
+    "semantic_hash": ""
   },
   "app/Runtime/Flash/README.md": {
     "mtime": 1791949809.350536,
@@ -1956,9 +1956,9 @@
     "semantic_hash": "199d3daf752beb46089a647034586b1d"
   },
   "app/Grimoire.UI/SettingsForm.cs": {
-    "mtime": 1792999031.713354,
-    "seen": 1792999248.9448032,
-    "ast_hash": "983375fcc2d0f9435d4c87ada7e97db8",
+    "mtime": 1793372746.1758103,
+    "seen": 1793372786.3614588,
+    "ast_hash": "6aba3e0cab911fd8906929fd8f8c0da5",
     "semantic_hash": ""
   },
   "app/Grimoire.Utils/AppPreferences.cs": {
@@ -2040,10 +2040,10 @@
     "semantic_hash": "ca7e7c854fd017b7f197ea131c8f7e0f"
   },
   "app/Grimoire.Clients/ClientSession.cs": {
-    "mtime": 1792940710.4157312,
-    "seen": 1792977126.4479263,
-    "ast_hash": "22730d8663239c603182ee485029fef4",
-    "semantic_hash": "22730d8663239c603182ee485029fef4"
+    "mtime": 1793293663.226052,
+    "seen": 1793293704.5779011,
+    "ast_hash": "8c5c3ba7cc57b952dca17c5dfa49eccc",
+    "semantic_hash": ""
   },
   "app/Grimoire.Clients/ClientSessionContext.cs": {
     "mtime": 1792173796.8267398,
@@ -2070,10 +2070,10 @@
     "semantic_hash": "756a3563d11a65265f7c622f0201fbde"
   },
   "app/Grimoire.Game/GameSessionState.cs": {
-    "mtime": 1792293629.050537,
-    "seen": 1792977126.4479632,
-    "ast_hash": "b5590ed072d874d201bb2fb5fb031462",
-    "semantic_hash": "b5590ed072d874d201bb2fb5fb031462"
+    "mtime": 1793374243.3718326,
+    "seen": 1793374397.409015,
+    "ast_hash": "929afce09177e86941c3799eeac5bd85",
+    "semantic_hash": ""
   },
   "tests/ClientSessionIsolationSmoke.cs": {
     "mtime": 1792978733.41462,
@@ -2136,9 +2136,9 @@
     "semantic_hash": ""
   },
   "app/Grimoire.UI/Root.MultiClient.cs": {
-    "mtime": 1792978732.870669,
-    "seen": 1792978938.0618389,
-    "ast_hash": "2e3a9f78aa152af99b5a5747fd71130a",
+    "mtime": 1793376694.4305167,
+    "seen": 1793377219.5904276,
+    "ast_hash": "d6965629c7015afe3aa17b57f8f06582",
     "semantic_hash": ""
   },
   "app/Grimoire.Utils/SingleInstanceBroker.cs": {
@@ -2340,16 +2340,16 @@
     "semantic_hash": "03645b75037a1756574a0cc2c9f7df0f"
   },
   "app/Grimoire.UI/QuickBotSelectorForm.cs": {
-    "mtime": 1792633716.7845697,
-    "seen": 1792977126.4480484,
-    "ast_hash": "1651ff5aedd3777d4af87c45055b5bd3",
-    "semantic_hash": "1651ff5aedd3777d4af87c45055b5bd3"
+    "mtime": 1793370222.3544617,
+    "seen": 1793370841.004842,
+    "ast_hash": "b71b873692458140032dd7ce2683055b",
+    "semantic_hash": ""
   },
   "tests/QuickBotSelectorSmoke.cs": {
-    "mtime": 1792934934.714691,
-    "seen": 1792977126.4481256,
-    "ast_hash": "3341246454e490c70aa5bc76b6ff6c1b",
-    "semantic_hash": "3341246454e490c70aa5bc76b6ff6c1b"
+    "mtime": 1793370182.296553,
+    "seen": 1793370841.0050533,
+    "ast_hash": "d68211d78f61fd9c052a898ec9f3f141",
+    "semantic_hash": ""
   },
   "tests/Test-QuickBotSelector.ps1": {
     "mtime": 1792633717.8213549,
@@ -2466,9 +2466,9 @@
     "semantic_hash": ""
   },
   "tests/SettingsScrollbarSmoke.cs": {
-    "mtime": 1792999280.4551375,
-    "seen": 1792999311.782645,
-    "ast_hash": "58758267c6e0765996c57b78f8b3c885",
+    "mtime": 1793372413.6387103,
+    "seen": 1793372682.29133,
+    "ast_hash": "0f910142cff643bbcfed065a96cdffe9",
     "semantic_hash": ""
   },
   "tests/Test-SettingsScrollbars.ps1": {
@@ -2487,6 +2487,66 @@
     "mtime": 1793174853.7377286,
     "seen": 1793198761.5554023,
     "ast_hash": "2ced227ae723303de98e753c1c1c1b77",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI/AccountCharacterVisual.cs": {
+    "mtime": 1793377123.3562334,
+    "seen": 1793377219.5903935,
+    "ast_hash": "f2306449f0ea564715303141def41e6d",
+    "semantic_hash": ""
+  },
+  "tests/AccountVaultProfileSmoke.cs": {
+    "mtime": 1793376694.999413,
+    "seen": 1793377219.590468,
+    "ast_hash": "a53fb874b5bb80ab60fe032a2d86e7e4",
+    "semantic_hash": ""
+  },
+  "tests/Test-AccountVaultProfile.ps1": {
+    "mtime": 1793376633.9239166,
+    "seen": 1793377219.590491,
+    "ast_hash": "78c9810c3f3c10472b7f715ffd7aee22",
+    "semantic_hash": ""
+  },
+  "docs/releases/v1.6.0.md": {
+    "mtime": 1793436079.0484574,
+    "seen": 1793436317.7322657,
+    "ast_hash": "9173263a204ac66cdcc10307542b4376",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI/UltraKitForm.cs": {
+    "mtime": 1793424799.6066234,
+    "seen": 1793425078.9081373,
+    "ast_hash": "87afc19097f5df78efa71749454f337e",
+    "semantic_hash": ""
+  },
+  "tests/Test-UltraKit.ps1": {
+    "mtime": 1793370652.1038818,
+    "seen": 1793370841.0051508,
+    "ast_hash": "084269bf6761a548d9e3e8007b15fb20",
+    "semantic_hash": ""
+  },
+  "tests/UltraKitSmoke.cs": {
+    "mtime": 1793425108.9900315,
+    "seen": 1793425135.8339386,
+    "ast_hash": "77a437fabc1ee86d1b51f92bda9932f2",
+    "semantic_hash": ""
+  },
+  "graphify-out/memory/query_20261030_155204_69c0e744_why_does_downgrade_still_fail_after_copying_grimoi.md": {
+    "mtime": 1793375524.3947473,
+    "seen": 1793375979.4666455,
+    "ast_hash": "50d7f99831c3d4f6733467feaeae8339",
+    "semantic_hash": ""
+  },
+  "tests/Test-BuildOutputSafety.ps1": {
+    "mtime": 1793377286.5917125,
+    "seen": 1793377361.7124677,
+    "ast_hash": "ca405434f10759b70580e080f520f627",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI/UltraCharacterClassLookup.cs": {
+    "mtime": 1793425102.3922594,
+    "seen": 1793425135.8338528,
+    "ast_hash": "6c3aa6a6f449d63860a6c7d420f2ef3c",
     "semantic_hash": ""
   }
 }

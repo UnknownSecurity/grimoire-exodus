@@ -36,6 +36,7 @@ namespace Grimoire.Game
             CurrentServer = new Server();
             WorldQuests = new List<Quest>();
             Players = new Dictionary<string, PlayerInfo>();
+            PlayersSyncRoot = new object();
             LoadedShops = new List<ShopInfo>();
             PlayerAuras = new List<Aura>();
             EnemyAuras = new List<Aura>();
@@ -117,6 +118,8 @@ namespace Grimoire.Game
         public List<Quest> WorldQuests { get; set; }
 
         public Dictionary<string, PlayerInfo> Players { get; set; }
+
+        internal object PlayersSyncRoot { get; }
 
         public List<ShopInfo> LoadedShops { get; set; }
 

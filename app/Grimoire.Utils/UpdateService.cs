@@ -18,7 +18,7 @@ namespace Grimoire.Utils
 {
     public static class UpdateService
     {
-        private const string ReleasesApi = "https://api.github.com/repos/UnknownSecurity/grimoire-exodus/releases?per_page=10";
+        private const string ReleasesApi = "https://api.github.com/repos/UnknownSecurity/grimoire-exodus/releases?per_page=100";
         private const long MaximumAssetBytes = 250L * 1024L * 1024L;
         private static readonly HttpClient Client = CreateClient();
 
@@ -35,6 +35,16 @@ namespace Grimoire.Utils
             bool includePrereleases,
             CancellationToken cancellationToken)
         {
+            IList<UpdateRelease> releases = await GetAvailableReleasesAsync(
+                includePrereleases,
+                cancellationToken);
+            return releases.FirstOrDefault(release => release.Version > CurrentVersion);
+        }
+
+        public static async Task<IList<UpdateRelease>> GetAvailableReleasesAsync(
+            bool includePrereleases,
+            CancellationToken cancellationToken)
+        {
             using (CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, ReleasesApi))
             {
@@ -45,7 +55,7 @@ namespace Grimoire.Utils
                 {
                     response.EnsureSuccessStatusCode();
                     string json = await response.Content.ReadAsStringAsync();
-                    return SelectUpdate(json, CurrentVersion, includePrereleases);
+                    return ParseAvailableReleases(json, includePrereleases);
                 }
             }
         }
@@ -57,12 +67,23 @@ namespace Grimoire.Utils
 
         public static UpdateRelease SelectUpdate(string releasesJson, Version currentVersion, bool includePrereleases)
         {
-            if (string.IsNullOrWhiteSpace(releasesJson))
-                return null;
+            if (currentVersion == null)
+                throw new ArgumentNullException(nameof(currentVersion));
 
-            JArray releases = JArray.Parse(releasesJson);
-            UpdateRelease selected = null;
-            foreach (JObject releaseJson in releases.OfType<JObject>())
+            return ParseAvailableReleases(releasesJson, includePrereleases)
+                .FirstOrDefault(release => release.Version > currentVersion);
+        }
+
+        public static IList<UpdateRelease> ParseAvailableReleases(
+            string releasesJson,
+            bool includePrereleases)
+        {
+            List<UpdateRelease> releases = new List<UpdateRelease>();
+            if (string.IsNullOrWhiteSpace(releasesJson))
+                return releases.AsReadOnly();
+
+            JArray releaseItems = JArray.Parse(releasesJson);
+            foreach (JObject releaseJson in releaseItems.OfType<JObject>())
             {
                 if (releaseJson.Value<bool?>("draft") == true)
                     continue;
@@ -71,7 +92,7 @@ namespace Grimoire.Utils
 
                 string tag = releaseJson.Value<string>("tag_name");
                 Version version;
-                if (!TryParseReleaseVersion(tag, out version) || version <= currentVersion)
+                if (!TryParseReleaseVersion(tag, out version))
                     continue;
 
                 UpdateAsset portable = null;
@@ -101,7 +122,7 @@ namespace Grimoire.Utils
                 if (portable == null && installer == null)
                     continue;
 
-                UpdateRelease candidate = new UpdateRelease
+                releases.Add(new UpdateRelease
                 {
                     Version = version,
                     TagName = tag,
@@ -110,13 +131,15 @@ namespace Grimoire.Utils
                     HtmlUrl = releaseJson.Value<string>("html_url"),
                     PortableAsset = portable,
                     InstallerAsset = installer
-                };
-                if (selected == null || candidate.Version > selected.Version)
-                {
-                    selected = candidate;
-                }
+                });
             }
-            return selected;
+
+            return releases
+                .OrderByDescending(release => release.Version)
+                .ThenBy(release => release.IsPrerelease)
+                .ThenBy(release => release.TagName, StringComparer.OrdinalIgnoreCase)
+                .ToList()
+                .AsReadOnly();
         }
 
         public static async Task<PreparedUpdate> PrepareUpdateAsync(
@@ -128,13 +151,17 @@ namespace Grimoire.Utils
                 throw new ArgumentNullException(nameof(release));
 
             string applicationDirectory = AppPaths.ApplicationDirectory;
-            bool useInstaller = (ShouldUseInstaller(applicationDirectory) && release.InstallerAsset != null)
-                || release.PortableAsset == null;
+            bool isDowngrade = release.Version < CurrentVersion;
+            bool useInstaller = !isDowngrade
+                && ((ShouldUseInstaller(applicationDirectory) && release.InstallerAsset != null)
+                    || release.PortableAsset == null);
             UpdateAsset asset = useInstaller ? release.InstallerAsset : release.PortableAsset;
             if (asset == null)
             {
                 throw new InvalidOperationException(
-                    useInstaller
+                    isDowngrade
+                        ? "This older release does not contain a verified portable package required for a safe downgrade."
+                        : useInstaller
                         ? "This release does not contain a Windows installer."
                         : "This release does not contain a portable update package.");
             }
@@ -170,7 +197,12 @@ namespace Grimoire.Utils
             if (!useInstaller)
             {
                 payloadDirectory = await Task.Run(
-                    () => PreparePortablePayload(versionDirectory, packagePath, asset.Sha256, cancellationToken),
+                    () => PreparePortablePayload(
+                        versionDirectory,
+                        packagePath,
+                        asset.Sha256,
+                        release.Version,
+                        cancellationToken),
                     cancellationToken);
             }
 
@@ -195,6 +227,7 @@ namespace Grimoire.Utils
             string versionDirectory,
             string packagePath,
             string expectedHash,
+            Version targetVersion,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -202,7 +235,7 @@ namespace Grimoire.Utils
             string readyMarker = Path.Combine(payloadDirectory, ".update-sha256");
             bool payloadReady = File.Exists(readyMarker)
                 && string.Equals(File.ReadAllText(readyMarker).Trim(), expectedHash, StringComparison.OrdinalIgnoreCase)
-                && ValidatePayload(payloadDirectory);
+                && ValidatePayload(payloadDirectory, targetVersion);
             if (payloadReady)
             {
                 return payloadDirectory;
@@ -212,7 +245,7 @@ namespace Grimoire.Utils
             cancellationToken.ThrowIfCancellationRequested();
             ExtractVerifiedArchive(packagePath, payloadDirectory);
             cancellationToken.ThrowIfCancellationRequested();
-            if (!ValidatePayload(payloadDirectory))
+            if (!ValidatePayload(payloadDirectory, targetVersion))
             {
                 SafeDeleteUpdateDirectory(payloadDirectory);
                 throw new InvalidDataException("The portable update is missing required Grimoire files.");
@@ -239,7 +272,8 @@ namespace Grimoire.Utils
             }
             else
             {
-                arguments.Append("--source ").Append(QuoteArgument(update.PayloadDirectory));
+                arguments.Append("--source ").Append(QuoteArgument(update.PayloadDirectory)).Append(' ');
+                arguments.Append("--target-version ").Append(QuoteArgument(update.Release.Version.ToString()));
             }
 
             ProcessStartInfo startInfo = new ProcessStartInfo
@@ -419,16 +453,27 @@ namespace Grimoire.Utils
             }
         }
 
-        private static bool ValidatePayload(string directory)
+        private static bool ValidatePayload(string directory, Version targetVersion)
         {
             if (!Directory.Exists(directory))
                 return false;
-            string[] requiredFiles =
+            string[] coreFiles =
             {
                 "Grimoire Exodus.exe",
                 "Grimoire.Updater.exe",
                 "Flash.ocx",
-                "grimoire-exodus.swf",
+                "grimoire-exodus.swf"
+            };
+            if (!coreFiles.All(file => File.Exists(Path.Combine(directory, file))))
+                return false;
+
+            // Ruffle first shipped with the 1.5 line. Older verified releases
+            // remain valid downgrade targets without carrying a future engine.
+            if (targetVersion != null && targetVersion < new Version(1, 5, 0, 0))
+                return true;
+
+            string[] ruffleFiles =
+            {
                 "Microsoft.Web.WebView2.Core.dll",
                 "Microsoft.Web.WebView2.WinForms.dll",
                 Path.Combine("Ruffle", "ruffle.js"),
@@ -443,7 +488,7 @@ namespace Grimoire.Utils
                 Path.Combine("ThirdParty", "WebView2.NOTICE.txt"),
                 Path.Combine("runtimes", "win-x86", "native", "WebView2Loader.dll")
             };
-            return requiredFiles.All(file => File.Exists(Path.Combine(directory, file)));
+            return ruffleFiles.All(file => File.Exists(Path.Combine(directory, file)));
         }
 
         private static bool ShouldUseInstaller(string applicationDirectory)

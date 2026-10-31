@@ -107,6 +107,7 @@ namespace Grimoire.UI
         private ToolStripMenuItem managerToolStripMenuItem;
         private ToolStripMenuItem loadBotToolStripMenuItem;
         private ToolStripMenuItem toolsToolStripMenuItem;
+        private ToolStripMenuItem ultraKitToolStripMenuItem;
         private ToolStripMenuItem fastTravelsToolStripMenuItem;
         private ToolStripMenuItem loadersgrabbersToolStripMenuItem;
         private ToolStripMenuItem hotkeysToolStripMenuItem;
@@ -146,6 +147,7 @@ namespace Grimoire.UI
         private System.Threading.CancellationTokenSource _cts;
         private DarkPanel GamePanel;
         private SettingsForm settingsForm;
+        private UltraKitForm ultraKitForm;
         private ClientSessionManager clientSessions;
         private ClientSession primarySession;
         private ClientSession toolbarSession;
@@ -207,6 +209,7 @@ namespace Grimoire.UI
         public Root()
         {
             InitializeComponent();
+            InitializeUltraKitMenu();
             Instance = this;
             clientSessions = new ClientSessionManager(GetConfiguredMaximumDesktopClients(), true);
             clientSessions.ActiveSessionChanged += ClientSessions_ActiveSessionChanged;
@@ -1279,66 +1282,112 @@ namespace Grimoire.UI
 
         private async void updateToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (availableUpdate == null || updateOperationRunning)
+            if (availableUpdate == null)
                 return;
+
+            await InstallApplicationReleaseAsync(availableUpdate, null);
+        }
+
+        internal async Task<bool> InstallApplicationReleaseAsync(
+            UpdateRelease release,
+            IProgress<int> externalProgress)
+        {
+            if (release == null)
+                throw new ArgumentNullException(nameof(release));
+            if (release.Version == UpdateService.CurrentVersion)
+            {
+                DarkMessageBox.Show(
+                    this,
+                    "Grimoire Exodus " + release.Version.ToString(3) + " is already installed.",
+                    "Version already installed",
+                    MessageBoxIcon.Information);
+                return false;
+            }
+            if (updateOperationRunning)
+            {
+                DarkMessageBox.Show(
+                    this,
+                    "Another version download is already in progress.",
+                    "Version change in progress",
+                    MessageBoxIcon.Information);
+                return false;
+            }
 
             updateOperationRunning = true;
             updateToolStripMenuItem.Enabled = false;
             try
             {
-                if (preparedUpdate == null)
+                bool preparedReleaseMatches = preparedUpdate != null
+                    && preparedUpdate.Release != null
+                    && string.Equals(
+                        preparedUpdate.Release.TagName,
+                        release.TagName,
+                        StringComparison.OrdinalIgnoreCase);
+                if (!preparedReleaseMatches)
                 {
+                    preparedUpdate = null;
                     updateToolStripMenuItem.ToolTipText = "Downloading Grimoire Exodus "
-                        + availableUpdate.Version.ToString(3)
+                        + release.Version.ToString(3)
                         + "...";
                     Progress<int> progress = new Progress<int>(percent =>
                     {
                         updateToolStripMenuItem.ToolTipText = "Downloading Grimoire Exodus "
-                            + availableUpdate.Version.ToString(3)
+                            + release.Version.ToString(3)
                             + " — "
                             + percent
                             + "%";
+                        externalProgress?.Report(percent);
                     });
                     preparedUpdate = await UpdateService.PrepareUpdateAsync(
-                        availableUpdate,
+                        release,
                         progress,
                         updateCancellation.Token);
                 }
+                else
+                {
+                    externalProgress?.Report(100);
+                }
 
                 bool botIsRunning = HasRunningBots();
-
+                bool isDowngrade = release.Version < UpdateService.CurrentVersion;
+                string action = isDowngrade ? "downgrade" : "update";
                 string warning = "Grimoire Exodus "
-                    + availableUpdate.Version.ToString(3)
-                    + " is downloaded and verified. Apply it now?\r\n\r\n"
+                    + release.Version.ToString(3)
+                    + " is downloaded and verified. Apply this "
+                    + action
+                    + " now?\r\n\r\n"
                     + (botIsRunning
                         ? "A bot is running and will be stopped. "
                         : string.Empty)
-                    + "Grimoire will close, merge the update, and restart automatically.";
+                    + (isDowngrade
+                        ? "Older application files will replace the current version, while saved accounts, settings, and GBots remain in their writable data locations. "
+                        : string.Empty)
+                    + "Grimoire will close, merge the selected version, and restart automatically.";
                 DialogResult result = DarkMessageBox.Show(
                     this,
                     warning,
-                    "Install Grimoire Exodus update",
+                    isDowngrade ? "Downgrade Grimoire Exodus" : "Install Grimoire Exodus update",
                     MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Information,
+                    isDowngrade ? MessageBoxIcon.Warning : MessageBoxIcon.Information,
                     MessageBoxDefaultButton.Button2);
                 if (result != DialogResult.Yes)
                 {
-                    updateToolStripMenuItem.ToolTipText = "Update "
-                        + availableUpdate.Version.ToString(3)
-                        + " is ready — click to install";
-                    return;
+                    RestoreAvailableUpdateToolTip();
+                    return false;
                 }
 
                 Process updater = UpdateService.LaunchUpdater(preparedUpdate, Process.GetCurrentProcess().Id);
                 if (updater == null)
                     throw new InvalidOperationException("The update helper could not be started.");
 
-                StartupDiagnostics.SetStage("Applying update " + availableUpdate.Version.ToString(3));
+                StartupDiagnostics.SetStage("Applying version " + release.Version.ToString(3));
                 updateShutdownRequested = true;
                 Close();
+                return true;
             }
             catch (OperationCanceledException)
             {
+                return false;
             }
             catch (Exception exception)
             {
@@ -1352,6 +1401,7 @@ namespace Grimoire.UI
                     MessageBoxIcon.Error);
                 preparedUpdate = null;
                 updateToolStripMenuItem.ToolTipText = "Update failed — click to try again";
+                return false;
             }
             finally
             {
@@ -1361,6 +1411,20 @@ namespace Grimoire.UI
                     updateToolStripMenuItem.Enabled = true;
                 }
             }
+        }
+
+        private void RestoreAvailableUpdateToolTip()
+        {
+            if (availableUpdate == null)
+            {
+                updateToolStripMenuItem.Visible = false;
+                return;
+            }
+
+            updateToolStripMenuItem.ToolTipText = "Grimoire Exodus "
+                + availableUpdate.Version.ToString(3)
+                + (availableUpdate.IsPrerelease ? " prerelease" : string.Empty)
+                + " is available";
         }
 
         private void ShowCrashRecovery()
@@ -1548,6 +1612,35 @@ namespace Grimoire.UI
         private void loadersgrabbersToolStripMenuItem_Click(object sender, EventArgs e)
         {
             ShowForm(Loaders.Instance);
+        }
+
+        private void InitializeUltraKitMenu()
+        {
+            ultraKitToolStripMenuItem = CreateUltraKitMenuItem();
+            ultraKitToolStripMenuItem.Click += UltraKitToolStripMenuItem_Click;
+            int loaderIndex = toolsToolStripMenuItem.DropDownItems.IndexOf(loadersgrabbersToolStripMenuItem);
+            toolsToolStripMenuItem.DropDownItems.Insert(
+                loaderIndex < 0 ? 0 : loaderIndex + 1,
+                ultraKitToolStripMenuItem);
+        }
+
+        internal static ToolStripMenuItem CreateUltraKitMenuItem()
+        {
+            return new ToolStripMenuItem
+            {
+                AccessibleDescription = "Shows live nearby player and monster encounter data.",
+                BackColor = ToolboxBackgroundColor,
+                ForeColor = Color.FromArgb(245, 32, 71),
+                Name = "ultraKitToolStripMenuItem",
+                Text = "Ultra Kit"
+            };
+        }
+
+        private void UltraKitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (ultraKitForm == null || ultraKitForm.IsDisposed)
+                ultraKitForm = new UltraKitForm();
+            ShowForm(ultraKitForm);
         }
 
         private void hotkeysToolStripMenuItem_Click(object sender, EventArgs e)

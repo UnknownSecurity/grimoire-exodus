@@ -111,6 +111,16 @@ namespace Grimoire.Game
         }
 
         /// <summary>
+        /// The account user ID reported by live map user-data packets.
+        /// </summary>
+        [JsonProperty("uid")]
+        public int UserID
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
         /// The player's level.
         /// </summary>
         [JsonProperty("intLevel")]

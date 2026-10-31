@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -39,12 +40,21 @@ namespace Grimoire.UI
         private readonly DarkButton btnRefreshLogs = new DarkButton();
         private readonly DarkButton btnCopySupportReport = new DarkButton();
         private readonly DarkButton btnOpenDiagnosticsFolder = new DarkButton();
+        private readonly DarkComboBox cmbVersions = new DarkComboBox();
+        private readonly DarkButton btnRefreshVersions = new DarkButton();
+        private readonly DarkButton btnApplyVersion = new DarkButton();
+        private readonly Label lblCurrentVersion = new Label();
+        private readonly Label lblVersionStatus = new Label();
         private readonly Dictionary<int, DarkTextBox> bindingEditors = new Dictionary<int, DarkTextBox>();
         private readonly Dictionary<int, HotkeyGesture?> bindingValues = new Dictionary<int, HotkeyGesture?>();
         private readonly DarkButton btnSave = new DarkButton();
         private readonly DarkButton btnClose = new DarkButton();
+        private TabPage versionTab;
         private string supportReport;
         private bool supportReportLoaded;
+        private bool versionsLoaded;
+        private bool versionsLoading;
+        private readonly CancellationTokenSource versionCancellation = new CancellationTokenSource();
 
         public SettingsForm(Root owner)
         {
@@ -81,14 +91,17 @@ namespace Grimoire.UI
             {
                 Dock = DockStyle.Fill,
                 HotTrack = true,
-                ItemSize = new Size(110, 24),
+                ItemSize = new Size(100, 24),
                 SizeMode = TabSizeMode.Fixed
             };
             tabs.TabPages.Add(CreateGeneralTab());
             tabs.TabPages.Add(CreatePerformanceTab());
             tabs.TabPages.Add(CreateKeyBindingsTab());
             tabs.TabPages.Add(CreateAdvancedTab());
+            versionTab = CreateVersionTab();
+            tabs.TabPages.Add(versionTab);
             tabs.TabPages.Add(CreateLogsTab());
+            tabs.SelectedIndexChanged += SettingsTabs_SelectedIndexChanged;
 
             FlowLayoutPanel footer = new FlowLayoutPanel
             {
@@ -420,15 +433,260 @@ namespace Grimoire.UI
             return page;
         }
 
+        private TabPage CreateVersionTab()
+        {
+            TabPage page = CreateTabPage("Version");
+            TableLayoutPanel content = new TableLayoutPanel
+            {
+                BackColor = BackgroundColor,
+                ColumnCount = 1,
+                Dock = DockStyle.Fill,
+                Padding = new Padding(18, 14, 18, 14),
+                RowCount = 6
+            };
+            content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 82F));
+            content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+
+            lblCurrentVersion.AccessibleName = "Installed Grimoire Exodus version";
+            lblCurrentVersion.Dock = DockStyle.Fill;
+            lblCurrentVersion.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            lblCurrentVersion.ForeColor = Color.MediumPurple;
+            lblCurrentVersion.Text = "Installed version: " + UpdateService.CurrentVersion.ToString(3);
+            lblCurrentVersion.TextAlign = ContentAlignment.MiddleLeft;
+
+            Label introduction = CreateBodyLabel(
+                "Choose a verified official GitHub release. Newer versions update Grimoire; older versions perform a downgrade while preserving writable settings, saved accounts, and GBot folders.");
+            introduction.AutoEllipsis = false;
+            introduction.Dock = DockStyle.Fill;
+
+            TableLayoutPanel selector = new TableLayoutPanel
+            {
+                BackColor = CardColor,
+                ColumnCount = 1,
+                Dock = DockStyle.Fill,
+                Padding = new Padding(12, 8, 12, 8),
+                RowCount = 2
+            };
+            selector.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            selector.RowStyles.Add(new RowStyle(SizeType.Absolute, 22F));
+            selector.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            Label selectorLabel = CreateBodyLabel("Official release");
+            selectorLabel.Dock = DockStyle.Fill;
+            selectorLabel.ForeColor = Color.Gainsboro;
+            cmbVersions.AccessibleName = "Grimoire Exodus version";
+            cmbVersions.Dock = DockStyle.Fill;
+            cmbVersions.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbVersions.SelectedIndexChanged += VersionSelectionChanged;
+            selector.Controls.Add(selectorLabel, 0, 0);
+            selector.Controls.Add(cmbVersions, 0, 1);
+
+            lblVersionStatus.AccessibleName = "Selected version details";
+            lblVersionStatus.BackColor = CardColor;
+            lblVersionStatus.Dock = DockStyle.Fill;
+            lblVersionStatus.ForeColor = SecondaryTextColor;
+            lblVersionStatus.Padding = new Padding(12, 8, 12, 8);
+            lblVersionStatus.Text = "Loading official releases...";
+            lblVersionStatus.TextAlign = ContentAlignment.MiddleLeft;
+
+            Label safety = CreateBodyLabel(
+                "Only release assets that pass trusted-host, file-name, payload, size, and SHA-256 checks can be installed. Grimoire always asks before closing a running client or bot.");
+            safety.AutoEllipsis = false;
+            safety.Dock = DockStyle.Fill;
+            safety.Padding = new Padding(0, 8, 0, 0);
+
+            FlowLayoutPanel actions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft,
+                Padding = new Padding(0, 8, 0, 0),
+                WrapContents = false
+            };
+            ConfigureButton(btnRefreshVersions, "Refresh releases", 120);
+            ConfigureButton(btnApplyVersion, "Use selected version", 150);
+            btnRefreshVersions.Click += RefreshVersions_Click;
+            btnApplyVersion.Click += ApplyVersion_Click;
+            btnApplyVersion.Enabled = false;
+            actions.Controls.Add(btnApplyVersion);
+            actions.Controls.Add(btnRefreshVersions);
+
+            content.Controls.Add(lblCurrentVersion, 0, 0);
+            content.Controls.Add(introduction, 0, 1);
+            content.Controls.Add(selector, 0, 2);
+            content.Controls.Add(lblVersionStatus, 0, 3);
+            content.Controls.Add(safety, 0, 4);
+            content.Controls.Add(actions, 0, 5);
+            page.Controls.Add(content);
+            return page;
+        }
+
         private async void SettingsForm_Shown(object sender, EventArgs e)
         {
             if (!supportReportLoaded)
                 await RefreshSupportReportAsync();
         }
 
+        private async void SettingsTabs_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            TabControl tabs = sender as TabControl;
+            if (tabs != null && ReferenceEquals(tabs.SelectedTab, versionTab) && !versionsLoaded)
+                await RefreshVersionsAsync();
+        }
+
         private void SettingsForm_FormClosed(object sender, FormClosedEventArgs e)
         {
             KeyboardHook.Instance.SuppressHotkeyEvents = false;
+            versionCancellation.Cancel();
+            versionCancellation.Dispose();
+        }
+
+        private async void RefreshVersions_Click(object sender, EventArgs e)
+        {
+            await RefreshVersionsAsync();
+        }
+
+        private async Task RefreshVersionsAsync()
+        {
+            if (versionsLoading || IsDisposed)
+                return;
+
+            versionsLoading = true;
+            btnRefreshVersions.Enabled = false;
+            btnApplyVersion.Enabled = false;
+            lblVersionStatus.ForeColor = SecondaryTextColor;
+            lblVersionStatus.Text = "Loading verified official releases...";
+            try
+            {
+                IList<UpdateRelease> releases = await UpdateService.GetAvailableReleasesAsync(
+                    chkPrereleaseUpdates.Checked,
+                    versionCancellation.Token);
+                if (IsDisposed || Disposing)
+                    return;
+
+                cmbVersions.BeginUpdate();
+                try
+                {
+                    cmbVersions.Items.Clear();
+                    foreach (UpdateRelease release in releases)
+                        cmbVersions.Items.Add(new VersionReleaseItem(release, UpdateService.CurrentVersion));
+                }
+                finally
+                {
+                    cmbVersions.EndUpdate();
+                }
+
+                versionsLoaded = true;
+                if (cmbVersions.Items.Count == 0)
+                {
+                    lblVersionStatus.Text = "No verified release packages are available on the selected channel.";
+                    return;
+                }
+
+                int currentIndex = -1;
+                for (int index = 0; index < cmbVersions.Items.Count; index++)
+                {
+                    VersionReleaseItem item = (VersionReleaseItem)cmbVersions.Items[index];
+                    if (item.Release.Version == UpdateService.CurrentVersion)
+                    {
+                        currentIndex = index;
+                        break;
+                    }
+                }
+                cmbVersions.SelectedIndex = currentIndex >= 0 ? currentIndex : 0;
+                UpdateVersionSelectionStatus();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                versionsLoaded = false;
+                if (!IsDisposed)
+                {
+                    lblVersionStatus.ForeColor = Color.LightSalmon;
+                    lblVersionStatus.Text = "Official releases could not be loaded. " + exception.Message;
+                }
+            }
+            finally
+            {
+                versionsLoading = false;
+                if (!IsDisposed)
+                    btnRefreshVersions.Enabled = true;
+            }
+        }
+
+        private void VersionSelectionChanged(object sender, EventArgs e)
+        {
+            UpdateVersionSelectionStatus();
+        }
+
+        private void UpdateVersionSelectionStatus()
+        {
+            VersionReleaseItem item = cmbVersions.SelectedItem as VersionReleaseItem;
+            if (item == null)
+            {
+                btnApplyVersion.Enabled = false;
+                return;
+            }
+
+            int comparison = item.Release.Version.CompareTo(UpdateService.CurrentVersion);
+            string relation = comparison < 0
+                ? "Downgrade"
+                : comparison > 0
+                    ? "Update"
+                    : "Installed";
+            string channel = item.Release.IsPrerelease ? "Experimental prerelease" : "Stable release";
+            string packages = item.Release.PortableAsset != null && item.Release.InstallerAsset != null
+                ? "portable and installer packages"
+                : item.Release.PortableAsset != null
+                    ? "portable package"
+                    : "installer package";
+            bool downgradeSupported = comparison >= 0 || item.Release.PortableAsset != null;
+            lblVersionStatus.ForeColor = comparison < 0 ? Color.Khaki : SecondaryTextColor;
+            lblVersionStatus.Text = relation + " · " + channel + " · verified " + packages + "."
+                + (comparison < 0
+                    ? downgradeSupported
+                        ? " Newer application features will be unavailable until you update again."
+                        : " This release cannot be downgraded safely because it has no portable package."
+                    : string.Empty);
+            btnApplyVersion.Enabled = comparison != 0 && downgradeSupported && !versionsLoading;
+        }
+
+        private async void ApplyVersion_Click(object sender, EventArgs e)
+        {
+            VersionReleaseItem item = cmbVersions.SelectedItem as VersionReleaseItem;
+            if (item == null || item.Release.Version == UpdateService.CurrentVersion)
+                return;
+
+            btnApplyVersion.Enabled = false;
+            btnRefreshVersions.Enabled = false;
+            cmbVersions.Enabled = false;
+            lblVersionStatus.ForeColor = SecondaryTextColor;
+            lblVersionStatus.Text = "Preparing Grimoire Exodus " + item.Release.TagName + "...";
+            try
+            {
+                Progress<int> progress = new Progress<int>(percent =>
+                {
+                    if (!IsDisposed)
+                        lblVersionStatus.Text = "Downloading and verifying " + item.Release.TagName + " · " + percent + "%";
+                });
+                bool applied = await root.InstallApplicationReleaseAsync(item.Release, progress);
+                if (!applied && !IsDisposed)
+                    UpdateVersionSelectionStatus();
+            }
+            finally
+            {
+                if (!IsDisposed)
+                {
+                    btnRefreshVersions.Enabled = true;
+                    cmbVersions.Enabled = true;
+                    UpdateVersionSelectionStatus();
+                }
+            }
         }
 
         private async void RefreshLogs_Click(object sender, EventArgs e)
@@ -990,6 +1248,33 @@ namespace Grimoire.UI
             button.Width = width;
         }
 
+        private sealed class VersionReleaseItem
+        {
+            private readonly Version currentVersion;
+
+            public VersionReleaseItem(UpdateRelease release, Version currentVersion)
+            {
+                Release = release ?? throw new ArgumentNullException(nameof(release));
+                this.currentVersion = currentVersion ?? throw new ArgumentNullException(nameof(currentVersion));
+            }
+
+            public UpdateRelease Release { get; }
+
+            public override string ToString()
+            {
+                int comparison = Release.Version.CompareTo(currentVersion);
+                string relation = comparison < 0
+                    ? "downgrade"
+                    : comparison > 0
+                        ? "update"
+                        : "installed";
+                return Release.TagName
+                    + (Release.IsPrerelease ? " · prerelease" : " · stable")
+                    + " · "
+                    + relation;
+            }
+        }
+
         private static class NativeScrollBars
         {
             private const int SbBoth = 3;
@@ -1070,6 +1355,7 @@ namespace Grimoire.UI
                 content.Resize += delegate { ScheduleSync(); };
                 content.Scroll += delegate { SyncFromContent(); };
                 scrollBar.ValueChanged += ScrollBar_ValueChanged;
+                scrollBar.MouseWheel += ScrollBar_MouseWheel;
                 host.Resize += delegate { ScheduleSync(); };
                 ScheduleSync();
             }
@@ -1079,8 +1365,31 @@ namespace Grimoire.UI
                 if (synchronizing || !content.IsHandleCreated)
                     return;
 
+                ScrollTo(e.Value);
+            }
+
+            private void ScrollBar_MouseWheel(object sender, MouseEventArgs e)
+            {
+                if (!content.IsHandleCreated || e.Delta == 0)
+                    return;
+
+                int lines = SystemInformation.MouseWheelScrollLines;
+                int step = lines < 0
+                    ? Math.Max(1, content.ClientSize.Height)
+                    : Math.Max(1, lines) * Math.Max(16, content.Font.Height);
+                int notches = e.Delta / SystemInformation.MouseWheelScrollDelta;
+                int current = Math.Abs(content.AutoScrollPosition.Y);
+                ScrollTo(current - (notches * step));
+
+                HandledMouseEventArgs handled = e as HandledMouseEventArgs;
+                if (handled != null)
+                    handled.Handled = true;
+            }
+
+            private void ScrollTo(int requestedValue)
+            {
                 int maximum = GetMaximumScrollValue();
-                int value = Math.Max(0, Math.Min(e.Value, maximum));
+                int value = Math.Max(0, Math.Min(requestedValue, maximum));
                 try
                 {
                     content.AutoScrollPosition = new Point(
@@ -1091,6 +1400,7 @@ namespace Grimoire.UI
                 {
                 }
                 NativeScrollBars.HideBoth(content);
+                ScheduleSync();
             }
 
             private void ScheduleSync()
@@ -1171,6 +1481,7 @@ namespace Grimoire.UI
                 textBox.MouseWheel += delegate { ScheduleSync(); };
                 textBox.KeyUp += delegate { ScheduleSync(); };
                 scrollBar.ValueChanged += ScrollBar_ValueChanged;
+                scrollBar.MouseWheel += ScrollBar_MouseWheel;
                 host.Resize += delegate { ScheduleSync(); };
                 ScheduleSync();
             }
@@ -1183,6 +1494,26 @@ namespace Grimoire.UI
                 NativeScrollBars.ScrollLines(textBox, e.Value - current);
                 NativeScrollBars.HideVertical(textBox);
                 ScheduleSync();
+            }
+
+            private void ScrollBar_MouseWheel(object sender, MouseEventArgs e)
+            {
+                if (!textBox.IsHandleCreated || e.Delta == 0)
+                    return;
+
+                int lines = SystemInformation.MouseWheelScrollLines;
+                int step = lines < 0 ? GetVisibleLineCount() : Math.Max(1, lines);
+                int notches = e.Delta / SystemInformation.MouseWheelScrollDelta;
+                int current = NativeScrollBars.GetFirstVisibleLine(textBox);
+                int maximum = GetMaximumScrollValue();
+                int target = Math.Max(0, Math.Min(current - (notches * step), maximum));
+                NativeScrollBars.ScrollLines(textBox, target - current);
+                NativeScrollBars.HideVertical(textBox);
+                ScheduleSync();
+
+                HandledMouseEventArgs handled = e as HandledMouseEventArgs;
+                if (handled != null)
+                    handled.Handled = true;
             }
 
             private void ScheduleSync()
@@ -1216,7 +1547,7 @@ namespace Grimoire.UI
                 try
                 {
                     int lineCount = NativeScrollBars.GetLineCount(textBox);
-                    int visibleLines = Math.Max(1, textBox.ClientSize.Height / Math.Max(1, textBox.Font.Height));
+                    int visibleLines = GetVisibleLineCount();
                     int maximumValue = Math.Max(0, lineCount - visibleLines);
                     scrollBar.Minimum = 0;
                     scrollBar.Maximum = Math.Max(1, lineCount);
@@ -1232,6 +1563,16 @@ namespace Grimoire.UI
                 {
                     synchronizing = false;
                 }
+            }
+
+            private int GetMaximumScrollValue()
+            {
+                return Math.Max(0, NativeScrollBars.GetLineCount(textBox) - GetVisibleLineCount());
+            }
+
+            private int GetVisibleLineCount()
+            {
+                return Math.Max(1, textBox.ClientSize.Height / Math.Max(1, textBox.Font.Height));
             }
         }
     }

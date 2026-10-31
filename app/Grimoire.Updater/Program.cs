@@ -44,7 +44,8 @@ namespace Grimoire.Updater
                 else
                 {
                     string sourceDirectory = NormalizeDirectory(Require(options, "--source"));
-                    ApplyPortableUpdate(sourceDirectory, targetDirectory);
+                    Version targetVersion = ParseOptionalVersion(options, "--target-version");
+                    ApplyPortableUpdate(sourceDirectory, targetDirectory, targetVersion);
                 }
 
                 WriteLog("Update completed successfully.");
@@ -108,6 +109,18 @@ namespace Grimoire.Updater
             return value;
         }
 
+        private static Version ParseOptionalVersion(IDictionary<string, string> options, string name)
+        {
+            string value;
+            if (!options.TryGetValue(name, out value))
+                return null;
+
+            Version version;
+            if (string.IsNullOrWhiteSpace(value) || !Version.TryParse(value, out version))
+                throw new ArgumentException("The target release version is invalid.");
+            return version;
+        }
+
         private static void WaitForClient(int processId)
         {
             try
@@ -150,9 +163,12 @@ namespace Grimoire.Updater
             }
         }
 
-        private static void ApplyPortableUpdate(string sourceDirectory, string targetDirectory)
+        private static void ApplyPortableUpdate(
+            string sourceDirectory,
+            string targetDirectory,
+            Version targetVersion)
         {
-            ValidatePortablePayload(sourceDirectory);
+            ValidatePortablePayload(sourceDirectory, targetVersion);
             if (PathsEqual(sourceDirectory, targetDirectory))
                 throw new InvalidOperationException("The update source and installation directory are the same.");
             if (IsRootDirectory(targetDirectory))
@@ -260,14 +276,25 @@ namespace Grimoire.Updater
             }
         }
 
-        private static void ValidatePortablePayload(string sourceDirectory)
+        private static void ValidatePortablePayload(string sourceDirectory, Version targetVersion)
         {
-            string[] requiredFiles =
+            string[] coreFiles =
             {
                 "Grimoire Exodus.exe",
                 "Grimoire.Updater.exe",
                 "Flash.ocx",
-                "grimoire-exodus.swf",
+                "grimoire-exodus.swf"
+            };
+            ValidateRequiredFiles(sourceDirectory, coreFiles);
+
+            // Ruffle first shipped with the 1.5 line. Keep strict modern-payload
+            // validation by default, including when an older caller omits the
+            // version argument, while allowing verified pre-1.5 downgrades.
+            if (targetVersion != null && targetVersion < new Version(1, 5, 0, 0))
+                return;
+
+            string[] ruffleFiles =
+            {
                 "Microsoft.Web.WebView2.Core.dll",
                 "Microsoft.Web.WebView2.WinForms.dll",
                 Path.Combine("Ruffle", "ruffle.js"),
@@ -282,6 +309,11 @@ namespace Grimoire.Updater
                 Path.Combine("ThirdParty", "WebView2.NOTICE.txt"),
                 Path.Combine("runtimes", "win-x86", "native", "WebView2Loader.dll")
             };
+            ValidateRequiredFiles(sourceDirectory, ruffleFiles);
+        }
+
+        private static void ValidateRequiredFiles(string sourceDirectory, IEnumerable<string> requiredFiles)
+        {
             foreach (string requiredFile in requiredFiles)
             {
                 if (!File.Exists(Path.Combine(sourceDirectory, requiredFile)))

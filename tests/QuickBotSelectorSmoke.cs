@@ -1,13 +1,21 @@
+using DarkUI.Controls;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Forms;
 
 internal static class QuickBotSelectorSmoke
 {
+    private const int GwlStyle = -16;
+    private const int WsVScroll = 0x00200000;
     private static Assembly clientAssembly;
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
+    private static extern int GetWindowLong(IntPtr window, int index);
 
     [STAThread]
     private static int Main()
@@ -49,6 +57,8 @@ internal static class QuickBotSelectorSmoke
                 new[] { typeof(IEnumerable<string>), typeof(string) },
                 null);
             Require(constructor != null, "Quick Bot selector constructor was not found.");
+
+            VerifyThemedScrollbar(constructor);
 
             string basePath = Path.Combine(Path.GetTempPath(), "grimoire-quick-bot-selector-smoke");
             string firstPath = Path.Combine(basePath, "Alpha.gbot");
@@ -103,6 +113,64 @@ internal static class QuickBotSelectorSmoke
         }
     }
 
+    private static void VerifyThemedScrollbar(ConstructorInfo constructor)
+    {
+        string[] paths = new string[40];
+        for (int index = 0; index < paths.Length; index++)
+            paths[index] = Path.Combine(Path.GetTempPath(), "Bot " + index.ToString("00") + ".gbot");
+
+        using (Form selector = (Form)constructor.Invoke(new object[] { paths, null }))
+        {
+            selector.StartPosition = FormStartPosition.Manual;
+            selector.Location = new Point(-32000, -32000);
+            selector.Opacity = 0.01d;
+            selector.Show();
+            PumpMessages();
+
+            ListBox list = FindControl<ListBox>(selector, "Available GBots");
+            DarkScrollBar scrollBar = FindControl<DarkScrollBar>(selector, "GBot list scrollbar");
+            Require(list != null, "Scrollable GBot list was not found for the overflow scenario.");
+            Require(scrollBar != null, "The themed GBot list scrollbar was not created.");
+            Require(scrollBar.Visible, "The themed GBot list scrollbar is hidden while the list overflows.");
+            Require(scrollBar.Width <= 12, "The themed GBot list scrollbar is too bulky.");
+            Require(list.Right <= scrollBar.Left, "The themed GBot scrollbar overlaps the GBot list.");
+            Require((GetWindowLong(list.Handle, GwlStyle) & WsVScroll) == 0,
+                "The native white ListBox scrollbar is still visible.");
+
+            Control hit = scrollBar.Parent.GetChildAtPoint(new Point(
+                scrollBar.Left + (scrollBar.Width / 2),
+                scrollBar.Top + (scrollBar.Height / 2)));
+            Require(ReferenceEquals(hit, scrollBar), "The themed GBot scrollbar cannot receive pointer input.");
+
+            DragThumbToBottom(scrollBar);
+            PumpMessages();
+            Require(list.TopIndex > 0, "Dragging the themed GBot scrollbar does not navigate the list.");
+
+            list.TopIndex = 0;
+            scrollBar.Value = 0;
+            InvokeMouse(scrollBar, "OnMouseWheel", new MouseEventArgs(MouseButtons.None, 0, 0, 0, -120));
+            PumpMessages();
+            Require(list.TopIndex > 0, "The mouse wheel does not navigate the themed GBot scrollbar.");
+        }
+
+        using (Form selector = (Form)constructor.Invoke(new object[]
+        {
+            new[] { Path.Combine(Path.GetTempPath(), "Only.gbot") },
+            null
+        }))
+        {
+            selector.StartPosition = FormStartPosition.Manual;
+            selector.Location = new Point(-32000, -32000);
+            selector.Opacity = 0.01d;
+            selector.Show();
+            PumpMessages();
+
+            DarkScrollBar scrollBar = FindControl<DarkScrollBar>(selector, "GBot list scrollbar");
+            Require(scrollBar != null, "The themed GBot list scrollbar was not created for fitting content.");
+            Require(!scrollBar.Visible, "The themed GBot list scrollbar reserves space when content fits.");
+        }
+    }
+
     private static Assembly ResolveClientAssembly(object sender, ResolveEventArgs args)
     {
         AssemblyName requested = new AssemblyName(args.Name);
@@ -146,5 +214,40 @@ internal static class QuickBotSelectorSmoke
     {
         if (!condition)
             throw new InvalidOperationException(message);
+    }
+
+    private static void DragThumbToBottom(DarkScrollBar scrollBar)
+    {
+        FieldInfo thumbField = typeof(DarkScrollBar).GetField(
+            "_thumbArea",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Require(thumbField != null, "Dark scrollbar thumb geometry is unavailable.");
+        Rectangle thumb = (Rectangle)thumbField.GetValue(scrollBar);
+        Require(!thumb.IsEmpty, "Dark scrollbar thumb geometry is empty.");
+
+        int startX = thumb.Left + Math.Max(1, thumb.Width / 2);
+        int startY = thumb.Top + Math.Max(1, thumb.Height / 2);
+        int endY = Math.Max(startY + 1, scrollBar.ClientSize.Height - 20);
+        InvokeMouse(scrollBar, "OnMouseDown", new MouseEventArgs(MouseButtons.Left, 1, startX, startY, 0));
+        InvokeMouse(scrollBar, "OnMouseMove", new MouseEventArgs(MouseButtons.Left, 0, startX, endY, 0));
+        InvokeMouse(scrollBar, "OnMouseUp", new MouseEventArgs(MouseButtons.Left, 1, startX, endY, 0));
+    }
+
+    private static void InvokeMouse(DarkScrollBar scrollBar, string methodName, MouseEventArgs eventArgs)
+    {
+        MethodInfo method = typeof(DarkScrollBar).GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Require(method != null, "Dark scrollbar mouse handler is unavailable: " + methodName);
+        method.Invoke(scrollBar, new object[] { eventArgs });
+    }
+
+    private static void PumpMessages()
+    {
+        for (int index = 0; index < 8; index++)
+        {
+            Application.DoEvents();
+            Thread.Sleep(2);
+        }
     }
 }

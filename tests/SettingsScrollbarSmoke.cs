@@ -4,16 +4,21 @@ using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Threading;
 using System.Windows.Forms;
 
 internal static class SettingsScrollbarSmoke
 {
     private const int GwlStyle = -16;
+    private const uint EmGetFirstVisibleLine = 0x00CE;
     private const int WsVScroll = 0x00200000;
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW", ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
     private static extern int GetWindowLong(IntPtr window, int index);
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW", ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
+    private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 
     [STAThread]
     private static int Main()
@@ -35,6 +40,7 @@ internal static class SettingsScrollbarSmoke
             if (createHost == null || createLogHost == null)
                 throw new InvalidOperationException("A Settings scroll host factory was not found.");
 
+            VerifyTabOrder(settingsType);
             VerifyScenario(createHost, 2, false, "fitting content");
             VerifyScenario(createHost, 18, true, "overflowing content");
             VerifyLogScenario(createLogHost, 1, false, "fitting log text");
@@ -47,6 +53,35 @@ internal static class SettingsScrollbarSmoke
         {
             Console.Error.WriteLine(exception);
             return 1;
+        }
+    }
+
+    private static void VerifyTabOrder(Type settingsType)
+    {
+        Type rootType = typeof(Grimoire.UI.Root);
+        ConstructorInfo constructor = settingsType.GetConstructor(
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            new[] { rootType },
+            null);
+        if (constructor == null)
+            throw new InvalidOperationException("The Settings form constructor was not found.");
+
+        object root = FormatterServices.GetUninitializedObject(rootType);
+        using (Form settings = (Form)constructor.Invoke(new[] { root }))
+        {
+            TabControl tabs = FindControl<TabControl>(settings);
+            if (tabs == null)
+                throw new InvalidOperationException("The Settings tabs were not created.");
+
+            string[] expected = { "General", "Performance", "Key Bindings", "Advanced", "Version", "Logs" };
+            string[] actual = tabs.TabPages.Cast<TabPage>().Select(page => page.Text).ToArray();
+            if (!actual.SequenceEqual(expected))
+                throw new InvalidOperationException("Unexpected Settings tab order: " + string.Join(", ", actual));
+
+            TabPage version = tabs.TabPages.Cast<TabPage>().Single(page => page.Text == "Version");
+            if (FindControl<ComboBox>(version, "Grimoire Exodus version") == null)
+                throw new InvalidOperationException("The Version tab does not expose its release selector.");
         }
     }
 
@@ -106,11 +141,18 @@ internal static class SettingsScrollbarSmoke
 
             if (expectScrollBar)
             {
-                int target = Math.Max(scrollBar.Minimum, scrollBar.Maximum - scrollBar.ViewSize);
-                scrollBar.Value = target;
+                VerifyPointerTarget(scrollBar, scenario);
+                DragThumbToBottom(scrollBar);
                 PumpMessages();
-                if (target > 0 && content.AutoScrollPosition.Y >= 0)
-                    throw new InvalidOperationException("The themed scrollbar did not move overflowing content.");
+                if (content.AutoScrollPosition.Y >= 0)
+                    throw new InvalidOperationException("Dragging the themed scrollbar did not move overflowing content.");
+
+                content.AutoScrollPosition = Point.Empty;
+                scrollBar.Value = 0;
+                InvokeMouse(scrollBar, "OnMouseWheel", new MouseEventArgs(MouseButtons.None, 0, 0, 0, -120));
+                PumpMessages();
+                if (content.AutoScrollPosition.Y >= 0)
+                    throw new InvalidOperationException("The mouse wheel did not move overflowing Settings content.");
             }
 
             form.Controls.Remove(host);
@@ -171,10 +213,28 @@ internal static class SettingsScrollbarSmoke
 
             if (expectScrollBar)
             {
-                scrollBar.Value = Math.Min(5, Math.Max(0, scrollBar.Maximum - scrollBar.ViewSize));
+                VerifyPointerTarget(scrollBar, scenario);
+                DragThumbToBottom(scrollBar);
                 PumpMessages();
-                if (scrollBar.Value <= 0)
-                    throw new InvalidOperationException("The themed log scrollbar did not move overflowing text.");
+                int firstVisibleLine = SendMessage(
+                    textBox.Handle,
+                    EmGetFirstVisibleLine,
+                    IntPtr.Zero,
+                    IntPtr.Zero).ToInt32();
+                if (firstVisibleLine <= 0)
+                    throw new InvalidOperationException("Dragging the themed log scrollbar did not move the visible log text.");
+
+                scrollBar.Value = 0;
+                PumpMessages();
+                InvokeMouse(scrollBar, "OnMouseWheel", new MouseEventArgs(MouseButtons.None, 0, 0, 0, -120));
+                PumpMessages();
+                firstVisibleLine = SendMessage(
+                    textBox.Handle,
+                    EmGetFirstVisibleLine,
+                    IntPtr.Zero,
+                    IntPtr.Zero).ToInt32();
+                if (firstVisibleLine <= 0)
+                    throw new InvalidOperationException("The mouse wheel did not move the visible Settings log text.");
             }
 
             form.Controls.Remove(host);
@@ -239,6 +299,64 @@ internal static class SettingsScrollbarSmoke
                 return scrollBar;
         }
         return null;
+    }
+
+    private static T FindControl<T>(Control root, string accessibleName = null)
+        where T : Control
+    {
+        foreach (Control control in root.Controls)
+        {
+            T match = control as T;
+            if (match != null
+                && (accessibleName == null
+                    || string.Equals(match.AccessibleName, accessibleName, StringComparison.Ordinal)))
+            {
+                return match;
+            }
+
+            match = FindControl<T>(control, accessibleName);
+            if (match != null)
+                return match;
+        }
+        return null;
+    }
+
+    private static void VerifyPointerTarget(DarkScrollBar scrollBar, string scenario)
+    {
+        Control hit = scrollBar.Parent.GetChildAtPoint(new Point(
+            scrollBar.Left + (scrollBar.Width / 2),
+            scrollBar.Top + (scrollBar.Height / 2)));
+        if (!ReferenceEquals(hit, scrollBar))
+            throw new InvalidOperationException("The themed scrollbar cannot receive pointer input for " + scenario + ".");
+    }
+
+    private static void DragThumbToBottom(DarkScrollBar scrollBar)
+    {
+        FieldInfo thumbField = typeof(DarkScrollBar).GetField(
+            "_thumbArea",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        if (thumbField == null)
+            throw new InvalidOperationException("Dark scrollbar thumb geometry is unavailable.");
+        Rectangle thumb = (Rectangle)thumbField.GetValue(scrollBar);
+        if (thumb.IsEmpty)
+            throw new InvalidOperationException("Dark scrollbar thumb geometry is empty.");
+
+        int startX = thumb.Left + Math.Max(1, thumb.Width / 2);
+        int startY = thumb.Top + Math.Max(1, thumb.Height / 2);
+        int endY = Math.Max(startY + 1, scrollBar.ClientSize.Height - 20);
+        InvokeMouse(scrollBar, "OnMouseDown", new MouseEventArgs(MouseButtons.Left, 1, startX, startY, 0));
+        InvokeMouse(scrollBar, "OnMouseMove", new MouseEventArgs(MouseButtons.Left, 0, startX, endY, 0));
+        InvokeMouse(scrollBar, "OnMouseUp", new MouseEventArgs(MouseButtons.Left, 1, startX, endY, 0));
+    }
+
+    private static void InvokeMouse(DarkScrollBar scrollBar, string methodName, MouseEventArgs eventArgs)
+    {
+        MethodInfo method = typeof(DarkScrollBar).GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        if (method == null)
+            throw new InvalidOperationException("Dark scrollbar mouse handler is unavailable: " + methodName);
+        method.Invoke(scrollBar, new object[] { eventArgs });
     }
 
     private static void PumpMessages()

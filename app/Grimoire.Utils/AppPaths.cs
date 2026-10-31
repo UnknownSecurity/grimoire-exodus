@@ -48,6 +48,8 @@ namespace Grimoire.Utils
 
         public static string UpdatesDirectory => GetUserDirectory("Updates");
 
+        public static string AccountVisualsDirectory => GetUserDirectory("Account Visuals");
+
         public static string RuffleWebViewDataDirectory => GetUserDirectory("Ruffle WebView2");
 
         private static string GetExternalBotsDirectory()
