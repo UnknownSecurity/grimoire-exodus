@@ -1872,9 +1872,9 @@
     "semantic_hash": "21e3745319381db7c0cf2259dae244f3"
   },
   "README.md": {
-    "mtime": 1793377129.0240517,
-    "seen": 1793377219.5905418,
-    "ast_hash": "aee069750716446a102242003ed21111",
+    "mtime": 1793672951.5361576,
+    "seen": 1793672997.8855448,
+    "ast_hash": "567354e69ea840c5831f411875190861",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -2508,9 +2508,9 @@
     "semantic_hash": ""
   },
   "docs/releases/v1.6.0.md": {
-    "mtime": 1793436079.0484574,
-    "seen": 1793436317.7322657,
-    "ast_hash": "9173263a204ac66cdcc10307542b4376",
+    "mtime": 1793672950.2760942,
+    "seen": 1793672997.8856125,
+    "ast_hash": "7bf1218c15ae8fa7ccb4779db8c5998c",
     "semantic_hash": ""
   },
   "app/Grimoire.UI/UltraKitForm.cs": {

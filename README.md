@@ -4,7 +4,7 @@
 
 Grimoire Exodus is a maintained AQW automation client based on Grimlite Rev. It is developed and maintained by **dsenin**.
 
-Version 1.6.0 is currently in pre-release development. Account Locker cards now learn a saved character's name, class, level, and a small local portrait after a successful login; Quick Load uses the same minimal dark scrollbar as the rest of the application; and Ultra Kit provides a portrait live encounter companion. Flash.ocx remains the default engine and legacy `.gbot` compatibility is preserved.
+Version 1.6.0 is the latest stable release. Ultra Kit provides a portrait live encounter companion for monsters, players, classes, levels, health, mana, positions, and duplicate-class warnings; Account Locker cards learn a saved character's name, class, level, and a small local portrait after a successful login; and Quick Load uses the same minimal dark scrollbar as the rest of the application. Flash.ocx remains the default engine and legacy `.gbot` compatibility is preserved.
 
 > [!WARNING]
 > Only download Grimoire Exodus from the [official GitHub Releases page](https://github.com/UnknownSecurity/grimoire-exodus/releases). Third-party mirrors, repacks, and unofficial installers are not maintained or verified by this project and may contain malware, credential stealers, cryptocurrency miners, or other unwanted modifications.
