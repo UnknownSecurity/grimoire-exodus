@@ -2584,5 +2584,11 @@
     "seen": 1793892900.930828,
     "ast_hash": "96b7ecf1f9afe7501006d58926e210ff",
     "semantic_hash": ""
+  },
+  "docs/ui-modernization-framework-migration-plan.md": {
+    "mtime": 1793894480.890342,
+    "seen": 1793894503.2770832,
+    "ast_hash": "168c41affefbf9b76a61c8d1efba1792",
+    "semantic_hash": ""
   }
 }
