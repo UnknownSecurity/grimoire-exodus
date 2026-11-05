@@ -14,10 +14,10 @@ runtime before they are promoted beyond experimental status.
 
 ## Implementation status
 
-The desktop client now exposes the recommended opt-in controls under
+The desktop client exposes the recommended opt-in controls under
 **Settings > Performance**:
 
-- Automatic, Direct presentation, and experimental GPU rendering requests;
+- Automatic, Direct presentation, and experimental GPU presentation requests;
 - Automatic, High, Medium, and Low Flash render quality;
 - an optional active-client FPS target; and
 - optional inactive-client throttling that never reduces FPS while that
@@ -27,9 +27,13 @@ Automatic rendering, automatic quality, the legacy FPS behavior, and disabled
 inactive throttling remain the defaults. Direct/GPU values are applied before
 the SWF state is loaded, rejected ActiveX property writes fall back to the
 control's previous value, and current clients are never recreated implicitly.
-The bundled ActiveX runtime accepts the new mode and quality values in the
-repository smoke probe. A live AQW benchmark matrix is still required before
-the experimental label can be removed.
+The bundled ActiveX runtime accepts the Direct/GPU modes and quality values in
+the repository smoke probe. A live AQW benchmark matrix is still required
+before either experimental label can be removed. GPU presentation remains an
+explicit opt-in and shows a confirmation warning because some long-running
+clients have exhibited black or discolored character surfaces and corrupted
+skill frames. This warning and rendering choice do not change bot commands,
+packets, or GBot serialization.
 
 ## What runs where today
 
@@ -137,7 +141,7 @@ passes. Keep all new values out of GBot serialization.
 | --- | --- | --- |
 | Automatic | Preserve the current ActiveX state and let Flash/Windows choose supported acceleration. | Yes |
 | Direct presentation (experimental) | Request `WMode=direct` before loading the client. Describe it accurately as CPU composition with GPU-assisted presentation where supported. | No |
-| GPU rendering (experimental) | Request `WMode=gpu` only if the spike proves it works and improves AQW on supported drivers. It must fall back safely. | No |
+| GPU rendering (experimental) | Request `WMode=gpu` only after a warning that long-running sessions can develop surface corruption, lag, or driver instability. | No |
 | Software compatibility | Offer only if testing finds a supported, deterministic per-control mechanism. Do not mislabel `opaque` or another window mode as software without proof. | No |
 
 Never display “GPU active” merely because a mode was requested. Without a

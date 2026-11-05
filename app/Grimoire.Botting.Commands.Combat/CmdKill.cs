@@ -10,6 +10,9 @@ namespace Grimoire.Botting.Commands.Combat
 {
     public class CmdKill : IBotCommand
     {
+        private const int TargetCheckDelay = 250;
+        private const int StaleTargetUnavailableChecks = 3;
+
         public string Monster
         {
             get;
@@ -23,6 +26,16 @@ namespace Grimoire.Botting.Commands.Combat
         }
 
         public async Task Execute(IBotEngine instance)
+        {
+            await ExecuteCore(instance, false);
+        }
+
+        internal async Task ExecuteForKillFor(IBotEngine instance)
+        {
+            await ExecuteCore(instance, true);
+        }
+
+        private async Task ExecuteCore(IBotEngine instance, bool recoverStaleTarget)
         {
             using (CancellationTokenSource cts = new CancellationTokenSource())
             {
@@ -45,11 +58,21 @@ namespace Grimoire.Botting.Commands.Combat
                     }
                     Player.AttackMonster(instance.Value(Monster));
                     skillTask = UseSkills(instance, cts.Token);
-                    await instance.WaitUntil(
-                        () => !Player.HasTarget,
-                        () => instance.IsRunning && !cts.IsCancellationRequested,
-                        -1,
-                        500);
+                    if (recoverStaleTarget)
+                    {
+                        await WaitForTargetReleaseOrRoomClear(
+                            instance,
+                            instance.Value(Monster),
+                            cts.Token);
+                    }
+                    else
+                    {
+                        await instance.WaitUntil(
+                            () => !Player.HasTarget,
+                            () => instance.IsRunning && !cts.IsCancellationRequested,
+                            -1,
+                            500);
+                    }
                 }
                 finally
                 {
@@ -66,6 +89,30 @@ namespace Grimoire.Botting.Commands.Combat
                     }
                     Player.CancelTarget();
                 }
+            }
+        }
+
+        private static async Task WaitForTargetReleaseOrRoomClear(
+            IBotEngine instance,
+            string monster,
+            CancellationToken token)
+        {
+            int unavailableChecks = 0;
+            while (instance.IsRunning && !token.IsCancellationRequested && Player.HasTarget)
+            {
+                await Task.Delay(TargetCheckDelay);
+                if (!instance.IsRunning || token.IsCancellationRequested || !Player.HasTarget)
+                    return;
+
+                if (World.IsMonsterAvailable(monster))
+                {
+                    unavailableChecks = 0;
+                    continue;
+                }
+
+                unavailableChecks++;
+                if (unavailableChecks >= StaleTargetUnavailableChecks)
+                    return;
             }
         }
 

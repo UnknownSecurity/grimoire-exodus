@@ -58,9 +58,11 @@ namespace Grimoire.UI
         private PictureBox picCpuMetric;
         private PictureBox picUptimeMetric;
         private PictureBox picNetworkMetric;
+        private PictureBox picPingMetric;
         private Label lblCpuMetric;
         private Label lblUptimeMetric;
         private Label lblNetworkMetric;
+        private Label lblPingMetric;
         private DarkButton btnToggleHeader;
         private DarkButton btnSettings;
         private ToolTip headerVisibilityToolTip;
@@ -76,6 +78,7 @@ namespace Grimoire.UI
         private Bitmap cpuMetricIcon;
         private Bitmap uptimeMetricIcon;
         private Bitmap networkMetricIcon;
+        private Bitmap pingMetricIcon;
         private Bitmap headerVisibleIcon;
         private Bitmap headerHiddenIcon;
         private Bitmap settingsIcon;
@@ -358,10 +361,12 @@ namespace Grimoire.UI
                     return;
                 if (latency == null)
                 {
+                    UpdatePingMetric(null);
                     if (rtbPing.TextLength > 0)
                         rtbPing.Clear();
                     return;
                 }
+                UpdatePingMetric(latency);
                 if (!rtbPing.Visible)
                     return;
 
@@ -385,6 +390,24 @@ namespace Grimoire.UI
             catch (InvalidOperationException)
             {
             }
+        }
+
+        private void UpdatePingMetric(int? latency)
+        {
+            if (latency == null)
+            {
+                lblPingMetric.ForeColor = Color.Gainsboro;
+                lblPingMetric.Text = "PING  -- ms";
+                return;
+            }
+
+            if (latency <= 100)
+                lblPingMetric.ForeColor = Color.LimeGreen;
+            else if (latency <= 200)
+                lblPingMetric.ForeColor = Color.Orange;
+            else
+                lblPingMetric.ForeColor = Color.Red;
+            lblPingMetric.Text = "PING  " + latency.Value + " ms";
         }
 
         private void ApplyBranding()
@@ -811,6 +834,7 @@ namespace Grimoire.UI
             Cpu,
             Uptime,
             Network,
+            Ping,
             EyeOpen,
             EyeClosed,
             Settings,
@@ -854,6 +878,12 @@ namespace Grimoire.UI
                         graphics.FillRectangle(brush, 6, 7, 2, 7);
                         graphics.FillRectangle(brush, 10, 4, 2, 10);
                         graphics.FillRectangle(brush, 14, 1, 2, 13);
+                        break;
+
+                    case StatusIcon.Ping:
+                        graphics.DrawArc(pen, 2f, 2f, 12f, 12f, 210f, 120f);
+                        graphics.DrawArc(pen, 5f, 5f, 6f, 6f, 210f, 120f);
+                        graphics.FillEllipse(brush, 7f, 11f, 2f, 2f);
                         break;
 
                     case StatusIcon.EyeOpen:
@@ -941,6 +971,8 @@ namespace Grimoire.UI
             lblUptimeMetric.Visible = visible;
             picNetworkMetric.Visible = visible;
             lblNetworkMetric.Visible = visible;
+            picPingMetric.Visible = visible;
+            lblPingMetric.Visible = visible;
 
             if (!visible)
             {
@@ -956,6 +988,7 @@ namespace Grimoire.UI
             lastProcessorTime = metricsProcess.TotalProcessorTime;
             GetNetworkTotals(out lastNetworkReceived, out lastNetworkSent);
             UpdateMetrics();
+            UpdatePingMetric(clientSessions?.ActiveSession?.LatestPingLatency);
             metricsTimer.Start();
         }
 
@@ -1920,9 +1953,11 @@ namespace Grimoire.UI
             this.picCpuMetric = new System.Windows.Forms.PictureBox();
             this.picUptimeMetric = new System.Windows.Forms.PictureBox();
             this.picNetworkMetric = new System.Windows.Forms.PictureBox();
+            this.picPingMetric = new System.Windows.Forms.PictureBox();
             this.lblCpuMetric = new System.Windows.Forms.Label();
             this.lblUptimeMetric = new System.Windows.Forms.Label();
             this.lblNetworkMetric = new System.Windows.Forms.Label();
+            this.lblPingMetric = new System.Windows.Forms.Label();
             this.btnToggleHeader = new DarkUI.Controls.DarkButton();
             this.btnSettings = new DarkUI.Controls.DarkButton();
             this.headerVisibilityToolTip = new System.Windows.Forms.ToolTip(this.components);
@@ -2045,6 +2080,8 @@ namespace Grimoire.UI
             this.metricsPanel.Controls.Add(this.lblUptimeMetric);
             this.metricsPanel.Controls.Add(this.picNetworkMetric);
             this.metricsPanel.Controls.Add(this.lblNetworkMetric);
+            this.metricsPanel.Controls.Add(this.picPingMetric);
+            this.metricsPanel.Controls.Add(this.lblPingMetric);
             this.metricsPanel.Controls.Add(this.btnToggleHeader);
             this.metricsPanel.Controls.Add(this.btnSettings);
             this.metricsPanel.Controls.Add(this.cbCells);
@@ -2128,6 +2165,29 @@ namespace Grimoire.UI
             this.lblNetworkMetric.Text = "NET  ↓ 0 B/s  ↑ 0 B/s";
             this.lblNetworkMetric.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             //
+            // picPingMetric
+            //
+            this.pingMetricIcon = CreateStatusIcon(StatusIcon.Ping, System.Drawing.Color.MediumPurple);
+            this.picPingMetric.BackColor = System.Drawing.Color.Transparent;
+            this.picPingMetric.Image = this.pingMetricIcon;
+            this.picPingMetric.Location = new System.Drawing.Point(630, 4);
+            this.picPingMetric.Name = "picPingMetric";
+            this.picPingMetric.Size = new System.Drawing.Size(16, 16);
+            this.picPingMetric.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
+            this.picPingMetric.TabStop = false;
+            //
+            // lblPingMetric
+            //
+            this.lblPingMetric.BackColor = System.Drawing.Color.Transparent;
+            this.lblPingMetric.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblPingMetric.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(220)))), ((int)(((byte)(220)))), ((int)(((byte)(220)))));
+            this.lblPingMetric.Location = new System.Drawing.Point(649, 2);
+            this.lblPingMetric.Name = "lblPingMetric";
+            this.lblPingMetric.Size = new System.Drawing.Size(68, 20);
+            this.lblPingMetric.TabIndex = 3;
+            this.lblPingMetric.Text = "PING  -- ms";
+            this.lblPingMetric.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            //
             // btnToggleHeader
             //
             this.headerVisibleIcon = CreateStatusIcon(StatusIcon.EyeOpen, System.Drawing.Color.MediumPurple);
@@ -2144,7 +2204,7 @@ namespace Grimoire.UI
             this.btnToggleHeader.Name = "btnToggleHeader";
             this.btnToggleHeader.Padding = new System.Windows.Forms.Padding(0);
             this.btnToggleHeader.Size = new System.Drawing.Size(30, 18);
-            this.btnToggleHeader.TabIndex = 3;
+            this.btnToggleHeader.TabIndex = 4;
             this.btnToggleHeader.Text = "";
             this.btnToggleHeader.Click += new System.EventHandler(this.btnToggleHeader_Click);
             this.headerVisibilityToolTip.SetToolTip(this.btnToggleHeader, "Hide upper toolbar");
@@ -2164,7 +2224,7 @@ namespace Grimoire.UI
             this.btnSettings.Name = "btnSettings";
             this.btnSettings.Padding = new System.Windows.Forms.Padding(0);
             this.btnSettings.Size = new System.Drawing.Size(30, 18);
-            this.btnSettings.TabIndex = 4;
+            this.btnSettings.TabIndex = 5;
             this.btnSettings.Text = "";
             this.btnSettings.Click += new System.EventHandler(this.btnSettings_Click);
             this.headerVisibilityToolTip.SetToolTip(this.btnSettings, "Open settings");

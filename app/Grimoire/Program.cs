@@ -11,7 +11,7 @@ namespace Grimoire
 {
     internal static class Program
     {
-        public static string versionDate = "2026-10-30";
+        public static string versionDate = "2026-11-05";
 
         public static string flashVersion;
 

@@ -49,7 +49,7 @@ namespace Grimoire.Botting.Commands.Combat
             };
             while (instance.IsRunning && notInInventory(instance.Value(ItemName), instance.Value(Quantity)))
             {
-                await kill.Execute(instance);
+                await kill.ExecuteForKillFor(instance);
             }
             Player.CancelTarget();
         }

@@ -1,17 +1,17 @@
-# Graph Report - grimoire-exodus  (2026-11-03)
+# Graph Report - grimoire-exodus  (2026-11-05)
 
 ## Corpus Check
-- 413 files · ~270,234 words
+- 419 files · ~272,858 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 70 file(s) not represented in the graph (top: .resx 22, .as 19, .dll 9)
 
 ## Summary
-- 5062 nodes · 11784 edges · 327 communities (189 shown, 138 thin omitted)
-- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 812 edges (avg confidence: 0.8)
+- 5144 nodes · 11990 edges · 321 communities (188 shown, 133 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 848 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ba2badaf`
+- Built from commit: `d4bc3da4`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -20,16 +20,16 @@
 - StatementCommand
 - CmdAcceptQuest
 - Root
-- UpdateService.cs
+- SessionState
 - PacketSpammer
 - system_linq
-- .SetDRM
-- Grimoire.Clients
+- KillForRecoverySmoke
+- CompatibilityCheckService
 - IFlashBridge
-- .IsActionAvailable
+- List
 - BankItem
-- .GamePopup
-- ClientSessionContext
+- .MoveOutOfCombat
+- UpdateService
 - Configuration
 - GameSessionState
 - ActiveXFlashBridge
@@ -37,23 +37,23 @@
 - Quest Data Management
 - Bot
 - AppPreferenceSnapshot
-- IJsonMessageHandler
+- JsonMessage
 - Inventory Drop Handling
 - KeyboardHook
 - Quest
-- .Call
-- AxShockwaveFlash
+- FakeBotEngine
+- .CreateClientSessionCore
 - InventoryItem
 - Proxy
-- Type
-- Assembly
+- Dictionary
+- PluginManager
 - Hotkeys
 - ClientOptionState
 - ClientSession
 - InventoryItemCombined
 - Travel
-- BotDocumentState
-- IJsonMessageHandler
+- BotClientConfig
+- Program
 - XtMessage
 - RuffleLocalHost
 - Avatar
@@ -63,27 +63,27 @@
 - IssueReportService
 - AccountVault
 - QuickBotSelectorForm
-- Spammer
+- GrimoireHomeBridge
 - UltraCharacterClassLookup
 - Portable Update Application
 - Application Path Management
-- IContainer
-- ItemBase
+- NodeEditor
+- Type
 - Packet Command Handling
 - system
 - ResizableUserControl
 - LogForm
-- GrimoireHomeBridge
+- BotManager.cs
 - CosmeticForm
 - itemsR
 - itemsS
-- IssueReportServiceSmoke
+- CompatibilityCheckContext
 - .Execute
-- Command Color Editor
+- IssueReportServiceSmoke
 - CancellationTokenSource
 - CmdUseSkill
 - Resources
-- GameEngineKind
+- FakeFlashBridge
 - GitHub issue relay Worker
 - Map
 - TempItem
@@ -94,58 +94,53 @@
 - DllImport
 - STAThread
 - AppPaths
-- .LoadBotFromFile
+- CompatibilityCheckOperation
 - UltraKitForm
 - ClientSessionManager
 - ExtendedAvatar
-- PluginManager
-- .Push
-- Kill For Item Logic
-- AppDataReset
-- Player
+- ItemBase
+- UpdateRelease
+- IContainer
+- .Call
 - Desktop rendering performance research for
 - Grimoire Exodus
 - Bot Library Experience
 - Flash
 - HandlerUserData
-- UpdateAsset
+- AccountVaultFile
 - Grimoire Exodus v1.2.0 Improvement and
-- EquipType
+- Selected Ruffle WebView2 Adapter
 - Monster
-- Server
+- Assembly
 - exodus.ps1
 - CmdBuyByID
 - RuffleSocketProxySmoke
-- CmdPacketlist2
+- ScrollableControlThemeAdapter
 - .Run()
 - LockActions
 - Action
 - CmdEquipSet
 - invokeHost
 - Tagged Windows Build
-- Grimoire Exodus desktop multi-client research and implementation plan
+- BotDocumentState
 - package.json
 - website/package.json
 - index.mjs
-- BotClientConfig
-- CompatibilityCheckService
+- EquipType
+- RecoveryInfo
 - CmdPacket2
 - CmdCompleteQuest2
-- PurpleMenuRenderer
-- ScrollableControlThemeAdapter
-- CosmeticEquipment
 - BotData
-- GrimoirePlugin
 - Skill
 - Dark Fantasy Branding
-- UltraKitSnapshot
-- BankForm
+- PreparedUpdate
+- UserFriendlyCommandEditor
 - UltraPlayerSnapshot
 - AccountSummary
 - AutoBuyBack
 - SupportDiagnostics
 - House
-- Item
+- ClientWorkspaceState
 - CmdKillFor
 - AccountRecord
 - Grimoire Exodus Agent Guide
@@ -153,56 +148,57 @@
 - CmdBuy2
 - CmdQuestlist
 - UltraMonsterSnapshot
-- UpdateRelease
+- .Main
 - RuffleServerMap
 - CompletedQuest
-- Faction
+- .RecordException
 - ClientSession
 - CmdLoadBot
 - CmdInt
-- AccountProfileCaptureDisposition
-- RecoveryInfo
+- CmdLoad2
+- CmdPlayerIsNotInCell
 - ShopInfo
-- Config
-- .RunApplication
+- CmdStopBotWithMessage
+- FakeFlashBridge
 - CmdJoin2
 - scripts
 - CmdIndex
 - BotUtilities
-- 9. Implementation phases and gates
+- CmdCellIsNot
 - StatusIcon
+- Color
 - CmdChange
 - CmdClientMessage
 - Grimoire Exodus v1.6.0
 - Shared cross-platform artifacts
-- AxShockwaveFlash
-- IEnumerable
 - HttpRequest
+- IEnumerable
+- Grimoire.Clients
 - CmdSetFPS
-- SessionState
+- SingleInstanceBrokerSmoke
 - Grimoire Exodus v1.4.0 Release Notes
 - Aura
 - Q: Why does downgrade still fail after copying Grimoire out of bin/Release?
-- CmdWalk
+- Answers to the feature questions
 - system_threading_tasks
-- Loaders
+- RuffleEngineAvailability
 - Access
 - Inventory
 - CmdBuyFastByID
 - Pull Request Checks
 - QuickBotSelectorSmoke
-- CmdWhitelist
+- FakeFlashBridge
 - CmdMoveToCell
 - Experimental Ruffle in WebView2 Engine
-- Program
-- STAThread
+- ReflectUtils
+- AxShockwaveFlash
 - AQWorlds Master Header
 - Ashfall Dragons Battle
 - CmdBankSwap
 - Grimoire Exodus GitHub Banner
-- EyeDropper
+- .Main
 - Grimoire Exodus v1.3.0 Release Notes
-- CmdLoad2
+- CmdIntGreaterThan
 - CmdMapItem
 - Task
 - CmdUseSkill2
@@ -216,93 +212,87 @@
 - Q: How do mobile Ruffle Canvas bitmap caching and Android bridge readiness connect?
 - Grimoire Exodus v1.3.0
 - Q: Why is Grimoire stuck
-- .lstCommands_DrawItem
+- CmdIntIs
 - AppPaths
 - CmdAcceptQuest2
 - dependencies
-- IGrimoirePlugin
-- DPSForm
-- CmdStopBotWithMessage
-- CmdBlank3
+- CmdAttack
+- Q: Investigate Issue #6: Kill for temp item stops attacking after the room is cleared while passive skills continue
+- Extensions
+- CmdSell
 - .UseSkills
 - CmdCellIs
-- .Main
+- CmdEquipped
 - Control
-- CmdCellIsNot
-- CmdPlayerIsNotInCell
+- CmdFactionRankLessThan
+- Faction
 - CmdSkillSet
 - CmdGetDrop
 - Grimoire Emblem
 - Pinned Official Ruffle Runtime
 - CmdMapItem2
-- CmdAttack
+- CmdInCombat
 - Grimoire Exodus v1.5.0
-- CmdSell
+- 9. Implementation phases and gates
 - Test-UpdaterMerge.ps1
 - Grimoire Exodus website
 - Community GBot Distribution Guide
 - CmdUseBoost
 - CmdBeep
-- CmdEquipped
-- CmdFactionRankLessThan
+- CmdWalk
+- CmdInTemp
 - CmdBlank2
 - .Main
 - CmdBotDelay
 - CmdBotDelay2
-- CmdInCombat
-- CmdInTemp
+- Resources
+- CmdNotInTemp
 - CmdIntIsNot
 - CmdDelay
 - CmdGotoLabel
 - CmdIsMaxStack
+- CmdSkillIsAvailable
 - CmdItemPickupable
-- CmdPlayerInRoom
 - CmdPlayerIsInMyCell
-- CmdManaLessThan
+- CmdPlayerEquippedClass
 - CmdPlayerIsInCell
 - CmdPlayersInCellLessThan
+- CmdPlayerInRoom
+- AppPaths
+- CmdManaLessThan
+- CmdPlayerNotEquippedClass
 - CmdPlayerNotInRoom
-- AppPaths
-- CmdMapIsNot
-- AppPaths
-- CmdMonsterHealthGreaterThan
-- CmdMonsterInRoom
-- CmdIntGreaterThan
+- CmdPlayersInMyCellLessThan
 - Grimoire Exodus v1.1.0 Release Notes
 - tsconfig.json
-- CmdIntIs
-- CmdMonsterNotInRoom
+- CmdQuestInProgress
+- CmdMapIsNot
 - buildComposerUrl()
 - countWords()
 - Bug Report Form
 - Feature Request Form
 - Pull Request Template
+- State
+- CmdMonsterHealthGreaterThan
+- CmdMonsterInRoom
+- CmdMonsterNotInRoom
 - .ShouldRenderClientSurface
-- PreparedUpdate
-- CmdNotEquipped
-- CmdNotInHouse
-- CmdPlayerEquippedClass
 - CmdPlayerInCombat
-- CmdPlayerNotEquippedClass
-- CmdPlayersInMyCellLessThan
-- CmdQuestInProgress
+- CmdNotEquipped
+- QuestInfo.cs
+- CmdNotInHouse
 - CmdPlayerAuraStringValIsNot
-- CmdSkillIsAvailable
+- AppPaths
 - CmdPlayerAuraValIs
 - CmdPlayerAuraValIsNot
-- QuestInfo.cs
-- CmdNotInTemp
 - CmdQuestNotAvailable
 - CmdTargetAuraStringValIs
 - CmdTargetAuraValIsGreaterThan
 - CmdUpdateVar
-- CmdLog
-- CmdToggleProvokeInMap
-- Line
-- SingleInstanceBrokerSmoke
-- UpdateAsset
-- Answers to the feature questions
-- SupportDiagnosticsSmoke
+- v1.7.0.md
+- Loaders
+- state
+- BotDocumentState
 - grimoireInvoke
 - Ruffle/README.md
 - v1.4.0.md
@@ -312,28 +302,28 @@
 - Q: Why does the Android build show HARMAN, fail to detect login/Ciel, and redirect bot features to Home?
 
 ## God Nodes (most connected - your core abstractions)
-1. `Root` - 277 edges
+1. `Root` - 278 edges
 2. `BotManager` - 272 edges
-3. `IBotEngine` - 194 edges
+3. `IBotEngine` - 198 edges
 4. `IBotCommand` - 179 edges
-5. `Grimoire.Game` - 165 edges
-6. `ClientSession` - 128 edges
+5. `Grimoire.Game` - 166 edges
+6. `ClientSession` - 133 edges
 7. `StatementCommand` - 103 edges
-8. `Grimoire.Botting.Commands.Misc.Statements` - 97 edges
-9. `Configuration` - 97 edges
-10. `Grimoire.UI` - 92 edges
+8. `Configuration` - 101 edges
+9. `Grimoire.Botting.Commands.Misc.Statements` - 97 edges
+10. `Grimoire.UI` - 93 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Phase 4 — isolate bot execution and options` --references--> `BotDocumentState`  [INFERRED]
   docs/desktop-multi-client-research-plan.md → app/Grimoire.Botting/BotDocumentState.cs
-- `4.1 `ClientSession`` --references--> `ClientSession`  [INFERRED]
-  docs/desktop-multi-client-research-plan.md → app/Grimoire.Clients/ClientSession.cs
 - `A. Self-hosted Ruffle in WebView2 with a local adapter — selected` --references--> `ClientSessionContext`  [INFERRED]
   docs/desktop-ruffle-engine-plan.md → app/Grimoire.Clients/ClientSessionContext.cs
 - `4.2 `ClientSessionManager`` --references--> `ClientSessionManager`  [INFERRED]
   docs/desktop-multi-client-research-plan.md → app/Grimoire.Clients/ClientSessionManager.cs
 - `Preferences and UI` --references--> `GameEngineKind`  [INFERRED]
   docs/desktop-ruffle-engine-plan.md → app/Grimoire.Clients/GameEngineKind.cs
+- `Ruffle host and transport` --references--> `RuffleFlashBridge`  [INFERRED]
+  docs/desktop-ruffle-engine-plan.md → app/Grimoire.Clients/RuffleFlashBridge.cs
 
 ## Import Cycles
 - None detected.
@@ -348,11 +338,11 @@
 - **Multi-Client Isolation Architecture** — readme_multi_client_mode, app_resources_home_index_multi_client_selector, docs_desktop_multi_client_research_plan_clientsession, docs_desktop_multi_client_research_plan_clientsessionmanager, docs_desktop_multi_client_research_plan_per_session_game_state, docs_desktop_multi_client_research_plan_per_session_bot_model, docs_desktop_multi_client_research_plan_toolbar_isolation [INFERRED 0.95]
 - **Privacy-Safe Support Reporting** — _github_issue_template_website_contact_privacy_review, app_resources_home_index_contact_report_flow, docs_releases_v1_4_0_privacy_safe_support_report, website_readme_issue_relay, website_readme_browser_credential_isolation, website_worker_readme_request_validation, website_worker_readme_origin_and_rate_limit [INFERRED 0.95]
 
-## Communities (327 total, 138 thin omitted)
+## Communities (321 total, 133 thin omitted)
 
 ### Community 0 - "Bot Manager Editing"
 Cohesion: 0.03
-Nodes (14): CmdRest, Full, CmdToggleProvoke, Type, BotManager, ActiveBotEngine, BoundSession, CurrentBotName (+6 more)
+Nodes (24): CmdRest, Full, CmdWhitelist, Item, State, CmdPacketlist2, Delay, Packet (+16 more)
 
 ### Community 1 - "StatementCommand"
 Cohesion: 0.02
@@ -366,37 +356,41 @@ Nodes (4): CmdAcceptQuest, Quest, CmdCompleteQuest, Quest
 Cohesion: 0.03
 Nodes (24): ActiveClientState, AppVersion, Client, ClientSessions, CreateParams, customTravel, enableCapture, GameLoadProgress (+16 more)
 
-### Community 4 - "UpdateService.cs"
-Cohesion: 0.10
-Nodes (3): CompatibilityCheckStatus, NetworkUtils, Grimoire.Tools.Buyback
+### Community 4 - "SessionState"
+Cohesion: 0.18
+Nodes (11): SessionState, BotWasRunning, ExecutablePath, LastBotPath, LastStage, LastUpdatedUtc, ProcessId, ProcessStartedUtc (+3 more)
 
 ### Community 5 - "PacketSpammer"
 Cohesion: 0.09
-Nodes (4): PacketSpammer, CanChangeClientSessionBinding, Instance, SupportsClientSessionBinding
+Nodes (8): Spammer, Instance, IsRunning, LastError, PacketSpammer, CanChangeClientSessionBinding, Instance, SupportsClientSessionBinding
 
 ### Community 6 - "system_linq"
 Cohesion: 0.09
 Nodes (4): Grimoire.Networking.Handlers, Grimoire.Tools, Grimoire.Botting, Grimoire.Game.Data
 
-### Community 7 - ".SetDRM"
-Cohesion: 0.08
-Nodes (3): RawCommandEditor, Content, Input
+### Community 7 - "KillForRecoverySmoke"
+Cohesion: 0.18
+Nodes (5): CombatScenario, SingleUnavailablePulse, StaleTargetAfterRoomClear, ValidLongFight, KillForRecoverySmoke
+
+### Community 8 - "CompatibilityCheckService"
+Cohesion: 0.21
+Nodes (6): CompatibilityCheckResult, Id, Message, Status, Title, CompatibilityCheckService
 
 ### Community 9 - "IFlashBridge"
-Cohesion: 0.04
-Nodes (27): GameEngineKind, FlashActiveX, Ruffle, IFlashBridge, Control, Engine, HostControl, 1. Contract inventory (+19 more)
+Cohesion: 0.06
+Nodes (19): GameEngineKind, FlashActiveX, Ruffle, IFlashBridge, Control, Engine, HostControl, FakeFlashBridge (+11 more)
 
-### Community 10 - ".IsActionAvailable"
+### Community 10 - "List"
 Cohesion: 0.07
-Nodes (11): Shop, Id, IsShopLoaded, Items, Location, Name, ChatCommand, cmdCombat (+3 more)
+Nodes (11): Quests, AcceptedQuests, CompletedQuests, LoadedQuests, QuestTree, UnacceptedQuests, ChatCommand, cmdCombat (+3 more)
 
 ### Community 11 - "BankItem"
 Cohesion: 0.03
 Nodes (54): BankItem, Bank, Category, CharItemId, CharItemID, Coins, Cost, Description (+46 more)
 
-### Community 13 - "ClientSessionContext"
-Cohesion: 0.18
-Nodes (10): ClientSessionContext, Current, 4.1 `ClientSession`, 4.2 `ClientSessionManager`, 4.3 Instance Flash bridge, 4.4 Session context and legacy compatibility facades, 4.5 Per-session game state and packet dispatch, 4.6 Per-session bot model (+2 more)
+### Community 12 - ".MoveOutOfCombat"
+Cohesion: 0.12
+Nodes (6): Shop, Id, IsShopLoaded, Items, Location, Name
 
 ### Community 14 - "Configuration"
 Cohesion: 0.04
@@ -407,47 +401,47 @@ Cohesion: 0.04
 Nodes (50): GameSessionState, ActiveBot, AuraSyncRoot, Bank, BotCell, BotConfigurations, BotDropsInInventory, BotMap (+42 more)
 
 ### Community 16 - "ActiveXFlashBridge"
-Cohesion: 0.18
-Nodes (5): ActiveXFlashBridge, Control, Engine, HostControl, The likely desktop bottlenecks
+Cohesion: 0.15
+Nodes (6): ActiveXFlashBridge, Control, Engine, HostControl, The likely desktop bottlenecks, 1. Contract inventory
 
 ### Community 17 - "StartupDiagnostics"
 Cohesion: 0.22
 Nodes (3): StartupDiagnostics, PreviousSession, StartupLogFile
 
 ### Community 18 - "Quest Data Management"
-Cohesion: 0.09
-Nodes (3): BotDocumentChangedEventArgs, ConfigurationChanged, MetadataChanged
+Cohesion: 0.07
+Nodes (5): CmdLabel, Name, ActiveClientSessionChangedEventArgs, Current, Previous
 
 ### Community 19 - "Bot"
-Cohesion: 0.07
+Cohesion: 0.06
 Nodes (17): Bot, Configuration, Configurations, CurrentConfiguration, DropDelay, DropsInInventory, Index, Instance (+9 more)
 
 ### Community 20 - "AppPreferenceSnapshot"
-Cohesion: 0.07
+Cohesion: 0.06
 Nodes (26): AppPreferences, AppPreferenceSnapshot, ActiveClientFramesPerSecond, AllowUnlimitedClients, ConfirmOnClose, EnableMultiClient, GameEngine, HideDeviceStats (+18 more)
 
-### Community 21 - "IJsonMessageHandler"
-Cohesion: 0.11
-Nodes (12): HandlerDrops, HandledCommands, HandlerAura, HandledCommands, HandlerInfo, HandledCommands, HandlerSkills, HandledCommands (+4 more)
+### Community 21 - "JsonMessage"
+Cohesion: 0.07
+Nodes (26): HandlerDrops, HandledCommands, HandlerGetQuests, HandledCommands, HandlerArea, HandledCommands, HandlerBuyItem, HandledCommands (+18 more)
 
 ### Community 22 - "Inventory Drop Handling"
 Cohesion: 0.05
 Nodes (37): World, ActiveCutscene, AllCellInfo, AuraSyncRoot, AvailableMonsters, AvatarsInMap, AvatarsInMyCell, Cells (+29 more)
 
 ### Community 23 - "KeyboardHook"
-Cohesion: 0.26
-Nodes (3): KeyboardHook, Instance, SuppressHotkeyEvents
+Cohesion: 0.15
+Nodes (7): KeyboardHook, Instance, SuppressHotkeyEvents, HotkeyBindingDefinition, ActionIndex, DefaultKey, DisplayName
 
 ### Community 24 - "Quest"
 Cohesion: 0.05
 Nodes (35): Quest, CanComplete, ClassPointsReward, Description, EndText, ExperienceReward, Faction, FactionId (+27 more)
 
-### Community 25 - ".Call"
-Cohesion: 0.06
-Nodes (15): Bank, AvailableSlots, HasBankOpen, IsBankLoaded, Items, TotalSlots, UsedSlots, Quests (+7 more)
+### Community 25 - "FakeBotEngine"
+Cohesion: 0.14
+Nodes (5): FakeBotEngine, Configuration, CurrentConfiguration, Index, IsRunning
 
-### Community 26 - "AxShockwaveFlash"
-Cohesion: 0.12
+### Community 26 - ".CreateClientSessionCore"
+Cohesion: 0.13
 Nodes (5): AccountCredentials, Id, Label, Password, Username
 
 ### Community 27 - "InventoryItem"
@@ -455,24 +449,28 @@ Cohesion: 0.05
 Nodes (32): InventoryItem, Category, CharItemId, Cost, Description, DropChance, EquipmentSlot, File (+24 more)
 
 ### Community 28 - "Proxy"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (13): IXmlMessageHandler, HandledCommands, Message, Command, RawContent, Send, Proxy, _catchAllPackets (+5 more)
 
-### Community 29 - "Type"
-Cohesion: 0.11
-Nodes (7): SafeBotSerializationBinder, BoolConverter, IntStringConverter, QuestReqConverter, QuestRewardConverter, StringBoolConverter, TrimConverter
+### Community 29 - "Dictionary"
+Cohesion: 0.13
+Nodes (6): BoolConverter, IntStringConverter, QuestReqConverter, QuestRewardConverter, StringBoolConverter, TrimConverter
+
+### Community 30 - "PluginManager"
+Cohesion: 0.08
+Nodes (15): GrimoirePlugin, Author, Description, LastError, Name, IGrimoirePlugin, Author, Description (+7 more)
 
 ### Community 31 - "Hotkeys"
 Cohesion: 0.06
-Nodes (18): Hotkey, ActionIndex, Gesture, Key, Modifiers, Text, HotkeyGesture, IsEmpty (+10 more)
+Nodes (15): Hotkey, ActionIndex, Gesture, Key, Modifiers, Text, HotkeyGesture, IsEmpty (+7 more)
 
 ### Community 32 - "ClientOptionState"
 Cohesion: 0.05
 Nodes (38): ClientOptionState, Afk, AntiAfkCancellation, AntiAfkEnabled, AntiAfkTask, ChangeChat, DesiredFramesPerSecond, DisableAnimations (+30 more)
 
 ### Community 33 - "ClientSession"
-Cohesion: 0.05
-Nodes (30): ClientSession, AssignedAccountId, BotDocument, BotEngine, DefaultDisplayName, DisplayName, FlashBridge, GameState (+22 more)
+Cohesion: 0.04
+Nodes (38): ClientSession, AssignedAccountId, BotDocument, BotEngine, DefaultDisplayName, DisplayName, FlashBridge, GameState (+30 more)
 
 ### Community 34 - "InventoryItemCombined"
 Cohesion: 0.05
@@ -482,48 +480,48 @@ Nodes (33): InventoryItemCombined, Category, CharItemId, Coins, Cost, Descriptio
 Cohesion: 0.13
 Nodes (4): Travel, Instance, travelNames, travels
 
-### Community 36 - "BotDocumentState"
-Cohesion: 0.23
-Nodes (7): BotDocumentState, Configuration, DisplayName, HasSnapshot, IsDirty, SourcePath, 15. Implementation status
-
-### Community 37 - "IJsonMessageHandler"
-Cohesion: 0.12
-Nodes (12): HandlerGetQuests, HandledCommands, HandlerArea, HandledCommands, HandlerBuyItem, HandledCommands, HandlerLoadShop, HandledCommands (+4 more)
+### Community 36 - "BotClientConfig"
+Cohesion: 0.07
+Nodes (15): BotClientConfig, Contents, file, Instance, Config, Contents, file, Instance (+7 more)
 
 ### Community 38 - "XtMessage"
-Cohesion: 0.12
-Nodes (16): HandlerAFK, HandledCommands, HandlerChat, HandledCommands, HandlerWarningsXt, HandledCommands, HandlerConnection, HandledCommands (+8 more)
+Cohesion: 0.10
+Nodes (18): HandlerAFK, HandledCommands, HandlerChat, HandledCommands, HandlerLogin, HandledCommands, HandlerWarningsXt, HandledCommands (+10 more)
 
 ### Community 39 - "RuffleLocalHost"
-Cohesion: 0.11
+Cohesion: 0.12
 Nodes (8): RuffleLocalHost, BaseUrl, Port, Token, WebSocketFrame, Final, Opcode, Payload
 
 ### Community 40 - "Avatar"
 Cohesion: 0.05
 Nodes (36): Avatar, AccessLevel, AccessType, AFK, Auras, Cell, Class, ClassRank (+28 more)
 
-### Community 43 - "Map Cell Data"
+### Community 41 - "SettingsForm"
+Cohesion: 0.10
+Nodes (3): SettingsForm, VersionReleaseItem, Release
+
+### Community 42 - "Set"
 Cohesion: 0.08
-Nodes (3): ClientSessionEventArgs, Session, AccountProfileCapturePolicy
+Nodes (6): Set, ISetInterface, Item, Name, Type, SetItem
+
+### Community 43 - "Map Cell Data"
+Cohesion: 0.09
+Nodes (5): AccountProfileCaptureDisposition, Complete, Pause, Retry, AccountProfileCapturePolicy
 
 ### Community 44 - "IssueReportService"
 Cohesion: 0.11
 Nodes (18): IssueReportException, IssueReportOperation, Completed, External, IssueUrl, Message, RequestId, Success (+10 more)
 
 ### Community 45 - "AccountVault"
-Cohesion: 0.14
-Nodes (8): AccountVault, LegacyVaultPath, VaultDirectory, VaultPath, VisualDirectory, AccountVaultFile, Accounts, Version
+Cohesion: 0.19
+Nodes (5): AccountVault, LegacyVaultPath, VaultDirectory, VaultPath, VisualDirectory
 
 ### Community 46 - "QuickBotSelectorForm"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (6): BotListItem, Name, Path, ListBoxThemeAdapter, QuickBotSelectorForm, SelectedBotPath
 
-### Community 47 - "Spammer"
-Cohesion: 0.17
-Nodes (4): Spammer, Instance, IsRunning, LastError
-
 ### Community 48 - "UltraCharacterClassLookup"
-Cohesion: 0.21
+Cohesion: 0.12
 Nodes (5): CacheEntry, ClassName, ExpiresUtc, FromLiveData, UltraCharacterClassLookup
 
 ### Community 49 - "Portable Update Application"
@@ -531,32 +529,36 @@ Cohesion: 0.06
 Nodes (27): attachment, canSubmit, categories, customVersion, detailsLength, downloadUrl, fallbackIssueUrl, form (+19 more)
 
 ### Community 50 - "Application Path Management"
-Cohesion: 0.05
+Cohesion: 0.06
 Nodes (26): OptionsManager, AFK, _antiAfk, ChangeChat, DisableAnimations, EnemyMagnet, HidePlayers, HideRoom (+18 more)
 
-### Community 51 - "IContainer"
-Cohesion: 0.05
-Nodes (9): CommandNode, activeControl, NodeEditor, TypedCommand, Notepad, UserFriendlyCommandEditor, cmd, cmdObj (+1 more)
-
-### Community 52 - "ItemBase"
-Cohesion: 0.15
-Nodes (12): ItemBase, Category, Coins, Description, File, ID, Link, MaxStack (+4 more)
+### Community 51 - "NodeEditor"
+Cohesion: 0.10
+Nodes (4): CommandNode, activeControl, NodeEditor, TypedCommand
 
 ### Community 53 - "Packet Command Handling"
 Cohesion: 0.07
 Nodes (10): QueuedHostCallback, Arguments, FirstArgument, Function, RuffleFlashBridge, Control, Engine, HostControl (+2 more)
 
 ### Community 54 - "system"
-Cohesion: 0.07
-Nodes (7): GrimoirePluginEntry, Grimoire.Updater, Grimoire.Tools.Plugins, Grimoire.UI, Grimoire, Grimoire.Botting.Commands.Map, Grimoire.Utils
+Cohesion: 0.08
+Nodes (5): GrimoirePluginEntry, Grimoire.Tools.Plugins, Grimoire.UI, Grimoire, Grimoire.Utils
 
 ### Community 55 - "ResizableUserControl"
-Cohesion: 0.11
+Cohesion: 0.15
 Nodes (9): ResizableUserControl, Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft (+1 more)
 
 ### Community 56 - "LogForm"
 Cohesion: 0.05
 Nodes (12): DebugLogger, LogForm, Instance, SelectedLog, NonClosableVSTabControl, PacketLogger, Instance, SupportsClientSessionBinding (+4 more)
+
+### Community 57 - "BotManager.cs"
+Cohesion: 0.17
+Nodes (3): Grimoire.Botting.Commands, Grimoire.Botting.Commands.Map, Properties
+
+### Community 58 - "CosmeticForm"
+Cohesion: 0.09
+Nodes (9): CosmeticEquipment, ID, Link, Meta, Slot, SWFFile, Type, CosmeticForm (+1 more)
 
 ### Community 59 - "itemsR"
 Cohesion: 0.08
@@ -566,29 +568,33 @@ Nodes (25): itemsR, bPTR, Category, Coins, Cost, Description, HouseItem, Icon (+
 Cohesion: 0.08
 Nodes (25): itemsS, bPTR, Category, Coins, Cost, Description, HouseItem, Icon (+17 more)
 
-### Community 61 - "IssueReportServiceSmoke"
+### Community 61 - "CompatibilityCheckContext"
+Cohesion: 0.11
+Nodes (15): CompatibilityCheckContext, ApplicationDirectory, ApplicationVersion, ClientState, DataDirectory, GameEngine, GameEngineAvailabilityError, GameLoadProgress (+7 more)
+
+### Community 62 - ".Execute"
+Cohesion: 0.15
+Nodes (4): CmdJoin, Cell, Map, Pad
+
+### Community 63 - "IssueReportServiceSmoke"
 Cohesion: 0.33
 Nodes (4): FakeHandler, Body, Origin, IssueReportServiceSmoke
 
-### Community 62 - ".Execute"
-Cohesion: 0.11
-Nodes (4): CmdJoin, Cell, Map, Pad
-
 ### Community 64 - "CancellationTokenSource"
-Cohesion: 0.12
-Nodes (9): ClientLoginState, IsBusy, AutoRelogin, AreServersLoaded, GameLabel, IsTemporarilyKicked, LoginLabel, ServerIP (+1 more)
+Cohesion: 0.07
+Nodes (20): ClientLoginState, IsBusy, Server, Ip, IsChatRestricted, IsMemberOnly, IsOnline, Language (+12 more)
 
 ### Community 65 - "CmdUseSkill"
 Cohesion: 0.29
 Nodes (6): CmdUseSkill, Index, SafeHp, SafeMp, Skill, Wait
 
 ### Community 66 - "Resources"
-Cohesion: 0.08
-Nodes (14): Settings, Default, Style, Resources, Culture, defaulttext, GrimoireIcon, ResourceManager (+6 more)
+Cohesion: 0.15
+Nodes (7): Settings, Default, Style, Settings, Default, Style, Grimoire.Properties
 
-### Community 67 - "GameEngineKind"
-Cohesion: 0.17
-Nodes (10): Official AQW Origin Rewrite, Outbound Callback Dispatch, Grimoire Ruffle WebView Surface, Tokenized Socket Proxy Configuration, 3. Selected implementation boundaries, Engine-Neutral Session Host, Failure and fallback, Per-Client Loopback HTTP and Socket Transport (+2 more)
+### Community 67 - "FakeFlashBridge"
+Cohesion: 0.12
+Nodes (7): FakeFlashBridge, Control, Disposed, Engine, GameFunctionCallCount, HostControl, LastFrameRate
 
 ### Community 68 - "GitHub issue relay Worker"
 Cohesion: 0.09
@@ -603,44 +609,52 @@ Cohesion: 0.09
 Nodes (14): TempInventory, Items, TempItem, Cost, Description, Id, IsAcItem, IsMemberOnly (+6 more)
 
 ### Community 71 - "PlayerInfo"
-Cohesion: 0.09
-Nodes (22): PlayerInfo, AFK, Cell, Class, CurrentState, EntID, HP, Level (+14 more)
+Cohesion: 0.10
+Nodes (18): PlayerInfo, AFK, Cell, Class, CurrentState, EntID, HP, Level (+10 more)
 
 ### Community 74 - "Desktop Ruffle engine implementation plan"
 Cohesion: 0.12
 Nodes (15): 2. Architecture candidates, 4. Supply chain and packaging, 5. Repeated design review, 6. Validation gates, A. Self-hosted Ruffle in WebView2 with a local adapter — selected, B. Custom native Ruffle host/helper — deferred fallback, C. Stock Ruffle desktop executable — rejected, Desktop Ruffle engine implementation plan (+7 more)
 
 ### Community 75 - "DllImport"
-Cohesion: 0.09
-Nodes (8): GrimoireForm, BoundClientSession, CanChangeClientSessionBinding, SupportsClientSessionBinding, SafeWinEventHookHandle, NativeScrollBars, InputBox, TitleBarThemeSmoke
+Cohesion: 0.10
+Nodes (7): GrimoireForm, BoundClientSession, CanChangeClientSessionBinding, SupportsClientSessionBinding, SafeWinEventHookHandle, NativeScrollBars, TitleBarThemeSmoke
 
 ### Community 77 - "AppPaths"
 Cohesion: 0.11
 Nodes (17): AppPaths, AccountVisualsDirectory, ApplicationDirectory, BotClientConfigFile, BotsDirectory, CommunityBotsDirectory, ConfigFile, CrashReportsDirectory (+9 more)
 
-### Community 78 - ".LoadBotFromFile"
-Cohesion: 0.10
-Nodes (3): CmdLabel, Name, DocConvert
+### Community 78 - "CompatibilityCheckOperation"
+Cohesion: 0.18
+Nodes (10): CompatibilityCheckOperation, Checks, Completed, Failed, Message, Passed, Report, RequestId (+2 more)
 
 ### Community 79 - "UltraKitForm"
-Cohesion: 0.15
+Cohesion: 0.13
 Nodes (3): UltraKitForm, IsRefreshActive, SupportsClientSessionBinding
 
 ### Community 80 - "ClientSessionManager"
-Cohesion: 0.16
-Nodes (7): ClientSessionManager, ActiveSession, Default, MaximumSessions, Sessions, ClientLimitSmoke, ClientSessionIsolationSmoke
+Cohesion: 0.14
+Nodes (9): ClientSessionEventArgs, Session, ClientSessionManager, ActiveSession, Default, MaximumSessions, Sessions, ClientLimitSmoke (+1 more)
 
 ### Community 81 - "ExtendedAvatar"
 Cohesion: 0.10
 Nodes (21): ExtendedAvatar, ActivationFlag, AdventureCoin, Bank, BankSlots, BoostCP, BoostGold, BoostRep (+13 more)
 
-### Community 82 - "PluginManager"
-Cohesion: 0.19
-Nodes (3): PluginManager, Instance, LastError
+### Community 82 - "ItemBase"
+Cohesion: 0.15
+Nodes (12): ItemBase, Category, Coins, Description, File, ID, Link, MaxStack (+4 more)
 
-### Community 86 - "Player"
+### Community 84 - "UpdateRelease"
+Cohesion: 0.11
+Nodes (14): UpdateAsset, DownloadUrl, Name, Sha256, Size, UpdateRelease, HtmlUrl, InstallerAsset (+6 more)
+
+### Community 85 - "IContainer"
 Cohesion: 0.04
-Nodes (38): Player, ActivationFlag, AllSkillsAvailable, Bank, Cell, CharUserID, Class, CurrentState (+30 more)
+Nodes (8): BankForm, DPSForm, EyeDropper, Instance, Notepad, RawCommandEditor, Content, Input
+
+### Community 86 - ".Call"
+Cohesion: 0.03
+Nodes (45): Bank, AvailableSlots, HasBankOpen, IsBankLoaded, Items, TotalSlots, UsedSlots, Player (+37 more)
 
 ### Community 87 - "Desktop rendering performance research for"
 Cohesion: 0.11
@@ -650,21 +664,21 @@ Nodes (16): CmdSetFPS, FPS, Compatibility spike and benchmark matrix, Decision, 
 Cohesion: 0.13
 Nodes (12): Issue Intake Configuration, Private Security Reporting, Private Registration-Free Flash Runtime, App-Local Flash Runtime Guide, Contributor Covenant Code of Conduct, Harassment-Free Community, Contribution Guide, Contribution Testing Policy (+4 more)
 
+### Community 92 - "AccountVaultFile"
+Cohesion: 0.33
+Nodes (3): AccountVaultFile, Accounts, Version
+
 ### Community 93 - "Grimoire Exodus v1.2.0 Improvement and"
 Cohesion: 0.13
 Nodes (9): Grimoire Exodus v1.1.0 Code and Performance Audit, 2026-10-15 Implementation Outcome, Legacy Compatibility Guardrails, Bot Doctor, Compatibility Center, Future-Work Compatibility Rules, Grimoire Exodus v1.2.0 Improvement and Feature Research, Grimoire Exodus v1.2.0 Release Notes (+1 more)
 
-### Community 94 - "EquipType"
-Cohesion: 0.18
-Nodes (10): EquipType, Armor, Cape, Class, Ground, Helm, None, Offhand (+2 more)
+### Community 94 - "Selected Ruffle WebView2 Adapter"
+Cohesion: 0.17
+Nodes (10): Official AQW Origin Rewrite, Outbound Callback Dispatch, Grimoire Ruffle WebView Surface, Tokenized Socket Proxy Configuration, 3. Selected implementation boundaries, Engine-Neutral Session Host, Failure and fallback, Per-Client Loopback HTTP and Socket Transport (+2 more)
 
 ### Community 95 - "Monster"
 Cohesion: 0.11
 Nodes (18): Monster, Alive, Auras, Cell, CurrentState, Health, Id, Level (+10 more)
-
-### Community 96 - "Server"
-Cohesion: 0.12
-Nodes (11): Server, Ip, IsChatRestricted, IsMemberOnly, IsOnline, Language, List, MaxCount (+3 more)
 
 ### Community 97 - "exodus.ps1"
 Cohesion: 0.19
@@ -673,10 +687,6 @@ Nodes (19): Assert-CompleteBuildOutput(), Assert-DefaultBuildOutputAvailable(), 
 ### Community 98 - "CmdBuyByID"
 Cohesion: 0.33
 Nodes (5): CmdBuyByID, ItemID, Manual, ShopID, ShopItemID
-
-### Community 100 - "CmdPacketlist2"
-Cohesion: 0.29
-Nodes (4): CmdPacketlist2, Delay, Packet, Type
 
 ### Community 101 - ".Run()"
 Cohesion: 0.22
@@ -687,8 +697,8 @@ Cohesion: 0.12
 Nodes (15): LockActions, AcceptQuest, BuyItem, DoIA, EquipItem, GetMapItem, LoadEnhShop, LoadHairShop (+7 more)
 
 ### Community 103 - "Action"
-Cohesion: 0.16
-Nodes (4): ControlUtils, SingleInstanceBroker, IsPrimaryInstance, TimeLimiter
+Cohesion: 0.13
+Nodes (5): Program, ControlUtils, SingleInstanceBroker, IsPrimaryInstance, TimeLimiter
 
 ### Community 104 - "CmdEquipSet"
 Cohesion: 0.18
@@ -702,9 +712,9 @@ Nodes (16): applyState, Home Contact and Report Flow, copyDoctorResults, Home Gr
 Cohesion: 0.15
 Nodes (11): Release Compatibility Smoke Suite, GitHub Release Publication, Release Package Build, Release SHA-256 Checksums, Tagged Windows Build, Grimoire Doctor Compatibility Checks, Grimoire Exodus v1.5.0 Release Notes, Searchable Quick Load Selector (+3 more)
 
-### Community 107 - "Grimoire Exodus desktop multi-client research and implementation plan"
-Cohesion: 0.10
-Nodes (19): 10. Validation plan, 11. Risk register, 12. Compatibility and rollback strategy, 13. Recommended first implementation slice, 14. Final recommendation, 1. Executive summary, 2. Product outcome, 5. Toolbar isolation contract (+11 more)
+### Community 107 - "BotDocumentState"
+Cohesion: 0.11
+Nodes (17): 10. Validation plan, 11. Risk register, 12. Compatibility and rollback strategy, 13. Recommended first implementation slice, 14. Final recommendation, 15. Implementation status, 1. Executive summary, 2. Product outcome (+9 more)
 
 ### Community 108 - "package.json"
 Cohesion: 0.12
@@ -718,13 +728,13 @@ Nodes (14): @lucide/vue, nuxt, @nuxtjs/tailwindcss, tailwindcss, @types/node, ty
 Cohesion: 0.23
 Nodes (11): allowedCategories, allowedOrigin(), buildIssueBody(), cleanInline(), cleanMultiline(), cleanRepositoryPart(), corsHeaders(), fetch() (+3 more)
 
-### Community 111 - "BotClientConfig"
-Cohesion: 0.13
-Nodes (10): BotClientConfig, Contents, file, Instance, 8. Persistence, recovery, shutdown, and updates, Closing one client, Closing or updating the app, Recovery (+2 more)
+### Community 111 - "EquipType"
+Cohesion: 0.18
+Nodes (10): EquipType, Armor, Cape, Class, Ground, Helm, None, Offhand (+2 more)
 
-### Community 112 - "CompatibilityCheckService"
-Cohesion: 0.07
-Nodes (33): RuffleEngineAvailability, CompatibilityCheckContext, ApplicationDirectory, ApplicationVersion, ClientState, DataDirectory, GameEngine, GameEngineAvailabilityError (+25 more)
+### Community 112 - "RecoveryInfo"
+Cohesion: 0.20
+Nodes (7): RecoveryInfo, BotWasRunning, LastBotPath, LastStage, LastUpdatedUtc, StartedUtc, WasHiddenToTray
 
 ### Community 113 - "CmdPacket2"
 Cohesion: 0.11
@@ -734,29 +744,25 @@ Nodes (13): CmdFollow, Name, CmdGotoPlayer, PlayerName, _playerName, CmdPacket, 
 Cohesion: 0.33
 Nodes (5): CmdCompleteQuest2, ItemID, _itemID, QuestID, _questID
 
-### Community 117 - "CosmeticEquipment"
-Cohesion: 0.18
-Nodes (7): CosmeticEquipment, ID, Link, Meta, Slot, SWFFile, Type
-
 ### Community 118 - "BotData"
 Cohesion: 0.10
 Nodes (21): BotData, BotCell, BotMap, BotPad, BotQuests, BotSkill, BotState, SkillSet (+13 more)
 
-### Community 119 - "GrimoirePlugin"
-Cohesion: 0.31
-Nodes (5): GrimoirePlugin, Author, Description, LastError, Name
-
 ### Community 120 - "Skill"
-Cohesion: 0.08
-Nodes (12): Skill, ComparisonType, Index, SafeHp, SafeMp, SafePercentage, Text, Type (+4 more)
+Cohesion: 0.07
+Nodes (13): Skill, ComparisonType, Index, SafeHp, SafeMp, SafePercentage, Text, Type (+5 more)
 
 ### Community 121 - "Dark Fantasy Branding"
 Cohesion: 0.16
 Nodes (4): DropStack, Count, InProcess, MarkedDrops
 
-### Community 122 - "UltraKitSnapshot"
+### Community 122 - "PreparedUpdate"
 Cohesion: 0.29
-Nodes (7): UltraKitSnapshot, ClientName, Connected, Location, Monsters, Players, Status
+Nodes (7): PreparedUpdate, InstallerMode, PackagePath, PayloadDirectory, Release, RequiresElevation, UpdaterPath
+
+### Community 123 - "UserFriendlyCommandEditor"
+Cohesion: 0.09
+Nodes (4): UserFriendlyCommandEditor, cmd, cmdObj, commandEditor
 
 ### Community 124 - "UltraPlayerSnapshot"
 Cohesion: 0.12
@@ -767,27 +773,23 @@ Cohesion: 0.22
 Nodes (9): AccountSummary, CharacterClass, CharacterLevel, CharacterName, HasPortrait, Id, Label, PortraitDataUri (+1 more)
 
 ### Community 126 - "AutoBuyBack"
-Cohesion: 0.14
+Cohesion: 0.20
 Nodes (8): AutoBuyBack, Password, Username, BuyBackPage, EventArgument, EventValidation, ViewState, ViewStateGenerator
 
 ### Community 127 - "SupportDiagnostics"
-Cohesion: 0.17
-Nodes (5): DiagnosticFile, DisplayName, LastWriteUtc, Path, SupportDiagnostics
+Cohesion: 0.10
+Nodes (12): CmdLog, Clear, Debug, Text, DiagnosticFile, DisplayName, LastWriteUtc, Path (+4 more)
 
 ### Community 128 - "House"
 Cohesion: 0.50
 Nodes (3): House, Items, TotalSlots
 
-### Community 129 - "Item"
-Cohesion: 0.24
-Nodes (5): ISetInterface, Item, Name, Type, SetItem
-
 ### Community 130 - "CmdKillFor"
-Cohesion: 0.17
-Nodes (9): CmdKillFor, ItemName, ItemType, Monster, Quantity, ItemType, Items, TempItems (+1 more)
+Cohesion: 0.18
+Nodes (8): CmdKillFor, ItemName, ItemType, Monster, Quantity, ItemType, Items, TempItems
 
 ### Community 131 - "AccountRecord"
-Cohesion: 0.25
+Cohesion: 0.20
 Nodes (8): AccountRecord, CharacterClass, CharacterLevel, CharacterName, Id, Label, ProtectedPassword, Username
 
 ### Community 132 - "Grimoire Exodus Agent Guide"
@@ -807,24 +809,16 @@ Cohesion: 0.13
 Nodes (10): CmdQuestlist, ItemID, _itemID, QuestID, _questID, state, State, Add (+2 more)
 
 ### Community 136 - "UltraMonsterSnapshot"
-Cohesion: 0.15
-Nodes (8): UltraMonsterSnapshot, Health, Id, Level, MaxHealth, Name, Race, State
-
-### Community 137 - "UpdateRelease"
-Cohesion: 0.16
-Nodes (10): VersionReleaseItem, Release, UpdateRelease, HtmlUrl, InstallerAsset, IsPrerelease, Name, PortableAsset (+2 more)
+Cohesion: 0.12
+Nodes (15): UltraKitSnapshot, ClientName, Connected, Location, Monsters, Players, Status, UltraMonsterSnapshot (+7 more)
 
 ### Community 138 - "RuffleServerMap"
 Cohesion: 0.29
 Nodes (4): RuffleServerEndpoint, Host, Port, RuffleServerMap
 
 ### Community 139 - "CompletedQuest"
-Cohesion: 0.14
-Nodes (12): CompletedQuest, Id, Name, Reward, Success, QuestReward, ClassPoints, Experience (+4 more)
-
-### Community 140 - "Faction"
 Cohesion: 0.18
-Nodes (8): Faction, ID, Name, Rank, RemainingRep, Rep, RequiredRep, TotalRep
+Nodes (10): CompletedQuest, Id, Name, Reward, Success, QuestReward, ClassPoints, Experience (+2 more)
 
 ### Community 141 - "ClientSession"
 Cohesion: 0.20
@@ -838,21 +832,13 @@ Nodes (4): CmdLoadBot, BotFileName, BotFilePath, _path
 Cohesion: 0.15
 Nodes (8): CmdInt, Int, type, Value, Types, Lower, Set, Upper
 
-### Community 144 - "AccountProfileCaptureDisposition"
-Cohesion: 0.50
-Nodes (4): AccountProfileCaptureDisposition, Complete, Pause, Retry
-
-### Community 145 - "RecoveryInfo"
-Cohesion: 0.29
-Nodes (7): RecoveryInfo, BotWasRunning, LastBotPath, LastStage, LastUpdatedUtc, StartedUtc, WasHiddenToTray
-
 ### Community 146 - "ShopInfo"
-Cohesion: 0.20
+Cohesion: 0.18
 Nodes (10): ShopInfo, Field, House, Id, Index, Items, Location, Member (+2 more)
 
-### Community 147 - "Config"
-Cohesion: 0.15
-Nodes (5): Config, Contents, file, Instance, AtomicFile
+### Community 148 - "FakeFlashBridge"
+Cohesion: 0.18
+Nodes (8): FakeFlashBridge, AttackCount, CancelTargetCount, Control, Engine, HostControl, SkillCallCount, TempQuantity
 
 ### Community 149 - "CmdJoin2"
 Cohesion: 0.18
@@ -870,13 +856,13 @@ Nodes (7): CmdIndex, Index, Type, IndexCommand, Down, Goto, Up
 Cohesion: 0.22
 Nodes (5): BotUtilities, ActiveBot, BusyClient, HasLoadedQuests, ShouldUseSkill
 
-### Community 153 - "9. Implementation phases and gates"
-Cohesion: 0.20
-Nodes (10): 9. Implementation phases and gates, Phase 0 — establish test seams and baselines, Phase 1 — two-Flash-control feasibility spike, Phase 2 — introduce session ownership with one live client, Phase 3 — isolate Flash, packets, and game state, Phase 4 — isolate bot execution and options, Phase 5 — add client UI and toolbar binding, Phase 6 — bind Home, tools, recovery, tray, and updater (+2 more)
-
 ### Community 154 - "StatusIcon"
-Cohesion: 0.22
-Nodes (9): StatusIcon, Cpu, EyeClosed, EyeOpen, Network, QuickLoad, Settings, UpdateAvailable (+1 more)
+Cohesion: 0.20
+Nodes (10): StatusIcon, Cpu, EyeClosed, EyeOpen, Network, Ping, QuickLoad, Settings (+2 more)
+
+### Community 155 - "Color"
+Cohesion: 0.06
+Nodes (8): CmdBlank3, Alpha, B, G, R, Text, FontInfo, PurpleMenuRenderer
 
 ### Community 156 - "CmdChange"
 Cohesion: 0.50
@@ -894,41 +880,37 @@ Nodes (4): Additional changes, Compatibility, Grimoire Exodus v1.6.0, Highlights
 Cohesion: 0.22
 Nodes (4): Cross-Platform Contracts, Independent Contract Versioning, Privacy-Safe Synthetic Fixtures, Shared cross-platform artifacts
 
-### Community 162 - "HttpRequest"
+### Community 160 - "HttpRequest"
 Cohesion: 0.40
 Nodes (5): HttpRequest, Body, Headers, Method, PathAndQuery
+
+### Community 162 - "Grimoire.Clients"
+Cohesion: 0.06
+Nodes (6): CompatibilityCheckStatus, NetworkUtils, Grimoire.Updater, Grimoire.Clients, Grimoire.Networking, Grimoire.Tools.Buyback
 
 ### Community 163 - "CmdSetFPS"
 Cohesion: 0.33
 Nodes (6): Findings, Focused .NET hot-path scan, Informational: two small string patterns, Moderate if profiling confirms bridge pressure: repeated bridge allocations, Resolved during implementation: FPS command had no asynchronous work, Scan execution checklist
-
-### Community 164 - "SessionState"
-Cohesion: 0.11
-Nodes (12): ReflectUtils, SessionState, BotWasRunning, ExecutablePath, LastBotPath, LastStage, LastUpdatedUtc, ProcessId (+4 more)
 
 ### Community 165 - "Grimoire Exodus v1.4.0 Release Notes"
 Cohesion: 0.25
 Nodes (5): Privacy-Filtered Support Report, Grimoire Exodus v1.4.0 Release Notes, Desktop Rendering Controls, Ruffle Engine Selector Preview, Rendering and Performance Controls
 
 ### Community 166 - "Aura"
-Cohesion: 0.25
-Nodes (7): Aura, disableType, Duration, entityID, Name, realValue, Value
+Cohesion: 0.17
+Nodes (9): Aura, disableType, Duration, entityID, Name, realValue, Value, HandlerAura (+1 more)
 
 ### Community 167 - "Q: Why does downgrade still fail after copying Grimoire out of bin/Release?"
 Cohesion: 0.40
 Nodes (4): Answer, Outcome, Q: Why does downgrade still fail after copying Grimoire out of bin/Release?, Source Nodes
 
-### Community 168 - "CmdWalk"
-Cohesion: 0.22
-Nodes (6): CmdWalk, Type, X, _x, Y, _y
+### Community 168 - "Answers to the feature questions"
+Cohesion: 0.40
+Nodes (5): Answers to the feature questions, Can AQW or the bot engine be moved to the GPU?, Can it be selected per client?, Is GPU acceleration possible?, What would “Both” mean?
 
 ### Community 169 - "system_threading_tasks"
 Cohesion: 0.04
 Nodes (6): Grimoire.Botting.Commands.Misc, Grimoire.Botting.Commands.Misc.Statements, Grimoire.Botting.Commands.Item, Grimoire.Botting.Commands.Combat, Grimoire.Game, Grimoire.Botting.Commands.Quest
-
-### Community 170 - "Loaders"
-Cohesion: 0.10
-Nodes (11): Loaders, Instance, TreeType, Type, BankItems, InventoryItems, Monsters, QuestIDs (+3 more)
 
 ### Community 171 - "Access"
 Cohesion: 0.29
@@ -946,16 +928,16 @@ Nodes (5): CmdBuyFastByID, ItemID, Manual, ShopID, ShopItemID
 Cohesion: 0.29
 Nodes (7): devDependencies, @nuxtjs/tailwindcss, tailwindcss, @types/node, typescript, vue-tsc, wrangler
 
-### Community 176 - "CmdWhitelist"
-Cohesion: 0.13
-Nodes (9): CmdWhitelist, Item, State, state, Add, Clear, Off, On (+1 more)
+### Community 176 - "FakeFlashBridge"
+Cohesion: 0.12
+Nodes (7): FakeFlashBridge, Control, Disposed, Engine, HostControl, LatencyTimerStartCount, PingMetricSmoke
 
 ### Community 177 - "CmdMoveToCell"
 Cohesion: 0.33
 Nodes (5): CmdMoveToCell, Cell, _cell, Pad, _pad
 
-### Community 180 - "STAThread"
-Cohesion: 0.18
+### Community 180 - "AxShockwaveFlash"
+Cohesion: 0.16
 Nodes (4): FlashActivationSmoke, FlashLoadProgressSmoke, MultiClientFlashActivationSmoke, RenderingProfileSmoke
 
 ### Community 181 - "AQWorlds Master Header"
@@ -1034,17 +1016,17 @@ Nodes (3): CmdAcceptQuest2, QuestID, _questID
 Cohesion: 0.40
 Nodes (5): dependencies, @lucide/vue, nuxt, vue, vue-router
 
-### Community 206 - "IGrimoirePlugin"
-Cohesion: 0.25
-Nodes (3): IGrimoirePlugin, Author, Description
-
-### Community 210 - "CmdBlank3"
-Cohesion: 0.29
-Nodes (6): CmdBlank3, Alpha, B, G, R, Text
+### Community 207 - "Q: Investigate Issue #6: Kill for temp item stops attacking after the room is cleared while passive skills continue"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: Investigate Issue #6: Kill for temp item stops attacking after the room is cleared while passive skills continue, Source Nodes
 
 ### Community 211 - ".UseSkills"
-Cohesion: 0.19
+Cohesion: 0.16
 Nodes (3): CmdKill, Monster, Packet
+
+### Community 216 - "Faction"
+Cohesion: 0.18
+Nodes (8): Faction, ID, Name, Rank, RemainingRep, Rep, RequiredRep, TotalRep
 
 ### Community 219 - "Grimoire Emblem"
 Cohesion: 0.67
@@ -1054,6 +1036,10 @@ Nodes (4): Arcane Energy, Celestial Magic, Grimoire Emblem, Open Spellbook
 Cohesion: 0.50
 Nodes (3): Downloads, Grimoire Exodus v1.5.0, Highlights
 
+### Community 224 - "9. Implementation phases and gates"
+Cohesion: 0.20
+Nodes (10): 9. Implementation phases and gates, Phase 0 — establish test seams and baselines, Phase 1 — two-Flash-control feasibility spike, Phase 2 — introduce session ownership with one live client, Phase 3 — isolate Flash, packets, and game state, Phase 4 — isolate bot execution and options, Phase 5 — add client UI and toolbar binding, Phase 6 — bind Home, tools, recovery, tray, and updater (+2 more)
+
 ### Community 225 - "Test-UpdaterMerge.ps1"
 Cohesion: 0.60
 Nodes (3): New-LegacyTestPayload(), New-TestPayload(), Set-TestFile()
@@ -1062,13 +1048,17 @@ Nodes (3): New-LegacyTestPayload(), New-TestPayload(), Set-TestFile()
 Cohesion: 0.50
 Nodes (3): Grimoire Exodus website, Local development, Production output
 
+### Community 231 - "CmdWalk"
+Cohesion: 0.22
+Nodes (6): CmdWalk, Type, X, _x, Y, _y
+
+### Community 237 - "Resources"
+Cohesion: 0.22
+Nodes (6): Resources, Culture, defaulttext, GrimoireIcon, ResourceManager, statementcmds
+
 ### Community 250 - "AppPaths"
 Cohesion: 0.67
 Nodes (3): AppPaths, AccountVisualsDirectory, DataDirectory
-
-### Community 252 - "AppPaths"
-Cohesion: 0.67
-Nodes (3): AppPaths, CrashReportsDirectory, LogsDirectory
 
 ### Community 260 - "buildComposerUrl()"
 Cohesion: 0.67
@@ -1078,58 +1068,54 @@ Nodes (3): buildComposerUrl(), cleanInline(), submitIssue()
 Cohesion: 0.67
 Nodes (3): countWords(), detailsWordCount, subjectWordCount
 
-### Community 267 - "PreparedUpdate"
-Cohesion: 0.29
-Nodes (7): PreparedUpdate, InstallerMode, PackagePath, PayloadDirectory, Release, RequiresElevation, UpdaterPath
-
-### Community 287 - "CmdLog"
-Cohesion: 0.33
-Nodes (4): CmdLog, Clear, Debug, Text
-
-### Community 288 - "CmdToggleProvokeInMap"
-Cohesion: 0.33
-Nodes (3): CmdToggleProvokeInMap, ProvokePacket, Type
-
-### Community 291 - "UpdateAsset"
-Cohesion: 0.40
-Nodes (5): UpdateAsset, DownloadUrl, Name, Sha256, Size
-
-### Community 293 - "Answers to the feature questions"
-Cohesion: 0.40
-Nodes (5): Answers to the feature questions, Can AQW or the bot engine be moved to the GPU?, Can it be selected per client?, Is GPU acceleration possible?, What would “Both” mean?
-
-### Community 294 - "SupportDiagnosticsSmoke"
+### Community 266 - "State"
 Cohesion: 0.50
-Nodes (3): SupportDiagnosticsSmoke, CrashReportsDirectory, LogsDirectory
+Nodes (4): State, Dead, Idle, InCombat
+
+### Community 276 - "AppPaths"
+Cohesion: 0.67
+Nodes (3): AppPaths, CrashReportsDirectory, LogsDirectory
+
+### Community 290 - "Loaders"
+Cohesion: 0.10
+Nodes (11): Loaders, Instance, TreeType, Type, BankItems, InventoryItems, Monsters, QuestIDs (+3 more)
+
+### Community 293 - "state"
+Cohesion: 0.33
+Nodes (6): state, Add, Clear, Off, On, Remove
+
+### Community 296 - "BotDocumentState"
+Cohesion: 0.17
+Nodes (9): BotDocumentChangedEventArgs, ConfigurationChanged, MetadataChanged, BotDocumentState, Configuration, DisplayName, HasSnapshot, IsDirty (+1 more)
 
 ### Community 352 - "Q: Why does the Android build show HARMAN, fail to detect login/Ciel, and redirect bot features to Home?"
 Cohesion: 0.40
 Nodes (4): Answer, Outcome, Q: Why does the Android build show HARMAN, fail to detect login/Ciel, and redirect bot features to Home?, Source Nodes
 
 ## Knowledge Gaps
-- **1381 isolated node(s):** `Monster`, `Monster`, `Packet`, `Monster`, `ItemName` (+1376 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2047 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **138 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **1401 isolated node(s):** `Monster`, `Monster`, `Packet`, `Monster`, `ItemName` (+1396 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2078 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **133 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Work-memory lessons
 
 **Preferred sources** — corroborated by past sessions; start here.
-- `Root` (2× useful, score=1.794356641)
+- `Root` (2× useful, score=1.588590923)
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Root` connect `Root` to `.SetDRM`, `IFlashBridge`, `UpdateRelease`, `PreparedUpdate`, `StartupDiagnostics`, `.RunApplication`, `AppPreferenceSnapshot`, `.Call`, `AxShockwaveFlash`, `StatusIcon`, `AxShockwaveFlash`, `ClientSession`, `CmdSetFPS`, `SessionState`, `.OpenClient`, `SettingsForm`, `Loaders`, `Map Cell Data`, `QuickBotSelectorForm`, `IContainer`, `system`, `ResizableUserControl`, `GrimoireHomeBridge`, `EyeDropper`, `CosmeticForm`, `Task`, `CancellationTokenSource`, `Grabber`, `.lstCommands_DrawItem`, `DllImport`, `STAThread`, `UltraKitForm`, `ClientSessionManager`, `.MenuMain_MouseDown`, `PluginManager`, `.Push`, `Kill For Item Logic`, `AppDataReset`, `Control`, `Action`, `CompatibilityCheckService`, `PurpleMenuRenderer`, `ScrollableControlThemeAdapter`?**
-  _High betweenness centrality (0.125) - this node is a cross-community bridge._
+- **Why does `Root` connect `Root` to `ClientWorkspaceState`, `CompatibilityCheckService`, `IFlashBridge`, `List`, `.RecordException`, `UpdateService`, `StartupDiagnostics`, `AppPreferenceSnapshot`, `.CreateClientSessionCore`, `Color`, `StatusIcon`, `Proxy`, `PluginManager`, `ClientSession`, `Loaders`, `CmdSetFPS`, `SettingsForm`, `Map Cell Data`, `GrimoireHomeBridge`, `UltraCharacterClassLookup`, `AxShockwaveFlash`, `system`, `Task`, `CancellationTokenSource`, `Grabber`, `DllImport`, `STAThread`, `UltraKitForm`, `ClientSessionManager`, `.Push`, `UpdateRelease`, `IContainer`, `Control`, `Action`, `RecoveryInfo`, `MouseEventArgs`, `PaintEventArgs`, `PreparedUpdate`?**
+  _High betweenness centrality (0.124) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `Root` (e.g. with `.RunApplication()` and `Scan execution checklist`) actually correct?**
   _`Root` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Monster`, `Monster`, `Packet` to the rest of the system?**
-  _1381 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1401 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Bot Manager Editing` be split into smaller, more focused modules?**
-  _Cohesion score 0.02893161617993833 - nodes in this community are weakly interconnected._
-- **Why does `BotManager` connect `Bot Manager Editing` to `StatementCommand`, `Root`, `PacketSpammer`, `.SetDRM`, `CmdQuestlist`, `ClientSessionContext`, `Configuration`, `CmdInt`, `Quest Data Management`, `Quest`, `.Call`, `.DrawString`, `CmdToggleProvokeInMap`, `ClientSession`, `AxShockwaveFlash`, `Travel`, `CmdWalk`, `.UpdateRuntimeConfiguration`, `SettingsForm`, `Loaders`, `QuickBotSelectorForm`, `QuickBotSelectorSmoke`, `CmdWhitelist`, `IContainer`, `system`, `LogForm`, `EyeDropper`, `CosmeticForm`, `Task`, `Grabber`, `.lstCommands_DrawItem`, `DllImport`, `.LoadBotFromFile`, `DPSForm`, `ClientSessionManager`, `UltraKitForm`, `PluginManager`, `Control`, `Server`, `CmdPacketlist2`, `Action`, `CmdEquipSet`, `Skill`?**
-  _High betweenness centrality (0.092) - this node is a cross-community bridge._
+  _Cohesion score 0.02520013922728855 - nodes in this community are weakly interconnected._
+- **Why does `BotManager` connect `Bot Manager Editing` to `StatementCommand`, `ClientWorkspaceState`, `Root`, `CmdQuestlist`, `List`, `Configuration`, `CmdInt`, `Quest Data Management`, `Quest`, `Color`, `Proxy`, `PluginManager`, `ClientSession`, `Loaders`, `Travel`, `BotDocumentState`, `SettingsForm`, `Set`, `QuickBotSelectorForm`, `QuickBotSelectorSmoke`, `NodeEditor`, `LogForm`, `BotManager.cs`, `Task`, `CancellationTokenSource`, `Grabber`, `DllImport`, `UltraKitForm`, `ClientSessionManager`, `IContainer`, `Control`, `Action`, `CmdWalk`, `CmdEquipSet`, `Skill`, `UserFriendlyCommandEditor`, `.lstCommands_KeyPress`?**
+  _High betweenness centrality (0.110) - this node is a cross-community bridge._
+- **Are the 2 inferred relationships involving `IBotEngine` (e.g. with `12. Compatibility and rollback strategy` and `1. Executive summary`) actually correct?**
+  _`IBotEngine` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Should `StatementCommand` be split into smaller, more focused modules?**
   _Cohesion score 0.024096385542168676 - nodes in this community are weakly interconnected._
-- **Why does `IBotCommand` connect `IBotCommand` to `Bot Manager Editing`, `StatementCommand`, `CmdAcceptQuest`, `system_linq`, `Configuration`, `Quest Data Management`, `Bot`, `Hotkeys`, `Travel`, `.Execute`, `CmdUseSkill`, `.LoadBotFromFile`, `Desktop rendering performance research for`, `CmdBuyByID`, `CmdPacketlist2`, `.Run()`, `CmdEquipSet`, `Grimoire Exodus desktop multi-client research and implementation plan`, `CmdPacket2`, `CmdCompleteQuest2`, `Skill`, `CmdKillFor`, `CmdBuy2`, `CmdQuestlist`, `CmdLoadBot`, `CmdInt`, `CmdJoin2`, `CmdIndex`, `BotUtilities`, `CmdChange`, `CmdClientMessage`, `CmdWalk`, `CmdBuyFastByID`, `CmdWhitelist`, `CmdMoveToCell`, `CmdBankSwap`, `CmdLoad2`, `CmdMapItem`, `Task`, `CmdUseSkill2`, `CmdBankTransfer`, `CmdBuy`, `CmdBuyBack`, `CmdLoadMapSwf`, `CmdBuyFast`, `CmdEquip`, `CmdAcceptQuest2`, `CmdStopBotWithMessage`, `CmdBlank3`, `.UseSkills`, `CmdCellIs`, `CmdCellIsNot`, `CmdPlayerIsNotInCell`, `CmdSkillSet`, `CmdGetDrop`, `CmdMapItem2`, `CmdAttack`, `CmdSell`, `CmdUseBoost`, `CmdBeep`, `CmdEquipped`, `CmdFactionRankLessThan`, `CmdBlank2`, `CmdBotDelay`, `CmdBotDelay2`, `CmdInCombat`, `CmdInTemp`, `CmdIntIsNot`, `CmdDelay`, `CmdGotoLabel`, `CmdIsMaxStack`, `CmdItemPickupable`, `CmdPlayerInRoom`, `CmdPlayerIsInMyCell`, `CmdManaLessThan`, `CmdPlayerIsInCell`, `CmdPlayersInCellLessThan`, `CmdPlayerNotInRoom`, `CmdMapIsNot`, `CmdMonsterHealthGreaterThan`, `CmdMonsterInRoom`, `CmdIntGreaterThan`, `CmdIntIs`, `CmdMonsterNotInRoom`, `CmdNotEquipped`, `CmdNotInHouse`, `CmdPlayerEquippedClass`, `CmdPlayerInCombat`, `CmdPlayerNotEquippedClass`, `CmdPlayersInMyCellLessThan`, `CmdQuestInProgress`, `CmdPlayerAuraStringValIsNot`, `CmdSkillIsAvailable`, `CmdPlayerAuraValIs`, `CmdPlayerAuraValIsNot`, `CmdNotInTemp`, `CmdQuestNotAvailable`, `CmdTargetAuraStringValIs`, `CmdTargetAuraValIsGreaterThan`, `CmdUpdateVar`, `CmdLog`, `CmdToggleProvokeInMap`?**
-  _High betweenness centrality (0.081) - this node is a cross-community bridge._

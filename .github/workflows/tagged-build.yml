@@ -56,6 +56,8 @@ jobs:
         run: |
           .\exodus.ps1 build -Configuration Release
           .\tests\Test-LegacyGbotCompatibility.ps1 -Configuration Release
+          .\tests\Test-KillForRecovery.ps1 -Configuration Release
+          .\tests\Test-PingMetric.ps1 -Configuration Release
           .\tests\Test-UpdateService.ps1 -Configuration Release
           .\tests\Test-StartupDiagnostics.ps1 -Configuration Release
           .\tests\Test-SupportDiagnostics.ps1 -Configuration Release

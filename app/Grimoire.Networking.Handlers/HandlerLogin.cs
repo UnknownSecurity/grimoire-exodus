@@ -72,10 +72,10 @@ namespace Grimoire.Networking.Handlers
             {
                 Flash.Call(modifier, new string[0]);
             }
-            if (Root.Instance.rtbPing.Visible)
-            {
-                Flash.Call("StartLatencyTimer", new string[0]);
-            }
+            // The bottom status panel always owns the primary ping display.
+            // Keep latency collection independent from the optional legacy
+            // toolbar monitor so the status metric does not remain "--".
+            Flash.Call("StartLatencyTimer", new string[0]);
             if (Travel.Instance.chkCustomChatTrigger.Checked)
             {
                 Flash.Call("LoadTravelTriggers", BotClientConfig.Instance.GetValue<string>("customTravels"));

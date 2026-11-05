@@ -91,7 +91,7 @@ namespace Grimoire.UI
             {
                 Dock = DockStyle.Fill,
                 HotTrack = true,
-                ItemSize = new Size(100, 24),
+                ItemSize = new Size(88, 24),
                 SizeMode = TabSizeMode.Fixed
             };
             tabs.TabPages.Add(CreateGeneralTab());
@@ -184,7 +184,7 @@ namespace Grimoire.UI
 
             content.Controls.Add(CreateHeading("Rendering"));
             Label rendererNote = CreateBodyLabel(
-                "These profiles change how Flash presents the game. Direct and GPU are experimental requests; game logic, bots, and networking still run on the CPU. Changes apply to newly created clients.");
+                "These profiles change how Flash presents the game. Direct and GPU presentation are experimental; game logic, bots, and networking still run on the CPU. Changes apply to newly created clients.");
             rendererNote.Height = 48;
             rendererNote.Margin = new Padding(0, 2, 0, 6);
             rendererNote.Width = 570;
@@ -194,10 +194,10 @@ namespace Grimoire.UI
                 cmbRenderingProfile,
                 "Automatic (recommended)",
                 "Direct presentation (experimental)",
-                "GPU (single-client experimental)");
+                "GPU presentation (experimental — graphics may corrupt)");
             content.Controls.Add(CreatePreferenceRow(
                 "Rendering profile",
-                "Automatic is recommended for multiple clients. Legacy GPU presentation can stall on some drivers and is best limited to one client.",
+                "GPU presentation may improve some systems, but long-running sessions can become discolored or show corrupted skill effects on some drivers.",
                 cmbRenderingProfile));
 
             ConfigureDropDown(cmbRenderQuality, "Automatic", "High", "Medium", "Low");
@@ -887,6 +887,22 @@ namespace Grimoire.UI
                         return;
                 }
 
+                FlashRenderingProfile selectedRenderingProfile =
+                    (FlashRenderingProfile)Math.Max(0, cmbRenderingProfile.SelectedIndex);
+                if (selectedRenderingProfile == FlashRenderingProfile.Gpu
+                    && previousPreferences.RenderingProfile != FlashRenderingProfile.Gpu)
+                {
+                    DialogResult confirmation = DarkMessageBox.Show(
+                        this,
+                        "Enable experimental GPU presentation?\r\n\r\nOn some systems, long-running Flash sessions may develop black or discolored characters, green or corrupted effects around skill icons, heavy lag, or driver instability. Restarting the affected client usually clears the rendering surface.\r\n\r\nUse GPU presentation anyway?",
+                        "GPU presentation compatibility warning",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2);
+                    if (confirmation != DialogResult.Yes)
+                        return;
+                }
+
                 Hotkeys.SaveSettingsBindings(
                     new Dictionary<int, HotkeyGesture?>(bindingValues));
                 AppPreferenceSnapshot preferences = new AppPreferenceSnapshot
@@ -899,7 +915,7 @@ namespace Grimoire.UI
                     AllowUnlimitedClients = chkEnableMultiClient.Checked && chkUnlimitedClients.Checked,
                     UsePrereleaseUpdates = chkPrereleaseUpdates.Checked,
                     GameEngine = selectedEngine,
-                    RenderingProfile = (FlashRenderingProfile)Math.Max(0, cmbRenderingProfile.SelectedIndex),
+                    RenderingProfile = selectedRenderingProfile,
                     RenderQuality = (FlashRenderQuality)Math.Max(0, cmbRenderQuality.SelectedIndex),
                     UseActiveClientFrameRate = chkUseActiveClientFrameRate.Checked,
                     ActiveClientFramesPerSecond = Decimal.ToInt32(numActiveClientFrameRate.Value),
