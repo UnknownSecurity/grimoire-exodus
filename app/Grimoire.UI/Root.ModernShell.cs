@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -16,6 +17,11 @@ namespace Grimoire.UI
     public partial class Root
     {
         private const int ModernResizeBorderWidth = 6;
+        private const int ModernMinimumWidthLogicalPixels = 960;
+        private const int ModernMinimumHeightLogicalPixels = 620;
+        private const int DwmNcRenderingPolicy = 2;
+        private const int DwmNcRenderingEnabled = 2;
+        private const int WmNcCalcSize = 0x0083;
         private const int WmNcHitTest = 0x0084;
         private const int HtClient = 1;
         private const int HtLeft = 10;
@@ -28,6 +34,45 @@ namespace Grimoire.UI
         private const int HtBottomRight = 17;
         private const int ModernMaximizeEdgeCompensationLogicalPixels = 1;
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeNcCalcSizeParams
+        {
+            public NativeRect ProposedClient;
+            public NativeRect PreviousWindow;
+            public NativeRect PreviousClient;
+            public IntPtr WindowPosition;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeDwmMargins
+        {
+            public int Left;
+            public int Right;
+            public int Top;
+            public int Bottom;
+        }
+
+        [DllImport("dwmapi.dll", CallingConvention = CallingConvention.Winapi, PreserveSig = true)]
+        private static extern int DwmSetWindowAttribute(
+            IntPtr windowHandle,
+            int attribute,
+            ref int attributeValue,
+            int attributeSize);
+
+        [DllImport("dwmapi.dll", CallingConvention = CallingConvention.Winapi, PreserveSig = true)]
+        private static extern int DwmExtendFrameIntoClientArea(
+            IntPtr windowHandle,
+            ref NativeDwmMargins margins);
+
         private bool modernShellRequested;
         private bool modernShellActive;
         private bool modernWindowFramePrepared;
@@ -38,12 +83,19 @@ namespace Grimoire.UI
         private double legacyWindowOpacity = 1d;
         private Rectangle modernGameViewportBounds = Rectangle.Empty;
         private Rectangle legacyGamePanelBounds;
+        private Size legacyMinimumSize;
         private Padding legacyRootPadding;
         private DockStyle legacyGamePanelDock;
         private FormBorderStyle legacyFormBorderStyle;
         private ModernShellHost modernShellHost;
 
         internal bool IsModernShellActive => modernShellActive;
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyModernWindowShadow();
+        }
 
         private void InitializeModernShellFeature()
         {
@@ -511,6 +563,10 @@ namespace Grimoire.UI
                     normalized,
                     "https://github.com/UnknownSecurity/grimoire-exodus/security/advisories/new",
                     StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    normalized,
+                    "https://github.com/UnknownSecurity/grimoire-mobile/releases/latest",
+                    StringComparison.OrdinalIgnoreCase)
                 || normalized.StartsWith(
                     "https://github.com/UnknownSecurity/grimoire-exodus/issues/",
                     StringComparison.OrdinalIgnoreCase);
@@ -531,11 +587,14 @@ namespace Grimoire.UI
                 return;
 
             legacyFormBorderStyle = FormBorderStyle;
+            legacyMinimumSize = MinimumSize;
             legacyRootPadding = Padding;
             legacyGamePanelDock = GamePanel.Dock;
             legacyGamePanelBounds = GamePanel.Bounds;
             modernWindowFramePrepared = true;
+            MinimumSize = GetModernMinimumSize();
             FormBorderStyle = FormBorderStyle.None;
+            ApplyModernWindowShadow();
         }
 
         private void ApplyModernWindowFrameLayout()
@@ -547,7 +606,9 @@ namespace Grimoire.UI
             try
             {
                 Padding = GetModernWindowPadding();
+                MinimumSize = GetModernMinimumSize();
                 GamePanel.Dock = DockStyle.Fill;
+                ApplyModernWindowShadow();
             }
             finally
             {
@@ -566,8 +627,9 @@ namespace Grimoire.UI
                 Padding = legacyRootPadding;
                 GamePanel.Dock = legacyGamePanelDock;
                 GamePanel.Bounds = legacyGamePanelBounds;
-                FormBorderStyle = legacyFormBorderStyle;
+                MinimumSize = legacyMinimumSize;
                 modernWindowFramePrepared = false;
+                FormBorderStyle = legacyFormBorderStyle;
             }
             finally
             {
@@ -595,6 +657,51 @@ namespace Grimoire.UI
                     0,
                     ModernResizeBorderWidth,
                     ModernResizeBorderWidth);
+        }
+
+        private Size GetModernMinimumSize()
+        {
+            double scale = Math.Max(1d, DeviceDpi / 96d);
+            return new Size(
+                (int)Math.Round(ModernMinimumWidthLogicalPixels * scale, MidpointRounding.AwayFromZero),
+                (int)Math.Round(ModernMinimumHeightLogicalPixels * scale, MidpointRounding.AwayFromZero));
+        }
+
+        private void ApplyModernWindowShadow()
+        {
+            if (!modernWindowFramePrepared
+                || !IsHandleCreated
+                || Environment.OSVersion.Platform != PlatformID.Win32NT)
+            {
+                return;
+            }
+
+            try
+            {
+                int policy = DwmNcRenderingEnabled;
+                DwmSetWindowAttribute(
+                    Handle,
+                    DwmNcRenderingPolicy,
+                    ref policy,
+                    sizeof(int));
+
+                NativeDwmMargins margins = new NativeDwmMargins
+                {
+                    Left = 1,
+                    Right = 1,
+                    Top = 1,
+                    Bottom = 1
+                };
+                DwmExtendFrameIntoClientArea(Handle, ref margins);
+            }
+            catch (DllNotFoundException)
+            {
+                // Pre-DWM Windows keeps the custom outline without a native shadow.
+            }
+            catch (EntryPointNotFoundException)
+            {
+                // Older DWM versions may not expose frame extension.
+            }
         }
 
         private void QueueModernWindowDrag()
@@ -641,12 +748,19 @@ namespace Grimoire.UI
 
         protected override void WndProc(ref Message message)
         {
+            if (message.Msg == WmNcCalcSize
+                && modernWindowFramePrepared
+                && FormBorderStyle == FormBorderStyle.None)
+            {
+                AdjustModernClientRect(ref message);
+                return;
+            }
+
             base.WndProc(ref message);
             if (message.Msg != WmNcHitTest
                 || !modernShellActive
                 || FormBorderStyle != FormBorderStyle.None
-                || WindowState != FormWindowState.Normal
-                || message.Result != (IntPtr)HtClient)
+                || WindowState != FormWindowState.Normal)
             {
                 return;
             }
@@ -676,6 +790,35 @@ namespace Grimoire.UI
                 message.Result = (IntPtr)HtTop;
             else if (bottom)
                 message.Result = (IntPtr)HtBottom;
+        }
+
+        private void AdjustModernClientRect(ref Message message)
+        {
+            if (message.WParam == IntPtr.Zero)
+            {
+                NativeRect proposedWindow = (NativeRect)Marshal.PtrToStructure(
+                    message.LParam,
+                    typeof(NativeRect));
+                int proposedTop = proposedWindow.Top;
+                base.WndProc(ref message);
+                NativeRect client = (NativeRect)Marshal.PtrToStructure(
+                    message.LParam,
+                    typeof(NativeRect));
+                client.Top = proposedTop;
+                Marshal.StructureToPtr(client, message.LParam, false);
+                return;
+            }
+
+            NativeNcCalcSizeParams proposed = (NativeNcCalcSizeParams)Marshal.PtrToStructure(
+                message.LParam,
+                typeof(NativeNcCalcSizeParams));
+            int top = proposed.ProposedClient.Top;
+            base.WndProc(ref message);
+            NativeNcCalcSizeParams adjusted = (NativeNcCalcSizeParams)Marshal.PtrToStructure(
+                message.LParam,
+                typeof(NativeNcCalcSizeParams));
+            adjusted.ProposedClient.Top = top;
+            Marshal.StructureToPtr(adjusted, message.LParam, false);
         }
 
         private static JObject BuildModernOptionsState(ClientSession session)

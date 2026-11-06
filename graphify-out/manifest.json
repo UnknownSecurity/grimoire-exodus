@@ -1872,9 +1872,9 @@
     "semantic_hash": "21e3745319381db7c0cf2259dae244f3"
   },
   "README.md": {
-    "mtime": 1793892823.6992965,
-    "seen": 1793892900.9308078,
-    "ast_hash": "9e6ce84df74b2ed433dab558d71d1e56",
+    "mtime": 1793978861.1743186,
+    "seen": 1793978886.4712012,
+    "ast_hash": "586487065deb806fd16c961eef65355b",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -2580,9 +2580,9 @@
     "semantic_hash": ""
   },
   "docs/releases/v1.7.0.md": {
-    "mtime": 1793957821.5088089,
-    "seen": 1793957908.311452,
-    "ast_hash": "7dde7a965e962cbcee122151d0b02908",
+    "mtime": 1793978861.8136868,
+    "seen": 1793978886.4712298,
+    "ast_hash": "b978636d2d0105139d45c3aa54abf8af",
     "semantic_hash": ""
   },
   "docs/ui-modernization-framework-migration-plan.md": {
@@ -2622,9 +2622,9 @@
     "semantic_hash": ""
   },
   "app/Grimoire.UI/Root.ModernShell.cs": {
-    "mtime": 1793957971.282443,
-    "seen": 1793958107.5798545,
-    "ast_hash": "285200ce605e0d98d12eb1a8059db0c4",
+    "mtime": 1793976729.4296267,
+    "seen": 1793976828.083506,
+    "ast_hash": "e9d01c55717b792b28cfa8817efbd521",
     "semantic_hash": ""
   },
   "desktop-ui/package.json": {
@@ -2634,9 +2634,9 @@
     "semantic_hash": ""
   },
   "desktop-ui/src/App.vue": {
-    "mtime": 1793957050.6190784,
-    "seen": 1793957134.672395,
-    "ast_hash": "45da14a2a909dc43d3d2027b98802b82",
+    "mtime": 1793977052.575453,
+    "seen": 1793977124.469293,
+    "ast_hash": "35eefec23c00afcd2bb7420e461a6e71",
     "semantic_hash": ""
   },
   "desktop-ui/src/bridge.ts": {
@@ -2676,15 +2676,15 @@
     "semantic_hash": ""
   },
   "tests/Test-ModernUiProtocol.ps1": {
-    "mtime": 1793957593.5746086,
-    "seen": 1793957707.160853,
-    "ast_hash": "2728ebb15efbe597d82a2ebeeb8a1148",
+    "mtime": 1793977051.664359,
+    "seen": 1793977124.4693794,
+    "ast_hash": "92e3fc616200830018bf73d50a02581f",
     "semantic_hash": ""
   },
   "app/Resources/Shell/index.html": {
-    "mtime": 1793957949.9676287,
-    "seen": 1793958107.5801134,
-    "ast_hash": "49daa45f20503950c4bdf40973e5602f",
+    "mtime": 1793977084.4251964,
+    "seen": 1793977124.469498,
+    "ast_hash": "f3db794fb7da0f800601d629a0bffc31",
     "semantic_hash": ""
   },
   "desktop-ui/README.md": {
@@ -2699,10 +2699,10 @@
     "ast_hash": "2b60050479b65ad003bef15975748d66",
     "semantic_hash": ""
   },
-  "app/Resources/Shell/assets/index-DWkavnM9.js": {
-    "mtime": 1793957949.9676287,
-    "seen": 1793958107.57993,
-    "ast_hash": "3583a18c30e473ba48e562b2df36472b",
+  "app/Resources/Shell/assets/index-DiHxfblH.js": {
+    "mtime": 1793977084.4262013,
+    "seen": 1793977124.469285,
+    "ast_hash": "cf6031d948507c7f5030dea4f7d33520",
     "semantic_hash": ""
   }
 }

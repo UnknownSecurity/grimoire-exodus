@@ -75,6 +75,30 @@ if (($rootShellText -notmatch 'GetModernMaximizedBounds') -or ($rootShellText -n
 if ($rootShellText -notmatch 'new\s+Padding\(\s*ModernResizeBorderWidth,\s*0,\s*ModernResizeBorderWidth,\s*ModernResizeBorderWidth\s*\)') {
     throw "The modern shell must keep the custom title bar flush with the top edge while retaining resize padding on the other edges."
 }
+if (($rootShellText -notmatch 'WmNcCalcSize') -or
+    ($rootShellText -notmatch 'AdjustModernClientRect') -or
+    ($rootShellText -match 'message\.Msg\s*==\s*WmNcCalcSize[\s\S]{0,500}message\.Result\s*=\s*IntPtr\.Zero;\s*return;')) {
+    throw "The modern shell must remove only the top resize inset while preserving native frame rendering."
+}
+if (($rootShellText -notmatch 'ApplyModernWindowShadow') -or
+    ($rootShellText -notmatch 'DwmSetWindowAttribute') -or
+    ($rootShellText -notmatch 'DwmExtendFrameIntoClientArea')) {
+    throw "The modern shell must explicitly retain the Windows frame shadow."
+}
+if (($rootShellText -notmatch 'HtTop') -or
+    ($rootShellText -notmatch 'HtBottom') -or
+    ($rootShellText -notmatch 'HtLeft') -or
+    ($rootShellText -notmatch 'HtRight')) {
+    throw "The modern shell must keep all four resize hit-test edges."
+}
+if ($shellStylesText -notmatch '\.app-shell\s*\{[\s\S]{0,900}box-shadow:\s*inset\s+0\s+0\s+0\s+1px') {
+    throw "The modern shell must draw a visible one-pixel frame inside the borderless window."
+}
+if (($rootShellText -notmatch 'ModernMinimumWidthLogicalPixels\s*=\s*960') -or
+    ($rootShellText -notmatch 'ModernMinimumHeightLogicalPixels\s*=\s*620') -or
+    ($rootShellText -notmatch 'MinimumSize\s*=\s*GetModernMinimumSize\(\)')) {
+    throw "The modern shell must enforce a DPI-aware minimum window size."
+}
 if (($rootShellText -notmatch 'modernStartupPresentationPending') -or
     ($rootShellText -notmatch 'Opacity\s*=\s*0d') -or
     ($rootShellText -notmatch 'CompleteModernStartupPresentation\(\)') -or
@@ -123,6 +147,24 @@ if ($shellText -notmatch 'v-if="store\.snapshot\.location\.available"\s+class="l
 }
 if ($shellText -notmatch 'autoLocationSessionId[\s\S]{0,500}refreshLocation') {
     throw "The modern shell must populate Cell and Pad automatically for a logged-in client."
+}
+if (($shellText -notmatch 'actionNotice') -or
+    ($shellText -notmatch 'showActionNotice\(`\$\{action\.label\} \$\{willEnable \? "enabled" : "disabled"\}`\)') -or
+    ($shellText -notmatch 'showActionNotice\("Bot started"\)') -or
+    ($shellText -notmatch 'showActionNotice\("Bot stopped"\)') -or
+    ($shellText -notmatch 'class="chrome-toasts"') -or
+    ($shellStylesText -notmatch '\.success-toast')) {
+    throw "Modern option and bot lifecycle actions must show feedback in the native-viewport-safe chrome toast layer."
+}
+if (($shellText -notmatch 'https://github\.com/UnknownSecurity/grimoire-mobile/releases/latest') -or
+    ($rootShellText -notmatch 'https://github\.com/UnknownSecurity/grimoire-mobile/releases/latest') -or
+    ($shellText -notmatch 'class="android-promo"')) {
+    throw "Grimoire Home must advertise the official Android release through the native link allowlist."
+}
+if (($shellText -notmatch 'document\.addEventListener\("scroll", revealScrollbars, true\)') -or
+    ($shellStylesText -notmatch 'html\.is-scrolling') -or
+    ($shellStylesText -notmatch 'scrollbar-color:\s*transparent transparent')) {
+    throw "Modern scrollbars must stay hidden until their surface is hovered or actively scrolling."
 }
 
 $requiredHomeActions = @(

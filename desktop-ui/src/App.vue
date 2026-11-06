@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   SkipForward,
   SlidersHorizontal,
+  Smartphone,
   Sparkles,
   Square,
   SquareTerminal,
@@ -131,6 +132,7 @@ const accountUsername = ref("");
 const accountPassword = ref("");
 const accountRemovalId = ref("");
 const homeNotice = ref("");
+const actionNotice = ref("");
 const homeState = ref<HomeSnapshot>({
   success: true,
   accounts: [],
@@ -159,6 +161,8 @@ let autoLocationAttempts = 0;
 let autoLocationTimer = 0;
 let doctorPollTimer = 0;
 let reportPollTimer = 0;
+let actionNoticeTimer = 0;
+let scrollbarHideTimer = 0;
 let doctorPollCount = 0;
 let reportPollCount = 0;
 let routeMotion: { stop: () => void } | undefined;
@@ -296,11 +300,29 @@ async function invoke(method: string, params: Record<string, unknown> = {}) {
   store.error = "";
   try {
     await bridge.request(method, params);
+    return true;
   } catch (error) {
     store.fail(error instanceof Error ? error.message : "The action failed.");
+    return false;
   } finally {
     actionPending.value = false;
   }
+}
+
+function showActionNotice(message: string) {
+  actionNotice.value = message;
+  window.clearTimeout(actionNoticeTimer);
+  actionNoticeTimer = window.setTimeout(() => {
+    actionNotice.value = "";
+  }, 2200);
+}
+
+function revealScrollbars() {
+  document.documentElement.classList.add("is-scrolling");
+  window.clearTimeout(scrollbarHideTimer);
+  scrollbarHideTimer = window.setTimeout(() => {
+    document.documentElement.classList.remove("is-scrolling");
+  }, 700);
 }
 
 async function selectRoute(id: string) {
@@ -365,15 +387,19 @@ async function runShellAction(action: ShellAction) {
   if (isActionDisabled(action)) return;
   const session = activeSession.value;
   if (action.kind === "bot-start" && session) {
-    await invoke("bots.start", { sessionId: session.id });
+    const succeeded = await invoke("bots.start", { sessionId: session.id });
+    if (succeeded) showActionNotice("Bot started");
     return;
   }
   if (action.kind === "bot-stop" && session) {
-    await invoke("bots.stop", { sessionId: session.id });
+    const succeeded = await invoke("bots.stop", { sessionId: session.id });
+    if (succeeded) showActionNotice("Bot stopped");
     return;
   }
   if (action.kind === "option" && session) {
-    await invoke("options.toggle", { sessionId: session.id, option: action.id });
+    const willEnable = !Boolean(action.checked);
+    const succeeded = await invoke("options.toggle", { sessionId: session.id, option: action.id });
+    if (succeeded) showActionNotice(`${action.label} ${willEnable ? "enabled" : "disabled"}`);
     return;
   }
   await openTool(action.id);
@@ -382,9 +408,11 @@ async function runShellAction(action: ShellAction) {
 async function toggleBot() {
   const session = activeSession.value;
   if (!session) return;
-  await invoke(store.snapshot.activeBot.running ? "bots.stop" : "bots.start", {
+  const stopping = store.snapshot.activeBot.running;
+  const succeeded = await invoke(stopping ? "bots.stop" : "bots.start", {
     sessionId: session.id
   });
+  if (succeeded) showActionNotice(stopping ? "Bot stopped" : "Bot started");
 }
 
 function uniqueChoices(values: string[], current: string) {
@@ -688,6 +716,7 @@ watch(gameSlot, (current, previous) => {
 });
 
 onMounted(async () => {
+  document.addEventListener("scroll", revealScrollbars, true);
   if (!bridge.available) {
     store.fail("This shell must run inside Grimoire Exodus.");
     return;
@@ -717,6 +746,10 @@ onBeforeUnmount(() => {
   window.clearTimeout(doctorPollTimer);
   window.clearTimeout(reportPollTimer);
   window.clearTimeout(autoLocationTimer);
+  window.clearTimeout(actionNoticeTimer);
+  window.clearTimeout(scrollbarHideTimer);
+  document.removeEventListener("scroll", revealScrollbars, true);
+  document.documentElement.classList.remove("is-scrolling");
   routeMotion?.stop();
 });
 </script>
@@ -744,6 +777,14 @@ onBeforeUnmount(() => {
       <button class="icon-button" type="button" title="Settings" aria-label="Open settings" @click="openTool('settings')">
         <Settings :size="19" />
       </button>
+      <div class="chrome-toasts" aria-live="polite" aria-atomic="true">
+        <Transition name="toast">
+          <div v-if="store.error" class="error-toast" role="alert">{{ store.error }}</div>
+        </Transition>
+        <Transition name="toast">
+          <div v-if="actionNotice" class="success-toast" role="status">{{ actionNotice }}</div>
+        </Transition>
+      </div>
       <span class="window-drag-space" aria-hidden="true"></span>
       <div class="window-controls" aria-label="Window controls">
         <button type="button" title="Minimize" aria-label="Minimize" @mousedown.stop @click="runWindowAction('window.minimize')">
@@ -847,6 +888,16 @@ onBeforeUnmount(() => {
           <article><ShieldCheck :size="20" /><div><strong>Compatibility first</strong><span>Legacy GBot loading and execution are unchanged.</span></div></article>
           <article><Layers3 :size="20" /><div><strong>Progressive migration</strong><span>Tools open their proven native forms while the shell is modernized.</span></div></article>
         </div>
+
+        <button class="android-promo" type="button" @click="openHomeLink('https://github.com/UnknownSecurity/grimoire-mobile/releases/latest')">
+          <span class="android-promo-icon"><Smartphone :size="24" /></span>
+          <span class="android-promo-copy">
+            <small>Grimoire on Android</small>
+            <strong>Take your bot manager with you.</strong>
+            <span>Download the latest Grimoire Exodus mobile build from the official GitHub release.</span>
+          </span>
+          <span class="android-promo-action">View Android release <ArrowRight :size="15" /></span>
+        </button>
 
         <Transition name="toast">
           <div v-if="homeNotice" class="home-notice" role="status">
@@ -1006,9 +1057,6 @@ onBeforeUnmount(() => {
         </Transition>
       </template>
 
-      <Transition name="toast">
-        <div v-if="store.error" class="error-toast" role="alert">{{ store.error }}</div>
-      </Transition>
     </main>
 
     <footer class="statusbar">
