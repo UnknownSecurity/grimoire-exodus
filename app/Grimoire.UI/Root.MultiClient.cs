@@ -271,6 +271,17 @@ namespace Grimoire.UI
             if (clientStripPanel == null || metricsPanel == null || GamePanel == null)
                 return;
 
+            if (modernShellActive)
+            {
+                GamePanel.Dock = DockStyle.None;
+                GamePanel.Location = Point.Empty;
+                GamePanel.Size = ClientSize;
+                if (modernShellHost != null)
+                    modernShellHost.Bounds = GamePanel.ClientRectangle;
+                ApplyModernClientSurfaceLayout();
+                return;
+            }
+
             int toolbarHeight = panel1 != null && panel1.Visible ? panel1.Height : 0;
             clientStripPanel.Location = new Point(0, toolbarHeight);
             clientStripPanel.Width = ClientSize.Width;
@@ -1138,7 +1149,10 @@ namespace Grimoire.UI
         {
             homeWorkspaceVisible = true;
             UpdateClientSurfaceVisibility();
-            homeBrowser.BringToFront();
+            if (modernShellActive)
+                ApplyModernWorkspaceZOrder();
+            else
+                homeBrowser.BringToFront();
             UpdateClientStripButtons();
             RefreshHomeState();
         }
@@ -1148,13 +1162,18 @@ namespace Grimoire.UI
             UpdateClientSurfaceVisibility();
             if (homeWorkspaceVisible)
             {
-                homeBrowser.BringToFront();
+                if (modernShellActive)
+                    ApplyModernWorkspaceZOrder();
+                else
+                    homeBrowser.BringToFront();
                 return;
             }
 
             ClientSession active = clientSessions.ActiveSession;
             if (active != null && clientWorkspaces.TryGetValue(active, out ClientWorkspaceState workspace))
                 workspace.Host.BringToFront();
+            if (modernShellActive)
+                ApplyModernWorkspaceZOrder();
         }
 
         private void OnActiveClientSessionChanged(ClientSession previous, ClientSession current)
@@ -1180,12 +1199,16 @@ namespace Grimoire.UI
             ApplyClientFrameRatePolicies();
             UpdateClientStripButtons();
             RefreshHomeState();
+            if (modernShellActive)
+                ApplyModernWorkspaceZOrder();
         }
 
         private void UpdateClientSurfaceVisibility()
         {
             if (homeBrowser != null)
-                homeBrowser.Visible = homeWorkspaceVisible;
+                homeBrowser.Visible = !modernShellActive && homeWorkspaceVisible;
+            if (modernShellHost != null)
+                modernShellHost.Visible = modernShellActive;
 
             ClientSession activeSession = clientSessions?.ActiveSession;
             foreach (ClientWorkspaceState workspace in clientWorkspaces.Values)
@@ -1202,6 +1225,11 @@ namespace Grimoire.UI
                     requiresVisibleInitialization);
                 if (workspace.Host.Visible != shouldRender)
                     workspace.Host.Visible = shouldRender;
+            }
+            if (modernShellActive)
+            {
+                ApplyModernClientSurfaceLayout();
+                ApplyModernWorkspaceZOrder();
             }
         }
 
@@ -1371,7 +1399,7 @@ namespace Grimoire.UI
             if (btnNewClient == null || btnCloseClient == null || clientSessions == null)
                 return;
 
-            bool showClientStrip = IsMultiClientEnabled;
+            bool showClientStrip = !modernShellActive && IsMultiClientEnabled;
             if (clientStripPanel != null && clientStripPanel.Visible != showClientStrip)
             {
                 clientStripPanel.Visible = showClientStrip;
@@ -1402,8 +1430,8 @@ namespace Grimoire.UI
             {
                 // An externally edited preference must never strand already-open
                 // clients. Keep navigation visible until the extras are closed.
-                clientStripPanel.Visible = preferences.EnableMultiClient
-                    || clientSessions.Sessions.Count > 1;
+                clientStripPanel.Visible = !modernShellActive
+                    && (preferences.EnableMultiClient || clientSessions.Sessions.Count > 1);
             }
             LayoutClientWorkspace();
         }

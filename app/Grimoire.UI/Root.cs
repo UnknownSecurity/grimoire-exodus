@@ -218,6 +218,7 @@ namespace Grimoire.UI
             clientSessions.ActiveSessionChanged += ClientSessions_ActiveSessionChanged;
             InitializeMultiClientWorkspace();
             InitializeHome();
+            InitializeModernShellFeature();
             ApplyBranding();
             InitializeQuickBots();
             InitializeUpdateButton();
@@ -1275,6 +1276,7 @@ namespace Grimoire.UI
 
         private async void Root_Shown(object sender, EventArgs e)
         {
+            await TryInitializeModernShellAsync();
             Program.CheckVersion();
             SetDRM(Root.Instance, !enableCapture);
             BeginInvoke(new Action(ShowCrashRecovery));
@@ -1528,7 +1530,7 @@ namespace Grimoire.UI
                 RequestGameOpen(primarySession, credentials, false);
             }
 
-            homeBrowser.BringToFront();
+            RestoreWorkspaceZOrder();
         }
 
         private void InitializeHome()
@@ -1617,6 +1619,7 @@ namespace Grimoire.UI
 
         private void RefreshHomeState()
         {
+            RequestModernUiStateRefresh();
             if (homeBrowser.Document == null)
             {
                 return;
@@ -1906,6 +1909,7 @@ namespace Grimoire.UI
         {
             if (disposing)
             {
+                DisposeModernShell();
                 metricsTimer?.Stop();
                 metricsProcess?.Dispose();
                 cpuMetricIcon?.Dispose();
@@ -2928,6 +2932,7 @@ namespace Grimoire.UI
 
         private void Root_Resize(object sender, EventArgs e)
         {
+            UpdateModernWindowFrame();
             LayoutClientWorkspace();
             if (startupComplete
                 && WindowState == FormWindowState.Minimized

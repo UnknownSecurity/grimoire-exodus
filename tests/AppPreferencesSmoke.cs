@@ -21,6 +21,7 @@ internal static class AppPreferencesSmoke
             };
 
             AppPreferenceSnapshot defaults = AppPreferences.Load();
+            AssertEqual(UserInterfaceMode.Legacy, defaults.InterfaceMode, "The legacy interface must remain the compatibility default.");
             AssertEqual(FlashRenderingProfile.Automatic, defaults.RenderingProfile, "Rendering must remain Automatic by default.");
             AssertEqual(FlashRenderQuality.Automatic, defaults.RenderQuality, "Render quality must remain Automatic by default.");
             AssertEqual(false, defaults.UseActiveClientFrameRate, "Active-client FPS must remain opt-in.");
@@ -33,6 +34,7 @@ internal static class AppPreferencesSmoke
 
             AppPreferences.Save(new AppPreferenceSnapshot
             {
+                InterfaceMode = UserInterfaceMode.Modern,
                 ConfirmOnClose = true,
                 MinimizeToTray = true,
                 EnableMultiClient = true,
@@ -47,6 +49,7 @@ internal static class AppPreferencesSmoke
                 GameEngine = GameEngineKind.Ruffle
             });
             AppPreferenceSnapshot saved = AppPreferences.Load();
+            AssertEqual(UserInterfaceMode.Modern, saved.InterfaceMode, "The selected interface was not persisted.");
             AssertEqual(FlashRenderingProfile.Gpu, saved.RenderingProfile, "The rendering profile was not persisted.");
             AssertEqual(FlashRenderQuality.Low, saved.RenderQuality, "The render quality was not persisted.");
             AssertEqual(true, saved.UseActiveClientFrameRate, "The active-client FPS switch was not persisted.");
@@ -63,14 +66,16 @@ internal static class AppPreferencesSmoke
             Config.Instance.Set("settings.activeClientFramesPerSecond", "999");
             Config.Instance.Set("settings.inactiveClientFramesPerSecond", "0");
             Config.Instance.Set("settings.gameEngine", "unsupported");
+            Config.Instance.Set("settings.interfaceMode", "unsupported");
             AppPreferenceSnapshot sanitized = AppPreferences.Load();
+            AssertEqual(UserInterfaceMode.Legacy, sanitized.InterfaceMode, "An unknown interface did not fall back to the legacy UI.");
             AssertEqual(FlashRenderingProfile.Automatic, sanitized.RenderingProfile, "An unknown rendering profile did not fall back safely.");
             AssertEqual(FlashRenderQuality.Automatic, sanitized.RenderQuality, "An unknown render quality did not fall back safely.");
             AssertEqual(240, sanitized.ActiveClientFramesPerSecond, "The active-client FPS was not clamped.");
             AssertEqual(1, sanitized.InactiveClientFramesPerSecond, "The inactive-client FPS was not clamped.");
             AssertEqual(GameEngineKind.FlashActiveX, sanitized.GameEngine, "An unknown game engine did not fall back to Flash.ocx.");
 
-            Console.WriteLine("PASS: engine, rendering, FPS, client-limit, and update-channel preferences keep compatibility defaults and persist safely.");
+            Console.WriteLine("PASS: interface, engine, rendering, FPS, client-limit, and update-channel preferences keep compatibility defaults and persist safely.");
             return 0;
         }
         catch (Exception exception)

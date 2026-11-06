@@ -22,6 +22,7 @@ namespace Grimoire.UI
         private static readonly Color SecondaryTextColor = Color.FromArgb(170, 174, 188);
 
         private readonly Root root;
+        private readonly DarkComboBox cmbInterfaceMode = new DarkComboBox();
         private readonly DarkCheckBox chkSkipHome = new DarkCheckBox();
         private readonly DarkCheckBox chkHideDeviceStats = new DarkCheckBox();
         private readonly DarkCheckBox chkConfirmOnClose = new DarkCheckBox();
@@ -130,6 +131,14 @@ namespace Grimoire.UI
         {
             TabPage page = CreateTabPage("General");
             FlowLayoutPanel content = CreateVerticalContent();
+            content.Controls.Add(CreateHeading("Interface"));
+            ConfigureDropDown(cmbInterfaceMode, "Legacy UI", "Modern UI");
+            cmbInterfaceMode.AccessibleName = "Application interface";
+            content.Controls.Add(CreatePreferenceRow(
+                "Application interface",
+                "Choose the established desktop layout or the new client-first interface. Restart Grimoire after changing this setting; running clients and bots are never restarted automatically.",
+                cmbInterfaceMode));
+
             content.Controls.Add(CreateHeading("Startup"));
             ConfigurePreferenceCheckBox(
                 chkSkipHome,
@@ -803,6 +812,7 @@ namespace Grimoire.UI
         private void LoadValues()
         {
             AppPreferenceSnapshot preferences = AppPreferences.Load();
+            cmbInterfaceMode.SelectedIndex = (int)preferences.InterfaceMode;
             chkSkipHome.Checked = preferences.SkipHomePage;
             chkHideDeviceStats.Checked = preferences.HideDeviceStats;
             chkConfirmOnClose.Checked = preferences.ConfirmOnClose;
@@ -907,6 +917,7 @@ namespace Grimoire.UI
                     new Dictionary<int, HotkeyGesture?>(bindingValues));
                 AppPreferenceSnapshot preferences = new AppPreferenceSnapshot
                 {
+                    InterfaceMode = (UserInterfaceMode)Math.Max(0, cmbInterfaceMode.SelectedIndex),
                     SkipHomePage = chkSkipHome.Checked,
                     HideDeviceStats = chkHideDeviceStats.Checked,
                     ConfirmOnClose = chkConfirmOnClose.Checked,
@@ -924,6 +935,7 @@ namespace Grimoire.UI
                 };
                 bool engineChanged = previousPreferences.GameEngine != preferences.GameEngine;
                 bool multiClientChanged = previousPreferences.EnableMultiClient != preferences.EnableMultiClient;
+                bool interfaceChanged = previousPreferences.InterfaceMode != preferences.InterfaceMode;
                 bool renderingChanged = previousPreferences.RenderingProfile != preferences.RenderingProfile
                     || previousPreferences.RenderQuality != preferences.RenderQuality;
                 AppPreferences.Save(preferences);
@@ -934,6 +946,8 @@ namespace Grimoire.UI
                     : "Your settings were saved.";
                 if (multiClientChanged)
                     message += " Restart Grimoire once so future launches use the new multi-client window behavior.";
+                if (interfaceChanged)
+                    message += " Restart Grimoire to use the selected interface. Current clients and bots were not interrupted.";
                 if (updateChannelChanged)
                     message += " The selected release channel will be used on the next update check.";
                 DarkMessageBox.Show(this, message, "Settings", MessageBoxIcon.Information);

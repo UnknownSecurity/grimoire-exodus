@@ -6,6 +6,12 @@ using System.IO;
 
 namespace Grimoire.Utils
 {
+    public enum UserInterfaceMode
+    {
+        Legacy,
+        Modern
+    }
+
     public enum FlashRenderingProfile
     {
         Automatic,
@@ -23,6 +29,8 @@ namespace Grimoire.Utils
 
     public sealed class AppPreferenceSnapshot
     {
+        public UserInterfaceMode InterfaceMode { get; set; }
+
         public bool SkipHomePage { get; set; }
 
         public bool HideDeviceStats { get; set; }
@@ -59,6 +67,7 @@ namespace Grimoire.Utils
     /// </summary>
     public static class AppPreferences
     {
+        private const string InterfaceModeKey = "settings.interfaceMode";
         private const string SkipHomePageKey = "settings.skipHomePage";
         private const string HideDeviceStatsKey = "settings.hideDeviceStats";
         private const string ConfirmOnCloseKey = "settings.confirmOnClose";
@@ -78,6 +87,7 @@ namespace Grimoire.Utils
         {
             return new AppPreferenceSnapshot
             {
+                InterfaceMode = GetEnum(InterfaceModeKey, UserInterfaceMode.Legacy),
                 SkipHomePage = GetBoolean(SkipHomePageKey, false),
                 HideDeviceStats = GetBoolean(HideDeviceStatsKey, false),
                 ConfirmOnClose = GetBoolean(ConfirmOnCloseKey, true),
@@ -100,6 +110,7 @@ namespace Grimoire.Utils
             if (preferences == null)
                 throw new ArgumentNullException(nameof(preferences));
 
+            Config.Instance.Set(InterfaceModeKey, preferences.InterfaceMode.ToString());
             Config.Instance.Set(SkipHomePageKey, preferences.SkipHomePage.ToString());
             Config.Instance.Set(HideDeviceStatsKey, preferences.HideDeviceStats.ToString());
             Config.Instance.Set(ConfirmOnCloseKey, preferences.ConfirmOnClose.ToString());

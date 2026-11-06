@@ -1608,9 +1608,9 @@
     "semantic_hash": "757df9fc9733d17459d5da63546476fe"
   },
   "app/Grimoire.UI/Root.cs": {
-    "mtime": 1793892160.4943008,
-    "seen": 1793892320.4786022,
-    "ast_hash": "3b77f013f62da31f696a25124ee1c8ce",
+    "mtime": 1793937076.828219,
+    "seen": 1793937425.6563792,
+    "ast_hash": "5c3265984c8703d4141fd2b2e0b53e6f",
     "semantic_hash": ""
   },
   "app/Grimoire.UI/Set.Designer.cs": {
@@ -1656,9 +1656,9 @@
     "semantic_hash": ""
   },
   "app/Grimoire.Utils/AppPaths.cs": {
-    "mtime": 1793892119.329564,
-    "seen": 1793892320.4786158,
-    "ast_hash": "901258d02b128a40240578ff89f28214",
+    "mtime": 1793919612.2514343,
+    "seen": 1793920868.4528885,
+    "ast_hash": "76faf00a41c97a5472886ed79511f912",
     "semantic_hash": ""
   },
   "app/Grimoire.Utils/AtomicFile.cs": {
@@ -1722,9 +1722,9 @@
     "semantic_hash": ""
   },
   "app/Grimoire.csproj": {
-    "mtime": 1793892536.0450437,
-    "seen": 1793892900.9307225,
-    "ast_hash": "9bea5b62f1f3284d21584a12ca6c7e2c",
+    "mtime": 1793920041.991482,
+    "seen": 1793920868.4529219,
+    "ast_hash": "599a4ed5ee293c82fe12d593f9d7a3e3",
     "semantic_hash": ""
   },
   "app/Grimoire/Program.cs": {
@@ -1956,15 +1956,15 @@
     "semantic_hash": "199d3daf752beb46089a647034586b1d"
   },
   "app/Grimoire.UI/SettingsForm.cs": {
-    "mtime": 1793892233.3147585,
-    "seen": 1793892320.478606,
-    "ast_hash": "1c0e1878dfb94d197fbfe85680dde43c",
+    "mtime": 1793937490.605366,
+    "seen": 1793937535.310147,
+    "ast_hash": "0455b08881b7e7947926848db1e929a8",
     "semantic_hash": ""
   },
   "app/Grimoire.Utils/AppPreferences.cs": {
-    "mtime": 1793892258.2571065,
-    "seen": 1793892320.4786172,
-    "ast_hash": "52821641277de22306d7fa0918b4ac38",
+    "mtime": 1793925967.4334297,
+    "seen": 1793937425.656399,
+    "ast_hash": "f14b5a914255f0d94533c898266db114",
     "semantic_hash": ""
   },
   "app/Grimoire.UI/GrimoireForm.cs": {
@@ -2136,9 +2136,9 @@
     "semantic_hash": ""
   },
   "app/Grimoire.UI/Root.MultiClient.cs": {
-    "mtime": 1793864919.462842,
-    "seen": 1793865001.0955493,
-    "ast_hash": "d6965629c7015afe3aa17b57f8f06582",
+    "mtime": 1793919797.7732844,
+    "seen": 1793920868.452865,
+    "ast_hash": "3364774fdba211b8debf4d6485c7dc5d",
     "semantic_hash": ""
   },
   "app/Grimoire.Utils/SingleInstanceBroker.cs": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "tests/AppPreferencesSmoke.cs": {
-    "mtime": 1793892121.047516,
-    "seen": 1793892320.4786437,
-    "ast_hash": "3368ddaba48d509a38c2128d43ae4563",
+    "mtime": 1793925969.5467281,
+    "seen": 1793937425.6564534,
+    "ast_hash": "a9278256b6b04602226d59a9fdab11cb",
     "semantic_hash": ""
   },
   "tests/Test-AppPreferences.ps1": {
@@ -2580,15 +2580,129 @@
     "semantic_hash": ""
   },
   "docs/releases/v1.7.0.md": {
-    "mtime": 1793892547.4298673,
-    "seen": 1793892900.930828,
-    "ast_hash": "96b7ecf1f9afe7501006d58926e210ff",
+    "mtime": 1793957821.5088089,
+    "seen": 1793957908.311452,
+    "ast_hash": "7dde7a965e962cbcee122151d0b02908",
     "semantic_hash": ""
   },
   "docs/ui-modernization-framework-migration-plan.md": {
     "mtime": 1793894480.890342,
     "seen": 1793894503.2770832,
     "ast_hash": "168c41affefbf9b76a61c8d1efba1792",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI.Modern/IModernUiApplication.cs": {
+    "mtime": 1793919615.3715088,
+    "seen": 1793920868.4527903,
+    "ast_hash": "36ac2a2d60413cb22d4dea22fd729d2f",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI.Modern/ModernShellFeature.cs": {
+    "mtime": 1793925968.1169524,
+    "seen": 1793937425.6563182,
+    "ast_hash": "ab08bfdf44384b73d58b4dc2fd7ef36d",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI.Modern/ModernShellHost.cs": {
+    "mtime": 1793957592.8829644,
+    "seen": 1793957707.160724,
+    "ast_hash": "5149fcda90a110b7682933c1711783c4",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI.Modern/ModernUiProtocol.cs": {
+    "mtime": 1793941675.0740814,
+    "seen": 1793942102.492178,
+    "ast_hash": "907b648d1456d46a1cebbc2ea45e0811",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI.Modern/RootModernUiApplication.cs": {
+    "mtime": 1793919615.9856884,
+    "seen": 1793920868.4527993,
+    "ast_hash": "8999e8ce8c9d4c646809059edbedd842",
+    "semantic_hash": ""
+  },
+  "app/Grimoire.UI/Root.ModernShell.cs": {
+    "mtime": 1793957971.282443,
+    "seen": 1793958107.5798545,
+    "ast_hash": "285200ce605e0d98d12eb1a8059db0c4",
+    "semantic_hash": ""
+  },
+  "desktop-ui/package.json": {
+    "mtime": 1793956540.7904382,
+    "seen": 1793957134.6723938,
+    "ast_hash": "f5fd62c683b1954c15b0b23f460fca1d",
+    "semantic_hash": ""
+  },
+  "desktop-ui/src/App.vue": {
+    "mtime": 1793957050.6190784,
+    "seen": 1793957134.672395,
+    "ast_hash": "45da14a2a909dc43d3d2027b98802b82",
+    "semantic_hash": ""
+  },
+  "desktop-ui/src/bridge.ts": {
+    "mtime": 1793920027.9810982,
+    "seen": 1793920868.4529407,
+    "ast_hash": "f06bd83464c28da68b9160e5c9471030",
+    "semantic_hash": ""
+  },
+  "desktop-ui/src/main.ts": {
+    "mtime": 1793920027.3662863,
+    "seen": 1793920868.4529424,
+    "ast_hash": "8190f45c240e072c4dbbb97cc9bfa10b",
+    "semantic_hash": ""
+  },
+  "desktop-ui/src/stores/app.ts": {
+    "mtime": 1793956701.8847196,
+    "seen": 1793957134.6723983,
+    "ast_hash": "da63132cb18920646d877bfe8f240305",
+    "semantic_hash": ""
+  },
+  "desktop-ui/tsconfig.json": {
+    "mtime": 1793920024.239853,
+    "seen": 1793920868.4529476,
+    "ast_hash": "726b91b25846dce5bb1c3497684e2e63",
+    "semantic_hash": ""
+  },
+  "desktop-ui/vite.config.ts": {
+    "mtime": 1793920024.8530838,
+    "seen": 1793920868.4529493,
+    "ast_hash": "aef0214da301cc2653c12cbd55067147",
+    "semantic_hash": ""
+  },
+  "tests/ModernUiProtocolSmoke.cs": {
+    "mtime": 1793941941.010674,
+    "seen": 1793942102.4922733,
+    "ast_hash": "da8976eae425244301dac321807bfeaf",
+    "semantic_hash": ""
+  },
+  "tests/Test-ModernUiProtocol.ps1": {
+    "mtime": 1793957593.5746086,
+    "seen": 1793957707.160853,
+    "ast_hash": "2728ebb15efbe597d82a2ebeeb8a1148",
+    "semantic_hash": ""
+  },
+  "app/Resources/Shell/index.html": {
+    "mtime": 1793957949.9676287,
+    "seen": 1793958107.5801134,
+    "ast_hash": "49daa45f20503950c4bdf40973e5602f",
+    "semantic_hash": ""
+  },
+  "desktop-ui/README.md": {
+    "mtime": 1793920743.5957127,
+    "seen": 1793920868.4534998,
+    "ast_hash": "7c703cf24352573af512b2b9a3a7f016",
+    "semantic_hash": ""
+  },
+  "desktop-ui/index.html": {
+    "mtime": 1793920025.4557462,
+    "seen": 1793920868.4535067,
+    "ast_hash": "2b60050479b65ad003bef15975748d66",
+    "semantic_hash": ""
+  },
+  "app/Resources/Shell/assets/index-DWkavnM9.js": {
+    "mtime": 1793957949.9676287,
+    "seen": 1793958107.57993,
+    "ast_hash": "3583a18c30e473ba48e562b2df36472b",
     "semantic_hash": ""
   }
 }

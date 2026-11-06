@@ -529,6 +529,14 @@
     <Compile Include="Grimoire.UI\Root.MultiClient.cs">
       <DependentUpon>Root.cs</DependentUpon>
     </Compile>
+    <Compile Include="Grimoire.UI\Root.ModernShell.cs">
+      <DependentUpon>Root.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Grimoire.UI.Modern\IModernUiApplication.cs" />
+    <Compile Include="Grimoire.UI.Modern\ModernShellFeature.cs" />
+    <Compile Include="Grimoire.UI.Modern\ModernShellHost.cs" />
+    <Compile Include="Grimoire.UI.Modern\ModernUiProtocol.cs" />
+    <Compile Include="Grimoire.UI.Modern\RootModernUiApplication.cs" />
     <Compile Include="Grimoire.UI\QuickBotSelectorForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -651,6 +659,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\Home\images\aqworlds-master-header.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Shell\**\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="..\game-client\grimoire-exodus.swf">
