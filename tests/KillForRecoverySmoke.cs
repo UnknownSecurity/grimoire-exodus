@@ -18,6 +18,7 @@ internal static class KillForRecoverySmoke
     private const string MonsterName = "Test Monster";
     private const string TempItemName = "Test Drop";
     private const int RequiredQuantity = 2;
+    private const int RuffleRequiredQuantity = 5;
 
     [STAThread]
     private static int Main()
@@ -39,6 +40,7 @@ internal static class KillForRecoverySmoke
     {
         AssertPublicCommandSurface();
         await AssertRoomClearStaleTargetRecovers();
+        await AssertRuffleStaleTargetWithAnotherMonsterRecovers();
         await AssertLongRunningTargetIsNotInterrupted();
         await AssertBriefAvailabilityPulseIsDebounced();
     }
@@ -76,6 +78,45 @@ internal static class KillForRecoverySmoke
                 throw new InvalidOperationException("Kill-for completed before the required temporary-item quantity was reached.");
             if (bridge.SkillCallCount == 0)
                 throw new InvalidOperationException("The reproduction did not exercise the continuing skill loop.");
+        }
+        finally
+        {
+            engine.IsRunning = false;
+            session.Dispose();
+        }
+    }
+
+    private static async Task AssertRuffleStaleTargetWithAnotherMonsterRecovers()
+    {
+        FakeFlashBridge bridge = new FakeFlashBridge(CombatScenario.RuffleStaleTargetWithAnotherMonster);
+        FakeBotEngine engine = CreateEngine();
+        ClientSession session = new ClientSession("Ruffle Kill-for recovery", bridge, engine);
+        try
+        {
+            Task commandTask;
+            using (ClientSessionContext.Push(session))
+            {
+                PrepareSession(session);
+                commandTask = CreateCommand(RuffleRequiredQuantity).Execute(engine);
+                Task winner = await Task.WhenAny(commandTask, Task.Delay(4000));
+                if (!ReferenceEquals(winner, commandTask))
+                {
+                    int attackCount = bridge.AttackCount;
+                    int tempQuantity = bridge.TempQuantity;
+                    engine.IsRunning = false;
+                    await AwaitBounded(commandTask, "The stalled Ruffle Kill-for command did not stop during test cleanup.");
+                    throw new InvalidOperationException(
+                        "Ruffle Kill-for stopped after one drop while another matching monster remained available "
+                        + "(attacks=" + attackCount + ", quantity=" + tempQuantity + "/" + RuffleRequiredQuantity + ").");
+                }
+
+                await commandTask;
+            }
+
+            if (bridge.AttackCount != 2)
+                throw new InvalidOperationException("Ruffle Kill-for did not reacquire the next matching monster.");
+            if (bridge.TempQuantity < RuffleRequiredQuantity)
+                throw new InvalidOperationException("Ruffle Kill-for completed before reaching the required quantity.");
         }
         finally
         {
@@ -158,14 +199,14 @@ internal static class KillForRecoverySmoke
         };
     }
 
-    private static CmdKillFor CreateCommand()
+    private static CmdKillFor CreateCommand(int quantity = RequiredQuantity)
     {
         return new CmdKillFor
         {
             Monster = MonsterName,
             ItemName = TempItemName,
             ItemType = ItemType.TempItems,
-            Quantity = RequiredQuantity.ToString()
+            Quantity = quantity.ToString()
         };
     }
 
@@ -209,6 +250,7 @@ internal static class KillForRecoverySmoke
     private enum CombatScenario
     {
         StaleTargetAfterRoomClear,
+        RuffleStaleTargetWithAnotherMonster,
         ValidLongFight,
         SingleUnavailablePulse
     }
@@ -291,7 +333,15 @@ internal static class KillForRecoverySmoke
 
         public int TempQuantity { get { return Volatile.Read(ref tempQuantity); } }
 
-        public GameEngineKind Engine { get { return GameEngineKind.FlashActiveX; } }
+        public GameEngineKind Engine
+        {
+            get
+            {
+                return scenario == CombatScenario.RuffleStaleTargetWithAnotherMonster
+                    ? GameEngineKind.Ruffle
+                    : GameEngineKind.FlashActiveX;
+            }
+        }
 
         public AxShockwaveFlash Control { get { return null; } }
 
@@ -370,6 +420,22 @@ internal static class KillForRecoverySmoke
                 {
                     case "AttackMonster":
                         attackCount++;
+                        if (scenario == CombatScenario.RuffleStaleTargetWithAnotherMonster)
+                        {
+                            if (attackCount == 1)
+                            {
+                                tempQuantity = 1;
+                                hasTarget = true;
+                                monsterAvailable = true;
+                            }
+                            else
+                            {
+                                tempQuantity = RuffleRequiredQuantity;
+                                hasTarget = false;
+                                monsterAvailable = true;
+                            }
+                            return null;
+                        }
                         hasTarget = attackCount == 1;
                         if (scenario == CombatScenario.StaleTargetAfterRoomClear && attackCount == 1)
                             monsterAvailable = false;

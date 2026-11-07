@@ -51,7 +51,9 @@ namespace Grimoire.UI.Modern
                 "bots.start",
                 "bots.stop",
                 "location.refresh",
+                "location.pads",
                 "location.move",
+                "updates.install",
                 "options.toggle",
                 "tools.open",
                 "home.getState",
@@ -250,6 +252,7 @@ namespace Grimoire.UI.Modern
                 || string.Equals(method, "bots.start", StringComparison.Ordinal)
                 || string.Equals(method, "bots.stop", StringComparison.Ordinal)
                 || string.Equals(method, "location.refresh", StringComparison.Ordinal)
+                || string.Equals(method, "location.pads", StringComparison.Ordinal)
                 || string.Equals(method, "location.move", StringComparison.Ordinal)
                 || string.Equals(method, "options.toggle", StringComparison.Ordinal);
         }

@@ -59,3 +59,15 @@ finally {
         }
     }
 }
+
+& (Join-Path $PSScriptRoot "Test-RuffleBridgeResponsiveness.ps1") `
+    -Configuration $Configuration `
+    -OutputDirectory $outputDirectory
+
+& (Join-Path $PSScriptRoot "Test-ModernRuffleUiResponsiveness.ps1") `
+    -Configuration $Configuration `
+    -OutputDirectory $outputDirectory
+
+& (Join-Path $PSScriptRoot "Test-RuffleCombatApproach.ps1") `
+    -Configuration $Configuration `
+    -OutputDirectory $outputDirectory

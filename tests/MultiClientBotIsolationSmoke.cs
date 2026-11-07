@@ -55,6 +55,9 @@ internal static class MultiClientBotIsolationSmoke
 
             WaitFor(firstCommand.ExecutionAfterAwait, "The first bot did not retain its client across an await.");
             WaitFor(secondCommand.ExecutionAfterAwait, "The second bot did not retain its client across an await.");
+            WaitUntil(
+                () => firstCommand.ExecutionCount >= 2 && secondCommand.ExecutionCount >= 2,
+                "Bot commands did not wrap to the beginning after reaching the end of the list.");
             firstCommand.ThrowIfFailed();
             secondCommand.ThrowIfFailed();
 

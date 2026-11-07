@@ -30,12 +30,15 @@ namespace Grimoire.Botting.Commands.Combat
             await ExecuteCore(instance, false);
         }
 
-        internal async Task ExecuteForKillFor(IBotEngine instance)
+        internal async Task ExecuteForKillFor(IBotEngine instance, Func<bool> targetProgressed = null)
         {
-            await ExecuteCore(instance, true);
+            await ExecuteCore(instance, true, targetProgressed);
         }
 
-        private async Task ExecuteCore(IBotEngine instance, bool recoverStaleTarget)
+        private async Task ExecuteCore(
+            IBotEngine instance,
+            bool recoverStaleTarget,
+            Func<bool> targetProgressed = null)
         {
             using (CancellationTokenSource cts = new CancellationTokenSource())
             {
@@ -63,7 +66,8 @@ namespace Grimoire.Botting.Commands.Combat
                         await WaitForTargetReleaseOrRoomClear(
                             instance,
                             instance.Value(Monster),
-                            cts.Token);
+                            cts.Token,
+                            targetProgressed);
                     }
                     else
                     {
@@ -95,13 +99,20 @@ namespace Grimoire.Botting.Commands.Combat
         private static async Task WaitForTargetReleaseOrRoomClear(
             IBotEngine instance,
             string monster,
-            CancellationToken token)
+            CancellationToken token,
+            Func<bool> targetProgressed)
         {
             int unavailableChecks = 0;
             while (instance.IsRunning && !token.IsCancellationRequested && Player.HasTarget)
             {
                 await Task.Delay(TargetCheckDelay);
-                if (!instance.IsRunning || token.IsCancellationRequested || !Player.HasTarget)
+                if (!instance.IsRunning || token.IsCancellationRequested)
+                    return;
+
+                if (!Player.HasTarget)
+                    return;
+
+                if (targetProgressed != null && targetProgressed())
                     return;
 
                 if (World.IsMonsterAvailable(monster))

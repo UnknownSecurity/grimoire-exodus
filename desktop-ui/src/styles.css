@@ -58,17 +58,28 @@ button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 
 .brand-copy strong { font-size: 17px; }
 .brand-copy small { margin-top: 5px; color: var(--muted); font-size: 11px; }
 
-.top-routes { display: flex; align-self: stretch; gap: 4px; min-width: 0; flex: 0 1 auto; }
-.top-routes button, .icon-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 82px; color: #c8c2d7; background: transparent; border: 0; border-radius: 9px; cursor: pointer; }
+.top-routes { display: flex; align-self: center; gap: 4px; min-width: 0; flex: 0 1 auto; height: 38px; }
+.top-routes button, .icon-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 82px; height: 38px; color: #c8c2d7; background: transparent; border: 0; border-radius: 9px; cursor: pointer; }
 .top-routes button:hover, .icon-button:hover { color: var(--text); background: rgba(168,85,247,.10); transform: translateY(-1px); }
 .top-routes button.active { color: #d8a9ff; background: linear-gradient(180deg, rgba(168,85,247,.14), rgba(168,85,247,.07)); box-shadow: inset 0 -2px 0 var(--accent); }
 .icon-button { min-width: 38px; width: 38px; height: 38px; }
+.icon-button.update-button { color: #f2ca79; border: 1px solid rgba(244,183,64,.32); background: rgba(244,183,64,.08); }
+.icon-button.update-button:hover { color: #ffe0a0; border-color: rgba(244,183,64,.52); background: rgba(244,183,64,.14); }
+.icon-button.update-button:disabled { opacity: .55; cursor: wait; transform: none; }
 .window-drag-space { align-self: stretch; flex: 1 1 18px; min-width: 8px; }
+.engine-badge { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 58px; height: 24px; padding: 0 7px; border: 1px solid rgba(255, 168, 31, .34); border-radius: 7px; background: rgba(255, 154, 19, .08); }
+.engine-badge img { width: 43px; height: 14px; object-fit: contain; }
+.engine-badge.flash { border-color: rgba(177, 67, 255, .38); background: rgba(143, 38, 224, .1); }
 .window-controls { display: flex; align-self: stretch; margin-left: auto; }
 .window-controls button { display: grid; width: 46px; height: 100%; place-items: center; color: #b9bec7; border: 0; background: transparent; cursor: pointer; }
 .window-controls button:hover { color: var(--text); background: #292d33; }
 .window-controls .window-close:hover { color: white; background: #c42b3a; }
 .chrome-toasts { position: absolute; top: 9px; left: 50%; z-index: 60; display: grid; width: min(380px, 38vw); pointer-events: none; transform: translateX(-50%); }
+
+.ruffle-frame-stack { position: fixed; z-index: 10; overflow: hidden; opacity: 0; visibility: hidden; pointer-events: none; border: 1px solid #4b3a61; border-radius: 10px; background: #050607; transition: opacity var(--motion-fast) ease; }
+.ruffle-frame-stack.visible { opacity: 1; visibility: visible; pointer-events: auto; }
+.ruffle-frame-stack iframe { position: absolute; inset: 0; display: none; width: 100%; height: 100%; border: 0; background: #050607; }
+.ruffle-frame-stack iframe.active { display: block; }
 
 .sidebar { grid-row: 2; display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 12px; border-right: 1px solid var(--border); background: rgba(14, 16, 19, .96); }
 .side-heading { display: flex; align-items: center; gap: 9px; min-height: 28px; padding: 0 10px; color: #d8a9ff; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
@@ -122,12 +133,6 @@ dt { color: var(--muted); } dd { margin: 0; color: var(--text); }
 .hero-actions { display: flex; gap: 10px; margin-top: 20px; }
 .hero-actions .accent-button { width: auto; padding: 0 16px; }
 .hero-emblem img { width: min(20vw, 190px); opacity: .78; filter: drop-shadow(0 0 36px rgba(168,85,247,.45)); }
-.home-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
-.home-cards article { display: flex; gap: 10px; padding: 13px; color: #ce9dff; border: 1px solid var(--border); border-radius: 10px; background: rgba(20,22,26,.94); }
-.home-cards article:hover { border-color: #594069; background: rgba(28,30,36,.97); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.2); }
-.home-cards article div { display: grid; gap: 4px; }
-.home-cards article strong { color: var(--text); font-size: 12px; }
-.home-cards article span { color: var(--muted); font-size: 10px; line-height: 1.4; }
 .android-promo { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 13px; width: 100%; margin-top: 12px; padding: 13px 15px; color: var(--text); text-align: left; border: 1px solid rgba(168,85,247,.32); border-radius: 11px; background: linear-gradient(105deg, rgba(124,58,237,.2), rgba(24,27,32,.97) 50%, rgba(13,15,18,.97)); cursor: pointer; }
 .android-promo:hover { border-color: rgba(192,100,255,.65); background: linear-gradient(105deg, rgba(124,58,237,.29), rgba(31,34,40,.98) 50%, rgba(17,19,23,.98)); transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,.24); }
 .android-promo-icon { display: grid; width: 42px; height: 42px; place-items: center; color: #d9b1ff; border: 1px solid rgba(192,100,255,.32); border-radius: 10px; background: rgba(124,58,237,.2); }
@@ -309,8 +314,6 @@ dt { color: var(--muted); } dd { margin: 0; color: var(--text); }
   .client-summary { display: none; }
   .operations-dock { grid-template-columns: 1fr 1fr; }
   .logs-preview { display: none; }
-  .home-cards { grid-template-columns: 1fr; }
-  .home-cards article:nth-child(n+2) { display: none; }
   .home-dashboard { grid-template-columns: 1fr; }
   .android-promo { grid-template-columns: 42px minmax(0, 1fr); }
   .android-promo-action { display: none; }
@@ -339,7 +342,7 @@ dt { color: var(--muted); } dd { margin: 0; color: var(--text); }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  button, .home-cards article, .home-panel, .home-accordion, .account-row, .operation-card { transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, filter var(--motion-fast) ease, transform var(--motion-medium) var(--motion-ease), box-shadow var(--motion-medium) ease; }
+  button, .home-panel, .home-accordion, .account-row, .operation-card { transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, filter var(--motion-fast) ease, transform var(--motion-medium) var(--motion-ease), box-shadow var(--motion-medium) ease; }
 }
 
 @media (prefers-reduced-motion: reduce) {

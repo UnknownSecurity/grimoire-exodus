@@ -36,6 +36,16 @@ namespace Grimoire.Clients
         private bool disposed;
 
         public RuffleLocalHost(string runtimeDirectory, byte[] swf, string indexHtml, RuffleServerMap serverMap)
+            : this(runtimeDirectory, swf, indexHtml, serverMap, 0)
+        {
+        }
+
+        public RuffleLocalHost(
+            string runtimeDirectory,
+            byte[] swf,
+            string indexHtml,
+            RuffleServerMap serverMap,
+            int preferredPort)
         {
             if (string.IsNullOrWhiteSpace(runtimeDirectory))
                 throw new ArgumentException("A Ruffle runtime directory is required.", nameof(runtimeDirectory));
@@ -48,11 +58,31 @@ namespace Grimoire.Clients
             this.swf = (byte[])swf.Clone();
             this.serverMap = serverMap ?? throw new ArgumentNullException(nameof(serverMap));
             Token = CreateToken();
-            listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start(32);
+            listener = StartLoopbackListener(preferredPort);
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
             index = Encoding.UTF8.GetBytes(indexHtml.Replace("__BASE_URL__", BaseUrl));
             _ = Task.Run((Func<Task>)AcceptLoopAsync);
+        }
+
+        private static TcpListener StartLoopbackListener(int preferredPort)
+        {
+            if (preferredPort >= 1024 && preferredPort <= 65535)
+            {
+                TcpListener preferred = new TcpListener(IPAddress.Loopback, preferredPort);
+                try
+                {
+                    preferred.Start(32);
+                    return preferred;
+                }
+                catch (SocketException)
+                {
+                    preferred.Stop();
+                }
+            }
+
+            TcpListener fallback = new TcpListener(IPAddress.Loopback, 0);
+            fallback.Start(32);
+            return fallback;
         }
 
         public int Port { get; }

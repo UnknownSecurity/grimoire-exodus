@@ -519,10 +519,17 @@ namespace Grimoire.UI
             {
                 if (engine == GameEngineKind.Ruffle)
                 {
-                    bridge = new RuffleFlashBridge();
+                    RuffleFlashBridge ruffleBridge = new RuffleFlashBridge(
+                        modernShellActive ? modernShellHost : null,
+                        displayName,
+                        GetRuffleStorageSlot(displayName));
+                    bridge = ruffleBridge;
                     clientControl = bridge.HostControl;
-                    clientControl.Name = "Ruffle" + displayName.Replace(" ", string.Empty);
-                    host.Controls.Add(clientControl);
+                    if (!ruffleBridge.UsesSharedHost)
+                    {
+                        clientControl.Name = "Ruffle" + displayName.Replace(" ", string.Empty);
+                        host.Controls.Add(clientControl);
+                    }
                 }
                 else
                 {
@@ -537,8 +544,11 @@ namespace Grimoire.UI
                     bridge = new ActiveXFlashBridge(flashControl);
                     clientControl = flashControl;
                 }
-                clientControl.Dock = DockStyle.Fill;
-                clientControl.TabIndex = 0;
+                if (!(bridge is RuffleFlashBridge embeddedRuffle) || !embeddedRuffle.UsesSharedHost)
+                {
+                    clientControl.Dock = DockStyle.Fill;
+                    clientControl.TabIndex = 0;
+                }
                 host.Controls.Add(placeholder);
                 placeholder.BringToFront();
                 GamePanel.Controls.Add(host);
@@ -616,6 +626,17 @@ namespace Grimoire.UI
             }
 
             bridge.LoadMovie(clientSwfBytes);
+        }
+
+        private static int GetRuffleStorageSlot(string displayName)
+        {
+            if (!string.IsNullOrWhiteSpace(displayName))
+            {
+                string digits = new string(displayName.Where(char.IsDigit).ToArray());
+                if (int.TryParse(digits, out int number) && number > 0)
+                    return Math.Min(63, number - 1);
+            }
+            return 0;
         }
 
         private void ShowRuffleFallbackWarning(string reason)
@@ -977,7 +998,8 @@ namespace Grimoire.UI
                     AutoRelogin.LoginExecute();
                     StopCredentialFill(workspace.Session);
                 }
-                else if (workspace.CredentialFillAttempts >= 60)
+                else if (workspace.CredentialFillAttempts >=
+                    (workspace.Session.FlashBridge.Engine == GameEngineKind.Ruffle ? 240 : 60))
                 {
                     StopCredentialFill(workspace.Session);
                     workspace.Session.ReleaseAssignedAccount();
@@ -1223,6 +1245,9 @@ namespace Grimoire.UI
                     isActive,
                     botRunning,
                     requiresVisibleInitialization);
+                RuffleFlashBridge ruffleBridge = workspace.Session.FlashBridge as RuffleFlashBridge;
+                if (modernShellActive && ruffleBridge?.UsesSharedHost == true)
+                    shouldRender = false;
                 if (workspace.Host.Visible != shouldRender)
                     workspace.Host.Visible = shouldRender;
             }
@@ -1359,6 +1384,7 @@ namespace Grimoire.UI
 
         private void ClientSessions_SessionRemoved(object sender, ClientSessionEventArgs e)
         {
+            modernPadChoices.Remove(e.Session.Id);
             if (clientWorkspaces.TryGetValue(e.Session, out ClientWorkspaceState workspace))
             {
                 clientWorkspaces.Remove(e.Session);

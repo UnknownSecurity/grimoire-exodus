@@ -1178,7 +1178,7 @@ namespace Grimoire.UI
             }
         }
 
-        private void Root_Load(object sender, EventArgs e)
+        private async void Root_Load(object sender, EventArgs e)
         {
             startupComplete = false;
             List<string> failures = new List<string>();
@@ -1194,6 +1194,11 @@ namespace Grimoire.UI
                 Show();
                 WindowState = FormWindowState.Normal;
             }, failures);
+            if (modernShellRequested)
+            {
+                StartupDiagnostics.SetStage("Modern UI");
+                await TryInitializeModernShellAsync();
+            }
             RunStartupStage("Hotkeys", Hotkeys.Instance.LoadHotkeys, failures);
             RunStartupStage("Plugins", delegate
             {
@@ -1298,6 +1303,7 @@ namespace Grimoire.UI
                     + " is available";
                 updateToolStripMenuItem.AccessibleName = "Update to Grimoire Exodus " + release.Version.ToString(3);
                 updateToolStripMenuItem.Visible = true;
+                RequestModernUiStateRefresh();
                 return release;
             }
             catch (OperationCanceledException)
@@ -1350,6 +1356,7 @@ namespace Grimoire.UI
 
             updateOperationRunning = true;
             updateToolStripMenuItem.Enabled = false;
+            RequestModernUiStateRefresh();
             try
             {
                 bool preparedReleaseMatches = preparedUpdate != null
@@ -1444,6 +1451,7 @@ namespace Grimoire.UI
                 if (!IsDisposed && !updateShutdownRequested)
                 {
                     updateToolStripMenuItem.Enabled = true;
+                    RequestModernUiStateRefresh();
                 }
             }
         }

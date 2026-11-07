@@ -30,33 +30,77 @@ namespace Grimoire.Clients
         private const int MaximumBridgeFunctionCharacters = 128;
         private const int MaximumBridgeMessageCharacters = 4 * 1024 * 1024;
         private const int MaximumQueuedHostCallbacks = 4096;
+        private const int MaximumCallbacksPerDrain = 32;
+        private const int CallbackDrainTimeSliceMilliseconds = 8;
+        private const int PersistentLoopbackPortBase = 39280;
+        private const string PersistentProfileDirectoryName = "PersistentProfile";
 
         private readonly WebView2 webView;
+        private readonly IRuffleFrameHost sharedFrameHost;
+        private readonly Control sharedHostControl;
         private readonly int ownerThreadId;
         private readonly RuffleServerMap serverMap = new RuffleServerMap();
         private readonly RuffleHostObject hostObject;
         private readonly string profileDirectory;
+        private readonly bool deleteProfileOnDispose;
+        private readonly string frameName;
+        private readonly int preferredLoopbackPort;
         private readonly object callbackSync = new object();
         private readonly Queue<QueuedHostCallback> callbackQueue = new Queue<QueuedHostCallback>();
         private Uri trustedDocumentUri;
         private ClientSession session;
         private RuffleLocalHost localHost;
+        private IRuffleFrame sharedFrame;
         private bool navigationReady;
         private bool scriptInvocationInProgress;
         private bool callbackDrainScheduled;
         private bool disposed;
 
         public RuffleFlashBridge()
+            : this(null, Guid.NewGuid().ToString("N"), 0, true)
+        {
+        }
+
+        public RuffleFlashBridge(
+            IRuffleFrameHost sharedFrameHost,
+            string storageKey,
+            int storageSlot)
+            : this(sharedFrameHost, storageKey, storageSlot, false)
+        {
+        }
+
+        private RuffleFlashBridge(
+            IRuffleFrameHost sharedFrameHost,
+            string storageKey,
+            int storageSlot,
+            bool deleteProfileOnDispose)
         {
             ownerThreadId = Thread.CurrentThread.ManagedThreadId;
-            profileDirectory = Path.Combine(AppPaths.RuffleWebViewDataDirectory, Guid.NewGuid().ToString("N"));
-            webView = new WebView2
+            this.sharedFrameHost = sharedFrameHost;
+            this.deleteProfileOnDispose = deleteProfileOnDispose;
+            frameName = "grimoire-ruffle-" + Guid.NewGuid().ToString("N");
+            preferredLoopbackPort = PersistentLoopbackPortBase + Math.Max(0, Math.Min(63, storageSlot));
+            profileDirectory = deleteProfileOnDispose
+                ? Path.Combine(AppPaths.RuffleWebViewDataDirectory, NormalizeStorageKey(storageKey))
+                : Path.Combine(
+                    AppPaths.RuffleWebViewDataDirectory,
+                    PersistentProfileDirectoryName,
+                    NormalizeStorageKey(storageKey));
+            if (sharedFrameHost == null)
             {
-                BackColor = System.Drawing.Color.Black,
-                DefaultBackgroundColor = System.Drawing.Color.Black,
-                Dock = DockStyle.Fill,
-                TabIndex = 0
-            };
+                webView = new WebView2
+                {
+                    BackColor = System.Drawing.Color.Black,
+                    DefaultBackgroundColor = System.Drawing.Color.Black,
+                    Dock = DockStyle.Fill,
+                    TabIndex = 0
+                };
+            }
+            else
+            {
+                sharedHostControl = sharedFrameHost.InvocationControl
+                    ?? throw new ArgumentException("The shared Ruffle host has no invocation control.", nameof(sharedFrameHost));
+            }
             hostObject = new RuffleHostObject(this);
         }
 
@@ -64,7 +108,9 @@ namespace Grimoire.Clients
 
         public AxShockwaveFlash Control => null;
 
-        public Control HostControl => webView;
+        public Control HostControl => sharedFrameHost == null ? (Control)webView : sharedHostControl;
+
+        public bool UsesSharedHost => sharedFrameHost != null;
 
         public event Action<int> SwfLoadProgress;
 
@@ -92,8 +138,36 @@ namespace Grimoire.Clients
             string runtimeDirectory = Path.Combine(AppPaths.ApplicationDirectory, "Ruffle");
             string pagePath = Path.Combine(AppPaths.ApplicationDirectory, "Resources", "Ruffle", "index.html");
             string page = File.ReadAllText(pagePath);
-            localHost = new RuffleLocalHost(runtimeDirectory, swf, page, serverMap);
+            localHost = new RuffleLocalHost(
+                runtimeDirectory,
+                swf,
+                page,
+                serverMap,
+                preferredLoopbackPort);
             trustedDocumentUri = new Uri(localHost.BaseUrl + "index.html");
+
+            if (sharedFrameHost != null)
+            {
+                try
+                {
+                    sharedFrame = WaitForUiTask(
+                        sharedFrameHost.AttachRuffleFrameAsync(
+                            frameName,
+                            session.Id.ToString("D"),
+                            trustedDocumentUri,
+                            hostObject),
+                        ScriptTimeoutMilliseconds);
+                    sharedFrame.Failed += SharedFrame_Failed;
+                    return;
+                }
+                catch
+                {
+                    sharedFrameHost.DetachRuffleFrame(frameName);
+                    localHost.Dispose();
+                    localHost = null;
+                    throw;
+                }
+            }
 
             Directory.CreateDirectory(profileDirectory);
             CoreWebView2Environment environment = WaitForUiTask(
@@ -105,6 +179,16 @@ namespace Grimoire.Clients
             webView.NavigationCompleted += WebView_NavigationCompleted;
             webView.CoreWebView2.ProcessFailed += CoreWebView2_ProcessFailed;
             webView.CoreWebView2.Navigate(localHost.BaseUrl + "index.html");
+        }
+
+        private void SharedFrame_Failed(Exception exception)
+        {
+            navigationReady = false;
+            HandleFailure(
+                exception ?? new InvalidOperationException("The embedded Ruffle frame stopped unexpectedly."),
+                "SharedFrame");
+            if (session != null && !session.IsDisposed)
+                session.MarkFaulted();
         }
 
         private void ConfigureBrowser()
@@ -242,6 +326,8 @@ namespace Grimoire.Clients
                     case "modifyServers":
                         return serverMap.Rewrite(first.Trim());
                     case "bridgeReady":
+                        navigationReady = true;
+                        ScheduleHostCallbackDrain();
                         return null;
                     case "loadError":
                         HandleFailure(new InvalidOperationException(string.IsNullOrWhiteSpace(first)
@@ -280,7 +366,7 @@ namespace Grimoire.Clients
             ScheduleHostCallbackDrain();
         }
 
-        private void ScheduleHostCallbackDrain()
+        private void ScheduleHostCallbackDrain(bool yieldToMessageLoop = false)
         {
             lock (callbackSync)
             {
@@ -289,7 +375,8 @@ namespace Grimoire.Clients
                 callbackDrainScheduled = true;
             }
 
-            if (!webView.IsHandleCreated || webView.IsDisposed)
+            Control dispatcher = sharedFrameHost == null ? (Control)webView : sharedHostControl;
+            if (!dispatcher.IsHandleCreated || dispatcher.IsDisposed)
             {
                 ClearQueuedHostCallbacks();
                 return;
@@ -303,7 +390,33 @@ namespace Grimoire.Clients
                 // deadlocks at the first server login response. Posting one
                 // ordered drain lets the host call return before any handler
                 // is allowed to invoke Ruffle again.
-                webView.BeginInvoke(new Action(DrainHostCallbacks));
+                if (!yieldToMessageLoop)
+                {
+                    dispatcher.BeginInvoke(new Action(DrainHostCallbacks));
+                    return;
+                }
+
+                // Posting another BeginInvoke while WinForms is already draining
+                // posted callbacks can keep Application.DoEvents/message dispatch
+                // inside the same work chain. Delay the continuation by one tick
+                // so paint, input, and synchronous Control.Invoke work can run.
+                Task.Delay(1).ContinueWith(
+                    delegate
+                    {
+                        if (disposed)
+                            return;
+                        try
+                        {
+                            dispatcher.BeginInvoke(new Action(DrainHostCallbacks));
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            ClearQueuedHostCallbacks();
+                        }
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
             }
             catch (InvalidOperationException)
             {
@@ -318,6 +431,8 @@ namespace Grimoire.Clients
             if (scriptInvocationInProgress)
                 return;
 
+            Stopwatch timeSlice = Stopwatch.StartNew();
+            int processed = 0;
             while (true)
             {
                 QueuedHostCallback callback;
@@ -345,6 +460,18 @@ namespace Grimoire.Clients
                 finally
                 {
                     scope?.Dispose();
+                }
+
+                processed++;
+                if (processed >= MaximumCallbacksPerDrain
+                    || timeSlice.ElapsedMilliseconds >= CallbackDrainTimeSliceMilliseconds)
+                {
+                    // Login and room transitions can enqueue hundreds of packets
+                    // at once. Yield between bounded slices so WinForms can paint
+                    // and synchronous game/options calls can run without changing
+                    // callback order or moving packet handlers off the UI thread.
+                    ScheduleHostCallbackDrain(true);
+                    return;
                 }
             }
         }
@@ -485,11 +612,14 @@ namespace Grimoire.Clients
             {
                 throw new ArgumentException("A game callback name is required.", nameof(function));
             }
-            if (!navigationReady || webView.CoreWebView2 == null)
+            if (!navigationReady
+                || (sharedFrameHost == null && webView.CoreWebView2 == null)
+                || (sharedFrameHost != null && sharedFrame == null))
                 throw new InvalidOperationException("Ruffle is not ready yet.");
 
-            if (webView.InvokeRequired)
-                return (JToken)webView.Invoke(new Func<JToken>(() => InvokeOnUi(function, args)));
+            Control dispatcher = sharedFrameHost == null ? (Control)webView : sharedHostControl;
+            if (dispatcher.InvokeRequired)
+                return (JToken)dispatcher.Invoke(new Func<JToken>(() => InvokeOnUi(function, args)));
             return InvokeOnUi(function, args);
         }
 
@@ -510,7 +640,10 @@ namespace Grimoire.Clients
                     throw new InvalidOperationException("The Ruffle game callback exceeded the safety limit.");
 
                 string script = "window.grimoireInvoke(" + JsonConvert.SerializeObject(envelope) + ");";
-                string encoded = WaitForUiTask(webView.ExecuteScriptAsync(script), ScriptTimeoutMilliseconds);
+                Task<string> invocation = sharedFrameHost == null
+                    ? webView.ExecuteScriptAsync(script)
+                    : sharedFrame.ExecuteScriptAsync(script);
+                string encoded = WaitForUiTask(invocation, ScriptTimeoutMilliseconds);
                 if (encoded == null || encoded.Length > MaximumBridgeMessageCharacters)
                     throw new InvalidOperationException("The Ruffle game response exceeded the safety limit.");
 
@@ -568,6 +701,19 @@ namespace Grimoire.Clients
                 throw new ObjectDisposedException(nameof(RuffleFlashBridge));
         }
 
+        private static string NormalizeStorageKey(string value)
+        {
+            string candidate = string.IsNullOrWhiteSpace(value) ? "Default" : value.Trim();
+            char[] normalized = candidate
+                .Take(40)
+                .Select(character => char.IsLetterOrDigit(character) || character == '-' || character == '_'
+                    ? character
+                    : '-')
+                .ToArray();
+            string result = new string(normalized).Trim('-');
+            return string.IsNullOrWhiteSpace(result) ? "Default" : result;
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -580,51 +726,43 @@ namespace Grimoire.Clients
             ClearQueuedHostCallbacks();
             localHost?.Dispose();
             localHost = null;
-            if (webView.CoreWebView2 != null)
+            if (sharedFrame != null)
             {
-                webView.CoreWebView2.NavigationStarting -= CoreWebView2_NavigationStarting;
-                webView.CoreWebView2.ProcessFailed -= CoreWebView2_ProcessFailed;
-                try
-                {
-                    webView.CoreWebView2.RemoveHostObjectFromScript("grimoire");
-                }
-                catch
-                {
-                }
-                try
-                {
-                    webView.CoreWebView2.Profile.Delete();
-                }
-                catch
-                {
-                }
+                sharedFrame.Failed -= SharedFrame_Failed;
+                sharedFrame.Dispose();
+                sharedFrame = null;
             }
-            webView.NavigationCompleted -= WebView_NavigationCompleted;
-            webView.Dispose();
+            else if (sharedFrameHost != null)
+            {
+                sharedFrameHost.DetachRuffleFrame(frameName);
+            }
+            if (webView != null)
+            {
+                if (webView.CoreWebView2 != null)
+                {
+                    webView.CoreWebView2.NavigationStarting -= CoreWebView2_NavigationStarting;
+                    webView.CoreWebView2.ProcessFailed -= CoreWebView2_ProcessFailed;
+                    try
+                    {
+                        webView.CoreWebView2.RemoveHostObjectFromScript("grimoire");
+                    }
+                    catch
+                    {
+                    }
+                }
+                webView.NavigationCompleted -= WebView_NavigationCompleted;
+                webView.Dispose();
+            }
             TryDeleteProfileDirectory();
             SwfLoadProgress = null;
             FlashCall = null;
             FlashError = null;
         }
 
-        private sealed class QueuedHostCallback
-        {
-            public QueuedHostCallback(string function, string firstArgument, object[] arguments)
-            {
-                Function = function;
-                FirstArgument = firstArgument;
-                Arguments = arguments ?? Array.Empty<object>();
-            }
-
-            public string Function { get; }
-
-            public string FirstArgument { get; }
-
-            public object[] Arguments { get; }
-        }
-
         private void TryDeleteProfileDirectory()
         {
+            if (!deleteProfileOnDispose)
+                return;
             try
             {
                 string root = Path.GetFullPath(AppPaths.RuffleWebViewDataDirectory)
@@ -642,6 +780,22 @@ namespace Grimoire.Clients
             catch (UnauthorizedAccessException)
             {
             }
+        }
+
+        private sealed class QueuedHostCallback
+        {
+            public QueuedHostCallback(string function, string firstArgument, object[] arguments)
+            {
+                Function = function;
+                FirstArgument = firstArgument;
+                Arguments = arguments ?? Array.Empty<object>();
+            }
+
+            public string Function { get; }
+
+            public string FirstArgument { get; }
+
+            public object[] Arguments { get; }
         }
 
         [ComVisible(true)]

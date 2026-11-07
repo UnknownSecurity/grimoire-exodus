@@ -9,6 +9,7 @@ import {
   ChevronUp,
   CirclePlus,
   Crosshair,
+  Download,
   EyeOff,
   FastForward,
   FileText,
@@ -116,15 +117,36 @@ interface ReportResponse {
   message?: string;
 }
 
+interface RuffleFrameSnapshot {
+  name: string;
+  sessionId: string;
+  source: string;
+}
+
+interface PadResponse {
+  cell: string;
+  pads: string[];
+}
+
 const store = useAppStore();
 const emblemUrl = "/Brand/grimoire-emblem.png";
+const flashBadgeUrl = "/Brand/flash-logo.png";
+const ruffleBadgeUrl = "/Brand/ruffle-logo.png";
 const homeArtUrl = "/Home/images/ashfall-dragons.png";
 const route = ref("home");
 const gameSlot = ref<HTMLElement | null>(null);
+const ruffleFrames = ref<RuffleFrameSnapshot[]>([]);
+const gameViewportStyle = ref<Record<string, string>>({
+  left: "0px",
+  top: "0px",
+  width: "1px",
+  height: "1px"
+});
 const actionPending = ref(false);
 const statsVisible = ref(false);
 const selectedCell = ref("");
 const selectedPad = ref("");
+const availablePadChoices = ref<string[]>([]);
 const openAccordion = ref<string | null>(null);
 const accountFormOpen = ref(false);
 const accountLabel = ref("");
@@ -169,10 +191,16 @@ let routeMotion: { stop: () => void } | undefined;
 
 const activeSession = computed(() => store.activeSession);
 const showGame = computed(() => route.value !== "home" && !store.snapshot.homeVisible && Boolean(activeSession.value));
+const activeRuffleFrame = computed(() => ruffleFrames.value.find(
+  (frame) => frame.sessionId === activeSession.value?.id
+));
+const showRuffleFrame = computed(() => showGame.value && Boolean(activeRuffleFrame.value));
+const isFlashActive = computed(() => activeSession.value?.engine === "FlashActiveX");
+const isRuffleActive = computed(() => activeSession.value?.engine === "Ruffle");
 const showStatusCards = computed(() => !store.snapshot.hideDeviceStats && statsVisible.value);
 const isMaximized = computed(() => store.snapshot.windowState === "Maximized");
 const cellOptions = computed(() => uniqueChoices(store.snapshot.location.cells, store.snapshot.location.cell));
-const padOptions = computed(() => uniqueChoices(store.snapshot.location.pads, store.snapshot.location.pad));
+const padOptions = computed(() => uniqueChoices(availablePadChoices.value, selectedPad.value));
 const accountFormValid = computed(() => accountUsername.value.trim().length > 0 && accountPassword.value.length > 0);
 const reportFormValid = computed(() => reportSubject.value.trim().length >= 5 && reportDetails.value.trim().length >= 20);
 const botProgress = computed(() => {
@@ -335,7 +363,7 @@ function playRouteMotion() {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   void nextTick(() => {
     const selector = route.value === "home"
-      ? ".home-hero, .home-cards > article, .home-dashboard > *"
+      ? ".home-hero, .android-promo, .home-dashboard > *"
       : ".side-heading, .client-summary";
     const targets = document.querySelectorAll<HTMLElement>(selector);
     if (!targets.length) return;
@@ -432,6 +460,7 @@ function syncLocation(snapshot: AppSnapshot) {
     lastLocationKey = key;
     selectedCell.value = location.cell || "";
     selectedPad.value = location.pad || "";
+    availablePadChoices.value = Array.isArray(location.pads) ? location.pads : [];
   }
 
   const session = snapshot.sessions.find((candidate) => candidate.id === snapshot.activeSessionId);
@@ -479,6 +508,35 @@ async function refreshLocation() {
   await invoke("location.refresh", { sessionId: session.id });
 }
 
+async function refreshPadsForCell() {
+  const session = activeSession.value;
+  const cell = selectedCell.value.trim();
+  if (!session || !cell) return;
+
+  actionPending.value = true;
+  store.error = "";
+  try {
+    const response = await bridge.request<PadResponse>("location.pads", {
+      sessionId: session.id,
+      cell
+    });
+    if (response.cell.toLowerCase() !== selectedCell.value.trim().toLowerCase()) return;
+    availablePadChoices.value = Array.isArray(response.pads) ? response.pads : [];
+    const currentPad = store.snapshot.location.cell.toLowerCase() === cell.toLowerCase()
+      ? store.snapshot.location.pad
+      : "";
+    selectedPad.value = availablePadChoices.value.find(
+      (pad) => pad.toLowerCase() === currentPad.toLowerCase()
+    ) || availablePadChoices.value[0] || "";
+  } catch (error) {
+    availablePadChoices.value = [];
+    selectedPad.value = "";
+    store.fail(error instanceof Error ? error.message : "The pads for that cell could not be read.");
+  } finally {
+    actionPending.value = false;
+  }
+}
+
 async function moveLocation() {
   const session = activeSession.value;
   if (!session || !selectedCell.value || !selectedPad.value) return;
@@ -487,6 +545,11 @@ async function moveLocation() {
     cell: selectedCell.value,
     pad: selectedPad.value
   });
+}
+
+async function installAvailableUpdate() {
+  const succeeded = await invoke("updates.install");
+  if (succeeded) showActionNotice(`Downloading Grimoire Exodus ${store.snapshot.update.version}`);
 }
 
 async function requestHome<T>(method: string, params: Record<string, unknown> = {}) {
@@ -657,12 +720,46 @@ async function openHomeLink(address: string) {
 }
 
 function handleBridgeEvent(event: BridgeEvent) {
-  if (event.protocol !== "1.0" || event.event !== "app.stateChanged") return;
+  if (event.protocol !== "1.0") return;
+  if (event.event === "engine.ruffle.mount") {
+    const frame = event.payload as Partial<RuffleFrameSnapshot>;
+    if (!isTrustedRuffleFrame(frame)) return;
+    ruffleFrames.value = [
+      ...ruffleFrames.value.filter((candidate) => candidate.name !== frame.name),
+      frame as RuffleFrameSnapshot
+    ];
+    return;
+  }
+  if (event.event === "engine.ruffle.unmount") {
+    const frame = event.payload as Partial<RuffleFrameSnapshot>;
+    if (typeof frame.name === "string") {
+      ruffleFrames.value = ruffleFrames.value.filter((candidate) => candidate.name !== frame.name);
+    }
+    return;
+  }
+  if (event.event !== "app.stateChanged") return;
   const snapshot = event.payload as AppSnapshot;
   store.apply(snapshot);
   syncLocation(snapshot);
   if (store.snapshot.homeVisible) route.value = "home";
   else if (route.value === "home" || route.value === "client") route.value = "bots";
+}
+
+function isTrustedRuffleFrame(frame: Partial<RuffleFrameSnapshot>) {
+  if (typeof frame.name !== "string"
+      || !/^grimoire-ruffle-[a-z0-9_-]+$/i.test(frame.name)
+      || typeof frame.sessionId !== "string"
+      || typeof frame.source !== "string") return false;
+  try {
+    const source = new URL(frame.source);
+    return source.protocol === "http:"
+      && source.hostname === "127.0.0.1"
+      && /^\/[A-Za-z0-9_-]{16,128}\/index\.html$/i.test(source.pathname)
+      && !source.search
+      && !source.hash;
+  } catch {
+    return false;
+  }
 }
 
 function beginWindowDrag(event: MouseEvent) {
@@ -683,6 +780,12 @@ function reportViewport() {
   window.cancelAnimationFrame(viewportFrame);
   viewportFrame = window.requestAnimationFrame(() => {
     const rect = gameSlot.value!.getBoundingClientRect();
+    gameViewportStyle.value = {
+      left: `${Math.round(rect.left)}px`,
+      top: `${Math.round(rect.top)}px`,
+      width: `${Math.max(1, Math.round(rect.width))}px`,
+      height: `${Math.max(1, Math.round(rect.height))}px`
+    };
     const values = [rect.left, rect.top, rect.width, rect.height, window.innerWidth, window.innerHeight]
       .map((value) => Math.round(value));
     const viewportKey = values.join(":");
@@ -777,15 +880,25 @@ onBeforeUnmount(() => {
       <button class="icon-button" type="button" title="Settings" aria-label="Open settings" @click="openTool('settings')">
         <Settings :size="19" />
       </button>
-      <div class="chrome-toasts" aria-live="polite" aria-atomic="true">
-        <Transition name="toast">
-          <div v-if="store.error" class="error-toast" role="alert">{{ store.error }}</div>
-        </Transition>
-        <Transition name="toast">
-          <div v-if="actionNotice" class="success-toast" role="status">{{ actionNotice }}</div>
-        </Transition>
-      </div>
+      <button
+        v-if="store.snapshot.update.available"
+        class="icon-button update-button"
+        type="button"
+        :disabled="store.snapshot.update.installing || actionPending"
+        :title="store.snapshot.update.installing ? `Downloading Grimoire Exodus ${store.snapshot.update.version}` : `Update to Grimoire Exodus ${store.snapshot.update.version}${store.snapshot.update.isPrerelease ? ' prerelease' : ''}`"
+        :aria-label="`Update to Grimoire Exodus ${store.snapshot.update.version}`"
+        @click="installAvailableUpdate"
+      >
+        <RefreshCw v-if="store.snapshot.update.installing" class="spinning" :size="18" />
+        <Download v-else :size="18" />
+      </button>
       <span class="window-drag-space" aria-hidden="true"></span>
+      <span v-if="isRuffleActive" class="engine-badge" title="AQW is running with the experimental Ruffle engine">
+        <img :src="ruffleBadgeUrl" alt="Ruffle engine" />
+      </span>
+      <span v-else-if="isFlashActive" class="engine-badge flash" title="AQW is running with the bundled Flash.ocx engine">
+        <img :src="flashBadgeUrl" alt="Flash.ocx engine" />
+      </span>
       <div class="window-controls" aria-label="Window controls">
         <button type="button" title="Minimize" aria-label="Minimize" @mousedown.stop @click="runWindowAction('window.minimize')">
           <Minus :size="17" />
@@ -805,6 +918,22 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </header>
+
+    <div
+      class="ruffle-frame-stack"
+      :class="{ visible: showRuffleFrame }"
+      :style="gameViewportStyle"
+      aria-label="Ruffle AQW client"
+    >
+      <iframe
+        v-for="frame in ruffleFrames"
+        :key="frame.name"
+        :name="frame.name"
+        :src="frame.source"
+        :class="{ active: activeSession?.id === frame.sessionId }"
+        title="AQW Ruffle client"
+      ></iframe>
+    </div>
 
     <aside class="sidebar">
       <div class="side-heading">
@@ -842,6 +971,14 @@ onBeforeUnmount(() => {
     </aside>
 
     <main class="workspace" :class="{ 'single-client': !store.snapshot.multiClientEnabled, 'stats-hidden': !showStatusCards }">
+      <div class="chrome-toasts" aria-live="polite" aria-atomic="true">
+        <Transition name="toast">
+          <div v-if="store.error" class="error-toast" role="alert">{{ store.error }}</div>
+        </Transition>
+        <Transition name="toast">
+          <div v-if="actionNotice" class="success-toast" role="status">{{ actionNotice }}</div>
+        </Transition>
+      </div>
       <TransitionGroup v-if="store.snapshot.multiClientEnabled" class="client-tabs" name="client-tab" tag="section" aria-label="AQW clients">
         <button
           v-for="session in store.snapshot.sessions"
@@ -883,12 +1020,6 @@ onBeforeUnmount(() => {
           </div>
           <div class="hero-emblem"><img :src="emblemUrl" alt="" /></div>
         </div>
-        <div class="home-cards">
-          <article><Gauge :size="20" /><div><strong>Native game surface</strong><span>Flash.ocx and Ruffle remain isolated per client.</span></div></article>
-          <article><ShieldCheck :size="20" /><div><strong>Compatibility first</strong><span>Legacy GBot loading and execution are unchanged.</span></div></article>
-          <article><Layers3 :size="20" /><div><strong>Progressive migration</strong><span>Tools open their proven native forms while the shell is modernized.</span></div></article>
-        </div>
-
         <button class="android-promo" type="button" @click="openHomeLink('https://github.com/UnknownSecurity/grimoire-mobile/releases/latest')">
           <span class="android-promo-icon"><Smartphone :size="24" /></span>
           <span class="android-promo-copy">
@@ -1076,7 +1207,7 @@ onBeforeUnmount(() => {
       </button>
       <div class="status-actions">
         <div v-if="store.snapshot.location.available" class="location-controls">
-          <label title="Current cell"><span>Cell</span><select v-model="selectedCell" @focus="refreshLocation"><option value="" disabled>Select cell</option><option v-for="cell in cellOptions" :key="cell" :value="cell">{{ cell }}</option></select></label>
+          <label title="Current cell"><span>Cell</span><select v-model="selectedCell" @focus="refreshLocation" @change="refreshPadsForCell"><option value="" disabled>Select cell</option><option v-for="cell in cellOptions" :key="cell" :value="cell">{{ cell }}</option></select></label>
           <label title="Current pad"><span>Pad</span><select v-model="selectedPad" @focus="refreshLocation"><option value="" disabled>Select pad</option><option v-for="pad in padOptions" :key="pad" :value="pad">{{ pad }}</option></select></label>
           <button class="icon-status-button" type="button" title="Read current cell and pad" aria-label="Read current cell and pad" :disabled="actionPending" @click="refreshLocation"><RefreshCw :size="14" /></button>
           <button class="icon-status-button" type="button" title="Move to selected cell and pad" aria-label="Move to selected cell and pad" :disabled="!selectedCell || !selectedPad || actionPending" @click="moveLocation"><MapPin :size="14" /></button>

@@ -95,6 +95,7 @@ internal static class ModernUiProtocolSmoke
             "home.report.begin",
             "home.report.status",
             "home.link.open",
+            "updates.install",
             "window.beginDrag",
             "window.minimize",
             "window.toggleMaximize",
@@ -109,7 +110,7 @@ internal static class ModernUiProtocolSmoke
                 method + " request");
         }
 
-        foreach (string method in new[] { "location.refresh", "location.move" })
+        foreach (string method in new[] { "location.refresh", "location.pads", "location.move" })
         {
             envelope["method"] = method;
             JObject locationParameters = new JObject();

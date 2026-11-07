@@ -26,7 +26,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.7.0.0</ApplicationVersion>
+    <ApplicationVersion>1.8.0.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
@@ -343,6 +343,7 @@
     <Compile Include="Grimoire.Clients\ClientSessionState.cs" />
     <Compile Include="Grimoire.Clients\GameEngineKind.cs" />
     <Compile Include="Grimoire.Clients\IFlashBridge.cs" />
+    <Compile Include="Grimoire.Clients\IRuffleFrameHost.cs" />
     <Compile Include="Grimoire.Clients\RuffleEngineAvailability.cs" />
     <Compile Include="Grimoire.Clients\RuffleFlashBridge.cs" />
     <Compile Include="Grimoire.Clients\RuffleLocalHost.cs" />
@@ -646,6 +647,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\Brand\grimoire-emblem.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Brand\flash-logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Brand\ruffle-logo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <None Include="Resources\Brand\grimoire-exodus.ico" />

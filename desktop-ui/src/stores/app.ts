@@ -46,6 +46,13 @@ export interface ClientLocationSnapshot {
   pads: string[];
 }
 
+export interface UpdateSnapshot {
+  available: boolean;
+  version: string;
+  isPrerelease: boolean;
+  installing: boolean;
+}
+
 export interface AppSnapshot {
   version: string;
   homeVisible: boolean;
@@ -56,6 +63,7 @@ export interface AppSnapshot {
   canCreateClient: boolean;
   sessions: ClientSnapshot[];
   activeBot: BotSnapshot;
+  update: UpdateSnapshot;
   location: ClientLocationSnapshot;
   options: ClientOptionsSnapshot;
 }
@@ -76,6 +84,12 @@ const emptyState: AppSnapshot = {
     commandCount: 0,
     activeAction: null,
     runtime: "00:00:00"
+  },
+  update: {
+    available: false,
+    version: "",
+    isPrerelease: false,
+    installing: false
   },
   location: {
     available: false,

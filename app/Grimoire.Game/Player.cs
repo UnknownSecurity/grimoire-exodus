@@ -1,11 +1,13 @@
 using DarkUI.Forms;
 using Grimoire.Botting;
 using Grimoire.Botting.Commands.Map;
+using Grimoire.Clients;
 using Grimoire.Game.Data;
 using Grimoire.Tools;
 using Grimoire.Utils;
 using Newtonsoft.Json;
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -15,6 +17,7 @@ namespace Grimoire.Game
 {
     public static class Player
     {
+        private const double RuffleApproachDistance = 180d;
 
         //public static Avatar Self => Data.Map.Players.Find(a => a.Username.Equals(Username, StringComparison.OrdinalIgnoreCase));
 
@@ -246,6 +249,50 @@ namespace Grimoire.Game
                 return;
             }
             Flash.Call("AttackMonster", name);
+            TryApproachRuffleTarget();
+        }
+
+        private static void TryApproachRuffleTarget()
+        {
+            ClientSession session = ClientSessionContext.Resolve();
+            if (session?.FlashBridge?.Engine != GameEngineKind.Ruffle || OptionsManager.InfiniteRange)
+                return;
+
+            try
+            {
+                float[] position = Position;
+                if (position == null || position.Length < 2 || !IsFinite(position[0]) || !IsFinite(position[1]))
+                    return;
+
+                double targetX = Flash.Instance.GetGameObject<double>(
+                    "world.myAvatar.target.pMC.x",
+                    double.NaN);
+                double targetY = Flash.Instance.GetGameObject<double>(
+                    "world.myAvatar.target.pMC.y",
+                    double.NaN);
+                if (!IsFinite(targetX) || !IsFinite(targetY))
+                    return;
+
+                double deltaX = targetX - position[0];
+                double deltaY = targetY - position[1];
+                if ((deltaX * deltaX) + (deltaY * deltaY) <= RuffleApproachDistance * RuffleApproachDistance)
+                    return;
+
+                WalkToPoint(
+                    Math.Round(targetX).ToString(CultureInfo.InvariantCulture),
+                    Math.Round(targetY).ToString(CultureInfo.InvariantCulture));
+            }
+            catch
+            {
+                // Ruffle movement is a best-effort compatibility fallback. The
+                // original target selection must remain usable if live game
+                // coordinates are briefly unavailable during a room update.
+            }
+        }
+
+        private static bool IsFinite(double value)
+        {
+            return !double.IsNaN(value) && !double.IsInfinity(value);
         }
 
         /// <summary>

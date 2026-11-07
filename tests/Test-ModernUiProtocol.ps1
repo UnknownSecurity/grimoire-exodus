@@ -25,24 +25,36 @@ $clientProbe = Join-Path $outputDirectory "Grimoire.dll"
 $json = Join-Path $outputDirectory "Newtonsoft.Json.dll"
 $smokeExecutable = Join-Path $outputDirectory "ModernUiProtocolSmoke-$PID.exe"
 $shellSource = Join-Path $rootDirectory "desktop-ui\src\App.vue"
+$shellIndexSource = Join-Path $rootDirectory "desktop-ui\index.html"
 $shellStoreSource = Join-Path $rootDirectory "desktop-ui\src\stores\app.ts"
 $shellStylesSource = Join-Path $rootDirectory "desktop-ui\src\styles.css"
 $shellPackageSource = Join-Path $rootDirectory "desktop-ui\package.json"
 $rootShellSource = Join-Path $rootDirectory "app\Grimoire.UI\Root.ModernShell.cs"
 $shellHostSource = Join-Path $rootDirectory "app\Grimoire.UI.Modern\ModernShellHost.cs"
+$protocolSource = Join-Path $rootDirectory "app\Grimoire.UI.Modern\ModernUiProtocol.cs"
+$rootMultiClientSource = Join-Path $rootDirectory "app\Grimoire.UI\Root.MultiClient.cs"
+$ruffleBridgeSource = Join-Path $rootDirectory "app\Grimoire.Clients\RuffleFlashBridge.cs"
+$flashBadgeSource = Join-Path $rootDirectory "app\Resources\Brand\flash-logo.png"
+$ruffleBadgeSource = Join-Path $rootDirectory "app\Resources\Brand\ruffle-logo.png"
+$flashBadgeOutput = Join-Path $outputDirectory "Resources\Brand\flash-logo.png"
+$ruffleBadgeOutput = Join-Path $outputDirectory "Resources\Brand\ruffle-logo.png"
 
-foreach ($requiredPath in @($compiler, $source, $client, $json, $shellSource, $shellStoreSource, $shellStylesSource, $shellPackageSource, $rootShellSource, $shellHostSource)) {
+foreach ($requiredPath in @($compiler, $source, $client, $json, $shellSource, $shellIndexSource, $shellStoreSource, $shellStylesSource, $shellPackageSource, $rootShellSource, $shellHostSource, $protocolSource, $rootMultiClientSource, $ruffleBridgeSource, $flashBadgeSource, $ruffleBadgeSource, $flashBadgeOutput, $ruffleBadgeOutput)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required modern UI smoke-test input was not found: $requiredPath"
     }
 }
 
 $shellText = Get-Content -LiteralPath $shellSource -Raw
+$shellIndexText = Get-Content -LiteralPath $shellIndexSource -Raw
 $shellStoreText = Get-Content -LiteralPath $shellStoreSource -Raw
 $shellStylesText = Get-Content -LiteralPath $shellStylesSource -Raw
 $shellPackageText = Get-Content -LiteralPath $shellPackageSource -Raw
 $rootShellText = Get-Content -LiteralPath $rootShellSource -Raw
 $shellHostText = Get-Content -LiteralPath $shellHostSource -Raw
+$protocolText = Get-Content -LiteralPath $protocolSource -Raw
+$rootMultiClientText = Get-Content -LiteralPath $rootMultiClientSource -Raw
+$ruffleBridgeText = Get-Content -LiteralPath $ruffleBridgeSource -Raw
 $quickLoadLabels = [regex]::Matches($shellText, "Quick Load\s*<ChevronDown").Count
 if ($quickLoadLabels -ne 1) {
     throw "The modern shell must expose exactly one Quick Load label; found $quickLoadLabels."
@@ -53,6 +65,13 @@ if ($shellText -match 'v-else-if="routeWorkspace"') {
 }
 if ($shellText -notmatch 'class="window-controls"') {
     throw "The modern shell is missing its custom window controls."
+}
+if (($shellText -notmatch 'const\s+isFlashActive\s*=\s*computed\(\(\)\s*=>\s*activeSession\.value\?\.engine\s*===\s*"FlashActiveX"\)') -or
+    ($shellText -notmatch 'v-else-if="isFlashActive"\s+class="engine-badge flash"') -or
+    ($shellText -notmatch 'flashBadgeUrl\s*=\s*"/Brand/flash-logo\.png"') -or
+    ($shellText -notmatch 'v-if="isRuffleActive"\s+class="engine-badge"') -or
+    ($shellStylesText -notmatch '\.engine-badge\.flash')) {
+    throw "The modern title bar must show packaged, engine-specific badges for FlashActiveX and Ruffle sessions."
 }
 
 $requiredWindowActions = @(
@@ -106,6 +125,10 @@ if (($rootShellText -notmatch 'modernStartupPresentationPending') -or
     ($shellHostText -notmatch 'readyCompletion\.TrySetResult\(true\)')) {
     throw "Modern startup must keep the legacy surface hidden until the embedded shell reports that it is ready."
 }
+if (($rootShellText -notmatch 'modernShellInitializationAttempted') -or
+    ($rootShellText -notmatch 'modernShellInitializationAttempted\s*=\s*true')) {
+    throw "Modern startup must not race duplicate shell initialization between Load and Shown."
+}
 if (($rootShellText -notmatch 'FallbackToLegacyShell[\s\S]{0,1800}CompleteModernStartupPresentation\(\)') -or
     ($shellHostText -notmatch 'StartupTimeout')) {
     throw "Modern startup must restore a visible legacy shell when initialization fails or times out."
@@ -156,6 +179,40 @@ if (($shellText -notmatch 'actionNotice') -or
     ($shellStylesText -notmatch '\.success-toast')) {
     throw "Modern option and bot lifecycle actions must show feedback in the native-viewport-safe chrome toast layer."
 }
+$topbarMarkup = [regex]::Match(
+    $shellText,
+    '<header class="topbar"[\s\S]*?</header>',
+    [Text.RegularExpressions.RegexOptions]::Singleline).Value
+if ($topbarMarkup -match 'class="chrome-toasts"') {
+    throw "Modern toast feedback must be mounted in the workspace below the custom title bar."
+}
+if ($shellText -notmatch '<main class="workspace"[\s\S]{0,500}<div class="chrome-toasts"') {
+    throw "Modern toast feedback is missing from the workspace above the AQW viewport."
+}
+if (($shellHostText -notmatch 'IRuffleFrameHost') -or
+    ($shellHostText -notmatch 'CoreWebView2_FrameCreated') -or
+    ($shellHostText -notmatch 'AddHostObjectToScript')) {
+    throw "Modern Ruffle must reuse the shell WebView2 through a frame host instead of creating a second browser control."
+}
+if (($rootMultiClientText -notmatch 'new\s+RuffleFlashBridge\([\s\S]{0,180}modernShellHost') -or
+    ($rootMultiClientText -notmatch 'UsesSharedHost') -or
+    ($rootMultiClientText -notmatch 'GameEngineKind\.Ruffle\s*\?\s*240\s*:\s*60')) {
+    throw "Modern client creation must attach Ruffle to the existing shell WebView2 and keep its native placeholder hidden."
+}
+if (($shellText -notmatch 'engine\.ruffle\.mount') -or
+    ($shellText -notmatch '<iframe[\s\S]{0,350}:name="frame\.name"')) {
+    throw "The modern shell must mount Ruffle sessions as isolated frames inside its existing WebView2 surface."
+}
+if (($shellIndexText -notmatch 'frame-src\s+http://127\.0\.0\.1:\*') -or
+    ($shellIndexText -match 'frame-src\s+''none''')) {
+    throw "The modern shell CSP must allow only loopback Ruffle frames instead of blocking the shared engine surface."
+}
+if (($ruffleBridgeText -notmatch 'PersistentProfile') -or
+    ($ruffleBridgeText -match 'Profile\.Delete\(\)') -or
+    (($ruffleBridgeText -match 'TryDeleteProfileDirectory\(\)') -and
+        ($ruffleBridgeText -notmatch 'if\s*\(!deleteProfileOnDispose\)'))) {
+    throw "Ruffle remember-login storage must use an app-owned persistent profile instead of deleting it at shutdown."
+}
 if (($shellText -notmatch 'https://github\.com/UnknownSecurity/grimoire-mobile/releases/latest') -or
     ($rootShellText -notmatch 'https://github\.com/UnknownSecurity/grimoire-mobile/releases/latest') -or
     ($shellText -notmatch 'class="android-promo"')) {
@@ -181,13 +238,33 @@ foreach ($action in $requiredHomeActions) {
     }
 }
 
-foreach ($action in @("location.refresh", "location.move")) {
+foreach ($action in @("location.refresh", "location.pads", "location.move")) {
     if ($rootShellText -notmatch ('case\s+"' + [regex]::Escape($action) + '"')) {
         throw "The native modern location adapter is missing the '$action' action."
     }
     if ($shellText -notmatch ('["'']' + [regex]::Escape($action) + '["'']')) {
         throw "The Vue modern location surface is missing the '$action' action."
     }
+    if ($protocolText -notmatch ('["'']' + [regex]::Escape($action) + '["'']')) {
+        throw "The modern UI protocol allowlist is missing the '$action' action."
+    }
+}
+
+if (($rootShellText -notmatch 'World\.CellInfo\(requestedCell\)') -or
+    ($rootShellText -notmatch 'CacheModernPadChoices') -or
+    ($rootShellText -notmatch 'GetCachedModernPadChoices') -or
+    ($shellText -notmatch '@change="refreshPadsForCell"') -or
+    ($shellText -notmatch 'bridge\.request<[^>]+>\("location\.pads"')) {
+    throw "The modern Pad selector must load the actual pads for the selected Cell."
+}
+
+if (($rootShellText -notmatch '\["update"\]\s*=') -or
+    ($rootShellText -notmatch 'case\s+"updates\.install"') -or
+    ($protocolText -notmatch '["'']updates\.install["'']') -or
+    ($shellStoreText -notmatch 'update:\s*UpdateSnapshot') -or
+    ($shellText -notmatch 'v-if="store\.snapshot\.update\.available"') -or
+    ($shellText -notmatch '["'']updates\.install["'']')) {
+    throw "The modern top bar must expose the verified application update when one is available."
 }
 
 $requiredTools = @(

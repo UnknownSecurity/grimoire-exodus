@@ -75,6 +75,7 @@ namespace Grimoire.UI
 
         private bool modernShellRequested;
         private bool modernShellActive;
+        private bool modernShellInitializationAttempted;
         private bool modernWindowFramePrepared;
         private bool modernStartupPresentationPending;
         private bool legacyHeaderWasVisible;
@@ -88,6 +89,8 @@ namespace Grimoire.UI
         private DockStyle legacyGamePanelDock;
         private FormBorderStyle legacyFormBorderStyle;
         private ModernShellHost modernShellHost;
+        private readonly Dictionary<Guid, Dictionary<string, List<string>>> modernPadChoices =
+            new Dictionary<Guid, Dictionary<string, List<string>>>();
 
         internal bool IsModernShellActive => modernShellActive;
 
@@ -111,8 +114,13 @@ namespace Grimoire.UI
 
         private async Task TryInitializeModernShellAsync()
         {
-            if (!modernShellRequested || modernShellActive || modernShellHost != null || IsDisposed)
+            if (!modernShellRequested
+                || modernShellActive
+                || modernShellHost != null
+                || modernShellInitializationAttempted
+                || IsDisposed)
                 return;
+            modernShellInitializationAttempted = true;
 
             ModernShellHost host = new ModernShellHost(new RootModernUiApplication(this));
             host.Visible = true;
@@ -232,6 +240,14 @@ namespace Grimoire.UI
             Rectangle bounds = modernGameViewportBounds;
             foreach (ClientWorkspaceState workspace in clientWorkspaces.Values)
             {
+                RuffleFlashBridge ruffleBridge = workspace.Session.FlashBridge as RuffleFlashBridge;
+                if (ruffleBridge?.UsesSharedHost == true)
+                {
+                    workspace.Host.Dock = DockStyle.None;
+                    workspace.Host.Bounds = Rectangle.Empty;
+                    workspace.Host.Visible = false;
+                    continue;
+                }
                 workspace.Host.Dock = DockStyle.None;
                 bool requiresVisibleInitialization = workspace.Session.FlashBridge.Engine == GameEngineKind.Ruffle
                     && workspace.Session.State == ClientSessionState.Initializing;
@@ -251,7 +267,9 @@ namespace Grimoire.UI
                 return;
 
             ClientSession active = clientSessions?.ActiveSession;
-            if (active != null && clientWorkspaces.TryGetValue(active, out ClientWorkspaceState workspace))
+            if (active != null
+                && clientWorkspaces.TryGetValue(active, out ClientWorkspaceState workspace)
+                && !((workspace.Session.FlashBridge as RuffleFlashBridge)?.UsesSharedHost == true))
                 workspace.Host.BringToFront();
         }
 
@@ -327,6 +345,13 @@ namespace Grimoire.UI
                     ["activeAction"] = activeAction,
                     ["runtime"] = FormatModernRuntime()
                 },
+                ["update"] = new JObject
+                {
+                    ["available"] = availableUpdate != null,
+                    ["version"] = availableUpdate?.Version.ToString(3) ?? string.Empty,
+                    ["isPrerelease"] = availableUpdate != null && availableUpdate.IsPrerelease,
+                    ["installing"] = updateOperationRunning
+                },
                 ["location"] = BuildModernLocationState(active),
                 ["options"] = BuildModernOptionsState(active)
             };
@@ -377,6 +402,10 @@ namespace Grimoire.UI
                 case "location.refresh":
                     RefreshModernLocation(RequireActiveModernSession(parameters));
                     return Accepted();
+                case "location.pads":
+                    return GetModernPadsForCell(
+                        RequireActiveModernSession(parameters),
+                        parameters.Value<string>("cell"));
                 case "location.move":
                     MoveModernLocation(
                         RequireActiveModernSession(parameters),
@@ -385,6 +414,9 @@ namespace Grimoire.UI
                     return Accepted();
                 case "options.toggle":
                     ToggleModernOption(RequireModernSession(parameters), parameters.Value<string>("option"));
+                    return Accepted();
+                case "updates.install":
+                    QueueModernUpdateInstall();
                     return Accepted();
                 case "tools.open":
                     OpenModernTool(parameters.Value<string>("tool"));
@@ -473,17 +505,17 @@ namespace Grimoire.UI
 
         private JObject BuildModernLocationState(ClientSession session)
         {
+            string currentCell = cbCells.Text ?? string.Empty;
+            List<string> actualPads = GetCachedModernPadChoices(session, currentCell);
             return new JObject
             {
                 ["available"] = session != null && session.GameState.IsLoggedIn,
-                ["cell"] = cbCells.Text ?? string.Empty,
+                ["cell"] = currentCell,
                 ["pad"] = cbPads.Text ?? string.Empty,
                 ["cells"] = new JArray(cbCells.Items.Cast<object>()
                     .Select(item => item == null ? string.Empty : item.ToString())
                     .Where(value => !string.IsNullOrWhiteSpace(value))),
-                ["pads"] = new JArray(cbPads.Items.Cast<object>()
-                    .Select(item => item == null ? string.Empty : item.ToString())
-                    .Where(value => !string.IsNullOrWhiteSpace(value)))
+                ["pads"] = new JArray(actualPads)
             };
         }
 
@@ -496,6 +528,7 @@ namespace Grimoire.UI
 
                 string[] cells = World.Cells ?? new string[0];
                 List<string> pads = World.Pads ?? new List<string>();
+                CacheModernPadChoices(session, Player.Cell, pads);
                 cbCells.Items.Clear();
                 cbCells.Items.AddRange(cells);
                 cbCells.Text = Player.Cell ?? string.Empty;
@@ -510,6 +543,88 @@ namespace Grimoire.UI
                 cbPads.Text = Player.Pad ?? string.Empty;
             }
             RequestModernUiStateRefresh();
+        }
+
+        private JObject GetModernPadsForCell(ClientSession session, string cell)
+        {
+            string requestedCell = (cell ?? string.Empty).Trim();
+            if (requestedCell.Length < 1 || requestedCell.Length > 80)
+                throw new ModernUiActionException("INVALID_CELL", "Choose a valid cell.");
+
+            List<string> pads;
+            using (ClientSessionContext.Push(session))
+            {
+                if (!Player.IsLoggedIn)
+                    throw new ModernUiActionException("PLAYER_NOT_READY", "Log in before reading map pads.");
+
+                string[] cells = World.Cells ?? new string[0];
+                if (!cells.Any(value => string.Equals(value, requestedCell, StringComparison.OrdinalIgnoreCase)))
+                    throw new ModernUiActionException("INVALID_CELL", "That cell is not available in the current map.");
+
+                if (string.Equals(Player.Cell, requestedCell, StringComparison.OrdinalIgnoreCase))
+                {
+                    pads = World.Pads ?? new List<string>();
+                }
+                else
+                {
+                    Grimoire.Game.Data.Cell cellInfo = World.CellInfo(requestedCell);
+                    pads = cellInfo?.Pads ?? new List<string>();
+                }
+            }
+
+            List<string> availablePads = pads
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            CacheModernPadChoices(session, requestedCell, availablePads);
+            return new JObject
+            {
+                ["cell"] = requestedCell,
+                ["pads"] = new JArray(availablePads)
+            };
+        }
+
+        private void CacheModernPadChoices(ClientSession session, string cell, IEnumerable<string> pads)
+        {
+            if (session == null || string.IsNullOrWhiteSpace(cell))
+                return;
+            if (!modernPadChoices.TryGetValue(session.Id, out Dictionary<string, List<string>> byCell))
+            {
+                byCell = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                modernPadChoices.Add(session.Id, byCell);
+            }
+            byCell[cell.Trim()] = (pads ?? Enumerable.Empty<string>())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private List<string> GetCachedModernPadChoices(ClientSession session, string cell)
+        {
+            if (session != null
+                && !string.IsNullOrWhiteSpace(cell)
+                && modernPadChoices.TryGetValue(session.Id, out Dictionary<string, List<string>> byCell)
+                && byCell.TryGetValue(cell.Trim(), out List<string> pads))
+            {
+                return new List<string>(pads);
+            }
+            return new List<string>();
+        }
+
+        private void QueueModernUpdateInstall()
+        {
+            UpdateRelease release = availableUpdate;
+            if (release == null)
+                throw new ModernUiActionException("UPDATE_NOT_AVAILABLE", "No application update is currently available.");
+            if (updateOperationRunning)
+                throw new ModernUiActionException("UPDATE_IN_PROGRESS", "The update is already being downloaded.");
+
+            BeginInvoke(new Action(async delegate
+            {
+                await InstallApplicationReleaseAsync(release, null);
+            }));
         }
 
         private void MoveModernLocation(ClientSession session, string cell, string pad)
